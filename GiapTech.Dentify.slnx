@@ -1,0 +1,24 @@
+<Solution>
+    <Configurations>
+        <Platform Name="Any CPU" />
+    </Configurations>
+    <Folder Name="/src/">
+        <Project Path="src/GiapTech.Dentify.Domain/GiapTech.Dentify.Domain.csproj" />
+        <Project Path="src/GiapTech.Dentify.Application/GiapTech.Dentify.Application.csproj" />
+        <Project Path="src/GiapTech.Dentify.EntityFrameworkCore/GiapTech.Dentify.EntityFrameworkCore.csproj" />
+        <Project Path="src/GiapTech.Dentify.Web/GiapTech.Dentify.Web.csproj" />
+        <Project Path="src/GiapTech.Dentify.Domain.Shared/GiapTech.Dentify.Domain.Shared.csproj" />
+        <Project Path="src/GiapTech.Dentify.Application.Contracts/GiapTech.Dentify.Application.Contracts.csproj" />
+        <Project Path="src/GiapTech.Dentify.HttpApi/GiapTech.Dentify.HttpApi.csproj" />
+        <Project Path="src/GiapTech.Dentify.HttpApi.Client/GiapTech.Dentify.HttpApi.Client.csproj" />
+        <Project Path="src/GiapTech.Dentify.DbMigrator/GiapTech.Dentify.DbMigrator.csproj" />
+    </Folder>
+    <Folder Name="/test/">
+        <Project Path="test/GiapTech.Dentify.Application.Tests/GiapTech.Dentify.Application.Tests.csproj" />
+        <Project Path="test/GiapTech.Dentify.Web.Tests/GiapTech.Dentify.Web.Tests.csproj" />
+        <Project Path="test/GiapTech.Dentify.EntityFrameworkCore.Tests/GiapTech.Dentify.EntityFrameworkCore.Tests.csproj" />
+        <Project Path="test/GiapTech.Dentify.TestBase/GiapTech.Dentify.TestBase.csproj" />
+        <Project Path="test/GiapTech.Dentify.Domain.Tests/GiapTech.Dentify.Domain.Tests.csproj" />
+        <Project Path="test/GiapTech.Dentify.HttpApi.Client.ConsoleTestApp/GiapTech.Dentify.HttpApi.Client.ConsoleTestApp.csproj" />
+    </Folder>
+</Solution>

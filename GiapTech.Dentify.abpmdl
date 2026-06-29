@@ -1,0 +1,118 @@
+{
+  "template": "app",
+  "imports": {
+    "Volo.Abp.LeptonXLiteTheme": {
+      "version": "5.4.1",
+      "isInstalled": true,
+      "creationTime": "06/24/2026 09:25:38 +00:00"
+    },
+    "Volo.Abp.Account": {
+      "version": "10.4.1",
+      "isInstalled": true,
+      "creationTime": "06/24/2026 09:25:38 +00:00"
+    },
+    "Volo.Abp.OpenIddict": {
+      "version": "10.4.1",
+      "isInstalled": true,
+      "creationTime": "06/24/2026 09:25:38 +00:00"
+    },
+    "Volo.Abp.Identity": {
+      "version": "10.4.1",
+      "isInstalled": true,
+      "creationTime": "06/24/2026 09:25:38 +00:00"
+    },
+    "Volo.Abp.TenantManagement": {
+      "version": "10.4.1",
+      "isInstalled": true,
+      "creationTime": "06/24/2026 09:25:38 +00:00"
+    },
+    "Volo.Abp.SettingManagement": {
+      "version": "10.4.1",
+      "isInstalled": true,
+      "creationTime": "06/24/2026 09:25:38 +00:00"
+    },
+    "Volo.Abp.PermissionManagement": {
+      "version": "10.4.1",
+      "isInstalled": true,
+      "creationTime": "06/24/2026 09:25:38 +00:00"
+    },
+    "Volo.Abp.FeatureManagement": {
+      "version": "10.4.1",
+      "isInstalled": true,
+      "creationTime": "06/24/2026 09:25:38 +00:00"
+    },
+    "Volo.Abp.BlobStoring.Database": {
+      "version": "10.4.1",
+      "isInstalled": true,
+      "creationTime": "06/24/2026 09:25:38 +00:00"
+    }
+  },
+  "folders": {
+    "items": {
+      "src": {},
+      "test": {}
+    }
+  },
+  "packages": {
+    "GiapTech.Dentify.Application": {
+      "path": "src/GiapTech.Dentify.Application/GiapTech.Dentify.Application.abppkg",
+      "folder": "src"
+    },
+    "GiapTech.Dentify.Application.Tests": {
+      "path": "test/GiapTech.Dentify.Application.Tests/GiapTech.Dentify.Application.Tests.abppkg",
+      "folder": "test"
+    },
+    "GiapTech.Dentify.Domain.Shared": {
+      "path": "src/GiapTech.Dentify.Domain.Shared/GiapTech.Dentify.Domain.Shared.abppkg",
+      "folder": "src"
+    },
+    "GiapTech.Dentify.Application.Contracts": {
+      "path": "src/GiapTech.Dentify.Application.Contracts/GiapTech.Dentify.Application.Contracts.abppkg",
+      "folder": "src"
+    },
+    "GiapTech.Dentify.HttpApi": {
+      "path": "src/GiapTech.Dentify.HttpApi/GiapTech.Dentify.HttpApi.abppkg",
+      "folder": "src"
+    },
+    "GiapTech.Dentify.HttpApi.Client": {
+      "path": "src/GiapTech.Dentify.HttpApi.Client/GiapTech.Dentify.HttpApi.Client.abppkg",
+      "folder": "src"
+    },
+    "GiapTech.Dentify.Web": {
+      "path": "src/GiapTech.Dentify.Web/GiapTech.Dentify.Web.abppkg",
+      "folder": "src"
+    },
+    "GiapTech.Dentify.Web.Tests": {
+      "path": "test/GiapTech.Dentify.Web.Tests/GiapTech.Dentify.Web.Tests.abppkg",
+      "folder": "test"
+    },
+    "GiapTech.Dentify.EntityFrameworkCore.Tests": {
+      "path": "test/GiapTech.Dentify.EntityFrameworkCore.Tests/GiapTech.Dentify.EntityFrameworkCore.Tests.abppkg",
+      "folder": "test"
+    },
+    "GiapTech.Dentify.EntityFrameworkCore": {
+      "path": "src/GiapTech.Dentify.EntityFrameworkCore/GiapTech.Dentify.EntityFrameworkCore.abppkg",
+      "folder": "src"
+    },
+    "GiapTech.Dentify.TestBase": {
+      "path": "test/GiapTech.Dentify.TestBase/GiapTech.Dentify.TestBase.abppkg",
+      "folder": "test"
+    },
+    "GiapTech.Dentify.Domain.Tests": {
+      "path": "test/GiapTech.Dentify.Domain.Tests/GiapTech.Dentify.Domain.Tests.abppkg",
+      "folder": "test"
+    },
+    "GiapTech.Dentify.HttpApi.Client.ConsoleTestApp": {
+      "path": "test/GiapTech.Dentify.HttpApi.Client.ConsoleTestApp/GiapTech.Dentify.HttpApi.Client.ConsoleTestApp.abppkg",
+      "folder": "test"
+    },
+    "GiapTech.Dentify.DbMigrator": {
+      "path": "src/GiapTech.Dentify.DbMigrator/GiapTech.Dentify.DbMigrator.abppkg",
+      "folder": "src"
+    },
+    "GiapTech.Dentify.Domain": {
+      "path": "src/GiapTech.Dentify.Domain/GiapTech.Dentify.Domain.abppkg",
+      "folder": "src"
+    }
+  }
+}
