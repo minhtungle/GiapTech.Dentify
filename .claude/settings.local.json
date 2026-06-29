@@ -5,7 +5,9 @@
       "Bash(npx vitest:*)",
       "Bash(xargs:*)",
       "Bash(dotnet build:*)",
-      "Bash(git show:*)"
+      "Bash(git show:*)",
+      "Bash(git check-ignore *)",
+      "Bash(git -c user.name=MinhTungLe -c user.email=minhtungle@vietgeneducation.edu.vn commit -m ' *)"
     ]
   }
 }
