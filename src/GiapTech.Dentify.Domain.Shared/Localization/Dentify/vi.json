@@ -6,8 +6,7 @@
     "LongWelcomeMessage": "Chào mừng bạn đến với ứng dụng. Đây là dự án khởi tạo dựa trên ABP Framework. Xem thêm thông tin tại",
     "Welcome": "Chào mừng",
 
-    "Menu:Patients": "Bệnh nhân",
-    "Menu:Appointments": "Lịch hẹn",
+    "Menu:ClinicApp": "Ứng dụng phòng khám",
 
     "Permission:Dentify": "Dentify",
     "Permission:Patients": "Bệnh nhân",

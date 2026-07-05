@@ -69,21 +69,16 @@ public class OpenIddictDataSeedContributor : OpenIddictDataSeedContributorBase, 
                 name: appClientId!,
                 type: OpenIddictConstants.ClientTypes.Public,
                 consentType: OpenIddictConstants.ConsentTypes.Implicit,
-                displayName: "Console Test / Angular Application",
+                displayName: "Dentify SPA (React)",
                 secret: null,
                 grantTypes: new List<string> {
                     OpenIddictConstants.GrantTypes.AuthorizationCode,
-                    OpenIddictConstants.GrantTypes.Password,
-                    OpenIddictConstants.GrantTypes.ClientCredentials,
-                    OpenIddictConstants.GrantTypes.RefreshToken,
-                    "LinkLogin",
-                    "Impersonation"
+                    OpenIddictConstants.GrantTypes.RefreshToken
                 },
                 scopes: commonScopes,
-                redirectUris: new List<string> { appClientRootUrl },
+                redirectUris: new List<string> { $"{appClientRootUrl}/auth-callback" },
                 postLogoutRedirectUris: new List<string> { appClientRootUrl },
-                clientUri: appClientRootUrl,
-                logoUri: "/images/clients/angular.svg"
+                clientUri: appClientRootUrl
             );
         }
 

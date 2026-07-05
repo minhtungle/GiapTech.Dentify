@@ -282,10 +282,8 @@ src/GiapTech.Dentify.Blazor.Server.Tiered/Logs/*
 tempkey.rsa
 tempkey.jwk
 
-# Local SQLite database (re-create on each machine via DbMigrator)
-Dentify.db
-Dentify.db-shm
-Dentify.db-wal
-
 # Signing certificate (do not commit secrets)
 openiddict.pfx
+
+# docker-compose overrides (POSTGRES_PASSWORD etc.)
+.env

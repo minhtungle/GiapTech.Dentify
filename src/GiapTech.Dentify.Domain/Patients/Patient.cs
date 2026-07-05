@@ -27,7 +27,7 @@ public class Patient : FullAuditedAggregateRoot<Guid>
         : base(id)
     {
         SetFullName(fullName);
-        DateOfBirth = dateOfBirth;
+        SetDateOfBirth(dateOfBirth);
         Gender = gender;
     }
 
@@ -38,7 +38,8 @@ public class Patient : FullAuditedAggregateRoot<Guid>
 
     public void SetDateOfBirth(DateTime dateOfBirth)
     {
-        DateOfBirth = dateOfBirth;
+        // PostgreSQL's "timestamp with time zone" only accepts UTC DateTimes.
+        DateOfBirth = DateTime.SpecifyKind(dateOfBirth, DateTimeKind.Utc);
     }
 
     public void SetGender(Gender gender)

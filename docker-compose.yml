@@ -1,0 +1,69 @@
+services:
+  postgres:
+    image: postgres:16-alpine
+    environment:
+      POSTGRES_DB: ${POSTGRES_DB:-Dentify}
+      POSTGRES_USER: ${POSTGRES_USER:-dentify}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:-dentify}
+    volumes:
+      - postgres-data:/var/lib/postgresql/data
+    ports:
+      - "5432:5432"
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U ${POSTGRES_USER:-dentify} -d ${POSTGRES_DB:-Dentify}"]
+      interval: 5s
+      timeout: 5s
+      retries: 20
+
+  db-migrator:
+    build:
+      context: .
+      dockerfile: src/GiapTech.Dentify.DbMigrator/Dockerfile
+    environment:
+      ConnectionStrings__Default: "Host=postgres;Port=5432;Database=${POSTGRES_DB:-Dentify};Username=${POSTGRES_USER:-dentify};Password=${POSTGRES_PASSWORD:-dentify}"
+      OpenIddict__Applications__Dentify_App__ClientId: Dentify_App
+      OpenIddict__Applications__Dentify_App__RootUrl: ${CLIENT_URL:-http://localhost:5173}
+      OpenIddict__Applications__Dentify_Swagger__ClientId: Dentify_Swagger
+      OpenIddict__Applications__Dentify_Swagger__RootUrl: "${SELF_URL:-http://localhost:44348}/"
+    depends_on:
+      postgres:
+        condition: service_healthy
+
+  backend:
+    build:
+      context: .
+      dockerfile: src/GiapTech.Dentify.Web/Dockerfile
+    environment:
+      # Runs as Production (default): the app serves its embedded static/localization
+      # resources and precompiled Razor views from the published DLL, no source tree needed.
+      # RequireHttpsMetadata=false lets OpenIddict issue tokens over plain HTTP for this
+      # self-contained compose stack. The image bakes in a placeholder signing certificate
+      # (see Dockerfile) - put a TLS-terminating reverse proxy + a real certificate in front
+      # for an actual production deployment.
+      ConnectionStrings__Default: "Host=postgres;Port=5432;Database=${POSTGRES_DB:-Dentify};Username=${POSTGRES_USER:-dentify};Password=${POSTGRES_PASSWORD:-dentify}"
+      App__SelfUrl: ${SELF_URL:-http://localhost:44348}
+      App__CorsOrigins: ${CLIENT_URL:-http://localhost:5173}
+      App__ClientUrl: ${CLIENT_URL:-http://localhost:5173}
+      AuthServer__Authority: ${SELF_URL:-http://localhost:44348}
+      AuthServer__RequireHttpsMetadata: "false"
+    ports:
+      - "44348:8080"
+    depends_on:
+      db-migrator:
+        condition: service_completed_successfully
+
+  frontend:
+    build:
+      context: ./frontend
+      args:
+        VITE_API_URL: ${SELF_URL:-http://localhost:44348}
+        VITE_AUTHORITY: ${SELF_URL:-http://localhost:44348}
+        VITE_CLIENT_ID: Dentify_App
+        VITE_SCOPE: "openid profile email phone roles Dentify offline_access"
+    ports:
+      - "5173:80"
+    depends_on:
+      - backend
+
+volumes:
+  postgres-data:

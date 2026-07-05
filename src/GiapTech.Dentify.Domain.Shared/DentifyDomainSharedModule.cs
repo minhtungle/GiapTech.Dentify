@@ -1,4 +1,6 @@
+using System;
 using GiapTech.Dentify.Localization;
+using Volo.Abp.Timing;
 using Volo.Abp.AuditLogging;
 using Volo.Abp.BackgroundJobs;
 using Volo.Abp.FeatureManagement;
@@ -37,6 +39,12 @@ public class DentifyDomainSharedModule : AbpModule
 
     public override void ConfigureServices(ServiceConfigurationContext context)
     {
+        Configure<AbpClockOptions>(options =>
+        {
+            // PostgreSQL's "timestamp with time zone" only accepts UTC DateTimes.
+            options.Kind = DateTimeKind.Utc;
+        });
+
         Configure<AbpVirtualFileSystemOptions>(options =>
         {
             options.FileSets.AddEmbedded<DentifyDomainSharedModule>();

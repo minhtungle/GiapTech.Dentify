@@ -25,7 +25,7 @@ public class Appointment : FullAuditedAggregateRoot<Guid>
         : base(id)
     {
         PatientId = patientId;
-        ScheduledDateTime = scheduledDateTime;
+        Reschedule(scheduledDateTime);
         DoctorId = doctorId;
         Status = AppointmentStatus.Scheduled;
         PaymentStatus = PaymentStatus.Unpaid;
@@ -34,7 +34,8 @@ public class Appointment : FullAuditedAggregateRoot<Guid>
 
     public void Reschedule(DateTime scheduledDateTime)
     {
-        ScheduledDateTime = scheduledDateTime;
+        // PostgreSQL's "timestamp with time zone" only accepts UTC DateTimes.
+        ScheduledDateTime = DateTime.SpecifyKind(scheduledDateTime, DateTimeKind.Utc);
     }
 
     public void AssignPatient(Guid patientId)
