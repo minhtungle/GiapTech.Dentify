@@ -1,0 +1,48 @@
+@page
+@model GiapTech.Dentify.Web.Pages.Patients.IndexModel
+@using GiapTech.Dentify.Localization
+@using GiapTech.Dentify.Web.Menus
+@using Microsoft.AspNetCore.Mvc.Localization
+@using Volo.Abp.AspNetCore.Mvc.UI.Layout
+@inject IPageLayout PageLayout
+@inject IHtmlLocalizer<DentifyResource> L
+@{
+    PageLayout.Content.Title = L["Patients"].Value;
+    PageLayout.Content.MenuItemName = DentifyMenus.Patients;
+}
+
+@section scripts
+{
+    <abp-script src="/Pages/Patients/index.js" />
+}
+
+<abp-card>
+    <abp-card-header>
+        <abp-row>
+            <abp-column size-md="_6">
+                <h2>@L["Patients"]</h2>
+            </abp-column>
+            <abp-column size-md="_6" class="text-end">
+                @if (Model.CanCreate)
+                {
+                    <abp-button id="NewPatientButton" text="@L["NewPatient"].Value" icon="plus" button-type="Primary" />
+                }
+            </abp-column>
+        </abp-row>
+    </abp-card-header>
+    <abp-card-body>
+        <abp-row class="mb-3">
+            <abp-column size-md="_4">
+                <input type="text" id="PatientFilterInput" class="form-control" placeholder="@L["Patient:Filter"].Value" />
+            </abp-column>
+        </abp-row>
+        <abp-table striped-rows="true" id="PatientsTable"></abp-table>
+    </abp-card-body>
+</abp-card>
+
+<script>
+    window.dentifyPatients = {
+        canUpdate: @Json.Serialize(Model.CanUpdate),
+        canDelete: @Json.Serialize(Model.CanDelete)
+    };
+</script>

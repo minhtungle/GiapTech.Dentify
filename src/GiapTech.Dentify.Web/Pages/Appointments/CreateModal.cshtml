@@ -1,0 +1,23 @@
+@page
+@model GiapTech.Dentify.Web.Pages.Appointments.CreateModalModel
+@using GiapTech.Dentify.Localization
+@using Microsoft.AspNetCore.Mvc.Localization
+@using Volo.Abp.AspNetCore.Mvc.UI.Bootstrap.TagHelpers.Modal
+@inject IHtmlLocalizer<DentifyResource> L
+
+<form asp-page="/Appointments/CreateModal" method="post">
+    <abp-modal size="Large">
+        <abp-modal-header title="@L["NewAppointment"].Value"></abp-modal-header>
+        <abp-modal-body>
+            <abp-select asp-for="Appointment.PatientId" asp-items="Model.Patients" label="@L["Appointment:Patient"].Value" />
+            <abp-select asp-for="Appointment.DoctorId" asp-items="Model.Doctors" label="@L["Appointment:Doctor"].Value" />
+            <abp-input asp-for="Appointment.ScheduledDateTime" label="@L["Appointment:ScheduledDateTime"].Value" />
+            <abp-select asp-for="Appointment.Status" asp-items="Model.Statuses" label="@L["Appointment:Status"].Value" />
+            <abp-input asp-for="Appointment.Price" label="@L["Appointment:Price"].Value" />
+            <abp-textarea asp-for="Appointment.PreOpNotes" label="@L["Appointment:PreOpNotes"].Value" rows="2" />
+            <abp-textarea asp-for="Appointment.PostOpNotes" label="@L["Appointment:PostOpNotes"].Value" rows="2" />
+            <abp-textarea asp-for="Appointment.Prescription" label="@L["Appointment:Prescription"].Value" rows="2" />
+        </abp-modal-body>
+        <abp-modal-footer buttons="@(AbpModalButtons.Save | AbpModalButtons.Cancel)"></abp-modal-footer>
+    </abp-modal>
+</form>

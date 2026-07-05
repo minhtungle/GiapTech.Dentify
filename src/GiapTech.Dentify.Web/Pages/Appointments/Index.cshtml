@@ -1,0 +1,44 @@
+@page
+@model GiapTech.Dentify.Web.Pages.Appointments.IndexModel
+@using GiapTech.Dentify.Localization
+@using GiapTech.Dentify.Web.Menus
+@using Microsoft.AspNetCore.Mvc.Localization
+@using Volo.Abp.AspNetCore.Mvc.UI.Layout
+@inject IPageLayout PageLayout
+@inject IHtmlLocalizer<DentifyResource> L
+@{
+    PageLayout.Content.Title = L["Appointments"].Value;
+    PageLayout.Content.MenuItemName = DentifyMenus.Appointments;
+}
+
+@section scripts
+{
+    <abp-script src="/Pages/Appointments/index.js" />
+}
+
+<abp-card>
+    <abp-card-header>
+        <abp-row>
+            <abp-column size-md="_6">
+                <h2>@L["Appointments"]</h2>
+            </abp-column>
+            <abp-column size-md="_6" class="text-end">
+                @if (Model.CanCreate)
+                {
+                    <abp-button id="NewAppointmentButton" text="@L["NewAppointment"].Value" icon="plus" button-type="Primary" />
+                }
+            </abp-column>
+        </abp-row>
+    </abp-card-header>
+    <abp-card-body>
+        <abp-table striped-rows="true" id="AppointmentsTable"></abp-table>
+    </abp-card-body>
+</abp-card>
+
+<script>
+    window.dentifyAppointments = {
+        canUpdate: @Json.Serialize(Model.CanUpdate),
+        canDelete: @Json.Serialize(Model.CanDelete),
+        canManagePayment: @Json.Serialize(Model.CanManagePayment)
+    };
+</script>

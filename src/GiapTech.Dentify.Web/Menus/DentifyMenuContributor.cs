@@ -8,6 +8,7 @@ using Volo.Abp.Identity.Web.Navigation;
 using Volo.Abp.UI.Navigation;
 using Volo.Abp.TenantManagement.Web.Navigation;
 namespace GiapTech.Dentify.Web.Menus;
+
 public class DentifyMenuContributor : IMenuContributor
 {
     public async Task ConfigureMenuAsync(MenuConfigurationContext context)
@@ -29,6 +30,26 @@ public class DentifyMenuContributor : IMenuContributor
                 icon: "fa fa-home",
                 order: 1
             )
+        );
+        //Patients
+        context.Menu.AddItem(
+            new ApplicationMenuItem(
+                DentifyMenus.Patients,
+                l["Menu:Patients"],
+                "~/Patients",
+                icon: "fa fa-user",
+                order: 2
+            ).RequirePermissions(DentifyPermissions.Patients.Default)
+        );
+        //Appointments
+        context.Menu.AddItem(
+            new ApplicationMenuItem(
+                DentifyMenus.Appointments,
+                l["Menu:Appointments"],
+                "~/Appointments",
+                icon: "fa fa-calendar",
+                order: 3
+            ).RequirePermissions(DentifyPermissions.Appointments.Default)
         );
         //Administration
         var administration = context.Menu.GetAdministration();

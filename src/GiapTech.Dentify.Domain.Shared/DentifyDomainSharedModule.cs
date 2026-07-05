@@ -51,8 +51,9 @@ public class DentifyDomainSharedModule : AbpModule
 
             options.DefaultResourceType = typeof(DentifyResource);
             
-            options.Languages.Add(new LanguageInfo("en", "en", "English")); 
-            options.Languages.Add(new LanguageInfo("ar", "ar", "Arabic")); 
+            options.Languages.Add(new LanguageInfo("en", "en", "English"));
+            options.Languages.Add(new LanguageInfo("vi", "vi", "Tiếng Việt"));
+            options.Languages.Add(new LanguageInfo("ar", "ar", "Arabic"));
             options.Languages.Add(new LanguageInfo("zh-Hans", "zh-Hans", "Chinese (Simplified)")); 
             options.Languages.Add(new LanguageInfo("zh-Hant", "zh-Hant", "Chinese (Traditional)")); 
             options.Languages.Add(new LanguageInfo("cs", "cs", "Czech")); 

@@ -1,0 +1,18 @@
+@page
+@model GiapTech.Dentify.Web.Pages.Appointments.PaymentModalModel
+@using GiapTech.Dentify.Localization
+@using Microsoft.AspNetCore.Mvc.Localization
+@using Volo.Abp.AspNetCore.Mvc.UI.Bootstrap.TagHelpers.Modal
+@inject IHtmlLocalizer<DentifyResource> L
+
+<form asp-page="/Appointments/PaymentModal" method="post">
+    <abp-modal>
+        <abp-modal-header title="@L["Appointment:PaymentStatus"].Value"></abp-modal-header>
+        <abp-modal-body>
+            <input type="hidden" asp-for="Id" />
+            <p>@L["Appointment:Price"]: <strong>@Model.Price</strong></p>
+            <abp-input asp-for="Payment.PaidAmount" label="@L["Appointment:PaidAmount"].Value" />
+        </abp-modal-body>
+        <abp-modal-footer buttons="@(AbpModalButtons.Save | AbpModalButtons.Cancel)"></abp-modal-footer>
+    </abp-modal>
+</form>
