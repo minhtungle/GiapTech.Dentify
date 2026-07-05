@@ -1,4 +1,11 @@
+using System;
+using System.Collections.Generic;
+using System.Linq;
+using System.Text.Json;
 using Microsoft.EntityFrameworkCore;
+using Microsoft.EntityFrameworkCore.ChangeTracking;
+using GiapTech.Dentify.Appointments;
+using GiapTech.Dentify.Patients;
 using Volo.Abp.AuditLogging.EntityFrameworkCore;
 using Volo.Abp.BackgroundJobs.EntityFrameworkCore;
 using Volo.Abp.BlobStoring.Database.EntityFrameworkCore;
@@ -26,6 +33,9 @@ public class DentifyDbContext :
     IIdentityDbContext
 {
     /* Add DbSet properties for your Aggregate Roots / Entities here. */
+
+    public DbSet<Patient> Patients { get; set; }
+    public DbSet<Appointment> Appointments { get; set; }
 
 
     #region Entities from the modules
@@ -81,11 +91,47 @@ public class DentifyDbContext :
 
         /* Configure your own tables/entities inside here */
 
-        //builder.Entity<YourEntity>(b =>
-        //{
-        //    b.ToTable(DentifyConsts.DbTablePrefix + "YourEntities", DentifyConsts.DbSchema);
-        //    b.ConfigureByConvention(); //auto configure for the base class props
-        //    //...
-        //});
+        builder.Entity<Patient>(b =>
+        {
+            b.ToTable(DentifyConsts.DbTablePrefix + "Patients", DentifyConsts.DbSchema);
+            b.ConfigureByConvention();
+
+            b.Property(x => x.FullName).IsRequired().HasMaxLength(PatientConsts.MaxFullNameLength);
+            b.Property(x => x.PhoneNumber).HasMaxLength(PatientConsts.MaxPhoneNumberLength);
+            b.Property(x => x.Email).HasMaxLength(PatientConsts.MaxEmailLength);
+            b.Property(x => x.Address).HasMaxLength(PatientConsts.MaxAddressLength);
+            b.Property(x => x.Notes).HasMaxLength(PatientConsts.MaxNotesLength);
+            b.Property(x => x.Tags)
+                .HasConversion(
+                    tags => JsonSerializer.Serialize(tags, (JsonSerializerOptions?)null),
+                    json => JsonSerializer.Deserialize<List<string>>(json, (JsonSerializerOptions?)null) ?? new List<string>())
+                .Metadata.SetValueComparer(new ValueComparer<List<string>>(
+                    (a, b2) => (a ?? new List<string>()).SequenceEqual(b2 ?? new List<string>()),
+                    a => a.Aggregate(0, (hash, item) => HashCode.Combine(hash, item.GetHashCode())),
+                    a => a.ToList()));
+
+            b.Ignore(x => x.IsChildPatient);
+
+            b.HasIndex(x => x.FullName);
+            b.HasIndex(x => x.PhoneNumber);
+        });
+
+        builder.Entity<Appointment>(b =>
+        {
+            b.ToTable(DentifyConsts.DbTablePrefix + "Appointments", DentifyConsts.DbSchema);
+            b.ConfigureByConvention();
+
+            b.Property(x => x.PreOpNotes).HasMaxLength(AppointmentConsts.MaxNotesLength);
+            b.Property(x => x.PostOpNotes).HasMaxLength(AppointmentConsts.MaxNotesLength);
+            b.Property(x => x.Prescription).HasMaxLength(AppointmentConsts.MaxPrescriptionLength);
+            b.Property(x => x.Price).HasColumnType("decimal(18,2)");
+            b.Property(x => x.PaidAmount).HasColumnType("decimal(18,2)");
+
+            b.HasOne<Patient>().WithMany().HasForeignKey(x => x.PatientId).IsRequired();
+
+            b.HasIndex(x => x.PatientId);
+            b.HasIndex(x => x.DoctorId);
+            b.HasIndex(x => x.ScheduledDateTime);
+        });
     }
 }

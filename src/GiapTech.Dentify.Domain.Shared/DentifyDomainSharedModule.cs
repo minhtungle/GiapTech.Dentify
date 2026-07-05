@@ -1,4 +1,6 @@
+using System;
 using GiapTech.Dentify.Localization;
+using Volo.Abp.Timing;
 using Volo.Abp.AuditLogging;
 using Volo.Abp.BackgroundJobs;
 using Volo.Abp.FeatureManagement;
@@ -37,6 +39,12 @@ public class DentifyDomainSharedModule : AbpModule
 
     public override void ConfigureServices(ServiceConfigurationContext context)
     {
+        Configure<AbpClockOptions>(options =>
+        {
+            // PostgreSQL's "timestamp with time zone" only accepts UTC DateTimes.
+            options.Kind = DateTimeKind.Utc;
+        });
+
         Configure<AbpVirtualFileSystemOptions>(options =>
         {
             options.FileSets.AddEmbedded<DentifyDomainSharedModule>();
@@ -51,8 +59,9 @@ public class DentifyDomainSharedModule : AbpModule
 
             options.DefaultResourceType = typeof(DentifyResource);
             
-            options.Languages.Add(new LanguageInfo("en", "en", "English")); 
-            options.Languages.Add(new LanguageInfo("ar", "ar", "Arabic")); 
+            options.Languages.Add(new LanguageInfo("en", "en", "English"));
+            options.Languages.Add(new LanguageInfo("vi", "vi", "Tiếng Việt"));
+            options.Languages.Add(new LanguageInfo("ar", "ar", "Arabic"));
             options.Languages.Add(new LanguageInfo("zh-Hans", "zh-Hans", "Chinese (Simplified)")); 
             options.Languages.Add(new LanguageInfo("zh-Hant", "zh-Hant", "Chinese (Traditional)")); 
             options.Languages.Add(new LanguageInfo("cs", "cs", "Czech")); 

@@ -1,4 +1,6 @@
-﻿using Volo.Abp.PermissionManagement;
+﻿using GiapTech.Dentify.Application.Appointments;
+using GiapTech.Dentify.Application.Patients;
+using Volo.Abp.PermissionManagement;
 using Volo.Abp.SettingManagement;
 using Volo.Abp.Account;
 using Volo.Abp.Identity;
@@ -22,5 +24,9 @@ namespace GiapTech.Dentify;
     )]
 public class DentifyApplicationModule : AbpModule
 {
-
+    public override void ConfigureServices(ServiceConfigurationContext context)
+    {
+        context.Services.AddSingleton<PatientMapper>();
+        context.Services.AddSingleton<AppointmentMapper>();
+    }
 }

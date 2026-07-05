@@ -17,7 +17,7 @@ public class DentifyDbContextFactory : IDesignTimeDbContextFactory<DentifyDbCont
         DentifyEfCoreEntityExtensionMappings.Configure();
 
         var builder = new DbContextOptionsBuilder<DentifyDbContext>()
-            .UseSqlite(configuration.GetConnectionString("Default"));
+            .UseNpgsql(configuration.GetConnectionString("Default"));
         
         return new DentifyDbContext(builder.Options);
     }
