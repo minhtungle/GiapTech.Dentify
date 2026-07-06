@@ -5,6 +5,8 @@ import { AuthCallbackPage } from "@/pages/AuthCallbackPage"
 import { PatientsPage } from "@/pages/PatientsPage"
 import { AppointmentsPage } from "@/pages/AppointmentsPage"
 import { ToothChartPage } from "@/pages/ToothChartPage"
+import { LabWorksPage } from "@/pages/LabWorksPage"
+import { ExpensesPage } from "@/pages/ExpensesPage"
 
 function App() {
   return (
@@ -38,6 +40,26 @@ function App() {
             <ProtectedRoute>
               <AppLayout>
                 <ToothChartPage />
+              </AppLayout>
+            </ProtectedRoute>
+          }
+        />
+        <Route
+          path="/lab-works"
+          element={
+            <ProtectedRoute>
+              <AppLayout>
+                <LabWorksPage />
+              </AppLayout>
+            </ProtectedRoute>
+          }
+        />
+        <Route
+          path="/expenses"
+          element={
+            <ProtectedRoute>
+              <AppLayout>
+                <ExpensesPage />
               </AppLayout>
             </ProtectedRoute>
           }

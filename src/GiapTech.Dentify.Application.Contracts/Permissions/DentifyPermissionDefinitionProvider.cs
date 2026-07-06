@@ -28,6 +28,16 @@ public class DentifyPermissionDefinitionProvider : PermissionDefinitionProvider
         var appointmentPhotos = myGroup.AddPermission(DentifyPermissions.AppointmentPhotos.Default, L("Permission:AppointmentPhotos"));
         appointmentPhotos.AddChild(DentifyPermissions.AppointmentPhotos.Upload, L("Permission:AppointmentPhotos.Upload"));
         appointmentPhotos.AddChild(DentifyPermissions.AppointmentPhotos.Delete, L("Permission:AppointmentPhotos.Delete"));
+
+        var labWorks = myGroup.AddPermission(DentifyPermissions.LabWorks.Default, L("Permission:LabWorks"));
+        labWorks.AddChild(DentifyPermissions.LabWorks.Create, L("Permission:LabWorks.Create"));
+        labWorks.AddChild(DentifyPermissions.LabWorks.Update, L("Permission:LabWorks.Update"));
+        labWorks.AddChild(DentifyPermissions.LabWorks.Delete, L("Permission:LabWorks.Delete"));
+
+        var expenses = myGroup.AddPermission(DentifyPermissions.Expenses.Default, L("Permission:Expenses"));
+        expenses.AddChild(DentifyPermissions.Expenses.Create, L("Permission:Expenses.Create"));
+        expenses.AddChild(DentifyPermissions.Expenses.Update, L("Permission:Expenses.Update"));
+        expenses.AddChild(DentifyPermissions.Expenses.Delete, L("Permission:Expenses.Delete"));
     }
 
     private static LocalizableString L(string name)

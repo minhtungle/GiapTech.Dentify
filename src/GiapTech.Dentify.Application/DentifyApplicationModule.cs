@@ -1,4 +1,6 @@
 ﻿using GiapTech.Dentify.Application.Appointments;
+using GiapTech.Dentify.Application.Expenses;
+using GiapTech.Dentify.Application.LabWorks;
 using GiapTech.Dentify.Application.Patients;
 using Volo.Abp.PermissionManagement;
 using Volo.Abp.SettingManagement;
@@ -28,5 +30,7 @@ public class DentifyApplicationModule : AbpModule
     {
         context.Services.AddSingleton<PatientMapper>();
         context.Services.AddSingleton<AppointmentMapper>();
+        context.Services.AddSingleton<LabWorkMapper>();
+        context.Services.AddSingleton<ExpenseMapper>();
     }
 }

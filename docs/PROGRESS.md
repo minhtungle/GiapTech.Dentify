@@ -14,11 +14,66 @@
 - [x] Giai đoạn 2 (xong): Tooth Chart module (SVG interactive), Photo upload cho
       Appointment (IBlobContainer, lưu DB), Prescription chi tiết (bảng PrescriptionItem
       thay text tự do).
-- [ ] Giai đoạn 3: LabWork + Expense + Kanban
+- [x] Giai đoạn 3 (xong): LabWork (theo dõi ca labo ngoài + Kanban board kéo-thả trạng
+      thái) + Expense (sổ chi phí theo danh mục).
 - [ ] Giai đoạn 4: Import/Export CSV + Backup/Restore + Settings đầy đủ
 - [ ] Giai đoạn 5 (tuỳ chọn): AI voice-to-note, AI scan hoá đơn, Patient Portal
 
 ## Nhật ký
+
+### 2026-07-06 (4) — Giai đoạn 3 (hoàn tất): LabWork + Expense
+
+Xác nhận phạm vi với user trước khi làm (3 câu hỏi qua AskUserQuestion): (1) LabWork gắn
+Patient + Appointment (optional) + số răng liên quan + có field chi phí riêng; (2) Kanban
+= chỉ là UI board kéo-thả cho trạng thái LabWork, KHÔNG phải entity/domain riêng; (3)
+Expense là sổ chi phí đơn giản theo danh mục, KHÔNG liên kết trực tiếp với
+LabWork/Appointment (tránh trùng lặp/phức tạp không cần thiết — nếu sau này cần báo cáo
+lợi nhuận chính xác hơn thì làm liên kết lúc đó).
+
+- **Domain — LabWork**: `FullAuditedAggregateRoot`, field: `PatientId` (bắt buộc),
+  `AppointmentId` (optional), `LabName`, `WorkType`, `ToothNumberList` (List<int>, tái
+  dùng `ToothNumbers.IsValid` từ module ToothChart để validate — **lưu ý đặt tên
+  `ToothNumberList` chứ không phải `ToothNumbers`** vì trùng tên với static class
+  `GiapTech.Dentify.ToothCharts.ToothNumbers`, gây lỗi biên dịch nếu đặt trùng), `SentDate`/
+  `ExpectedReceiveDate`/`ReceivedDate`, `Cost`, `Status` (enum `Sent → InProgress →
+  Received → Attached`, hoặc `Cancelled`), `Notes`. `ChangeStatus` tự set `ReceivedDate =
+  UtcNow` khi chuyển sang `Received` lần đầu (không ghi đè nếu đã có). Không cần custom
+  repository — LabWork không có child collection nào cần `.Include()`.
+- **Domain — Expense**: đơn giản, không phụ thuộc entity khác — `ExpenseDate`, `Amount`
+  (> 0, `Check.Range(0.01m, decimal.MaxValue)`), `Category` (enum: Lab/Supplies/Salary/
+  Rent/Utilities/Marketing/Other), `Description`.
+- **Application**: `LabWorkAppService.GetBoardAsync()` trả **toàn bộ** LabWork chưa
+  `Cancelled`, không phân trang — chấp nhận được vì quy mô 1 phòng khám số ca lab đang
+  active không lớn; dùng riêng cho màn Kanban (khác `GetListAsync` có phân trang/filter
+  dùng cho màn danh sách dạng bảng nếu cần sau này). `UpdateStatusAsync` tách riêng khỏi
+  `UpdateAsync` — dùng cho thao tác kéo-thả trên Kanban, chỉ đổi 1 field, không phải gửi
+  lại toàn bộ form. `ExpenseAppService.GetSummaryAsync` group theo Category tính tổng —
+  chuẩn bị sẵn cho báo cáo, chưa có UI biểu đồ (để dành Giai đoạn 4 nếu cần).
+  **Bẫy đã gặp (lặp lại từ trước)**: Mapperly (`[Mapper] partial class`) tạo ra class
+  **không tự động được ABP đăng ký vào DI** — phải tự thêm
+  `context.Services.AddSingleton<XxxMapper>()` thủ công trong
+  `DentifyApplicationModule.ConfigureServices` (xem `AppointmentMapper`/`PatientMapper`
+  đã có sẵn từ trước). Quên bước này khiến `dotnet build` **vẫn pass** (không lỗi biên
+  dịch) nhưng test/runtime crash ngay khi DI cố resolve AppService
+  (`Autofac.Core.DependencyResolutionException: Cannot resolve parameter ... XxxMapper`)
+  — không phát hiện được cho tới khi chạy `dotnet test`, không phải lúc build.
+- **Frontend — Kanban board**: dùng **HTML5 Drag and Drop API gốc** (`draggable`,
+  `onDragStart`/`onDragOver`/`onDrop`), không thêm thư viện drag-drop mới — vì nhu cầu chỉ
+  là kéo card giữa 4 cột cố định (Sent/InProgress/Received/Attached), không cần
+  animation/sort phức tạp mà các thư viện như `dnd-kit` mới cần thiết. Board cập nhật
+  optimistic (đổi state ngay khi drop, rollback bằng cách `loadData()` lại nếu API lỗi)
+  để cảm giác kéo-thả mượt, không đợi round-trip network.
+- **Test**: 5 test `LabWorkAppServiceTests` (tạo mặc định Sent, tooth number không hợp lệ
+  → BusinessException, đổi status Received tự set ReceivedDate, board loại trừ Cancelled,
+  xoá), 4 test `ExpenseAppServiceTests` (tạo/lấy, filter theo category+khoảng ngày, tổng
+  hợp summary group theo category, xoá). Tổng test: 30 → 39, tất cả pass.
+  **Verify UI thật bằng Playwright**: tạo Expense mới → hiện đúng trong bảng; tạo LabWork
+  mới → card hiện đúng trên cột "Sent" của board; **kéo-thả card sang cột "InProgress"
+  bằng `page.mouse.move/down/up`** → toast xác nhận → đối chiếu Postgres thấy
+  `Status = 1` (InProgress) đúng — không lỗi console.
+- Chưa làm (để lại, không nằm trong phạm vi đã chốt): liên kết Expense ↔ LabWork/
+  Appointment (tự sinh Expense từ chi phí LabWork), UI biểu đồ cho `ExpenseSummaryDto`,
+  filter/tìm kiếm LabWork theo tên labo trên board.
 
 ### 2026-07-06 (3) — Giai đoạn 2 (hoàn tất): Prescription chi tiết (PrescriptionItem)
 
@@ -337,6 +392,10 @@ Management), chỉ bỏ phần UI nghiệp vụ (Patient/Appointment) sang React
   Appointment (hiện đang cho chọn từ toàn bộ Identity Users).
 - Production thật cho Docker Compose: reverse proxy + TLS thật + `openiddict.pfx` thật
   thay placeholder tự sinh (xem nhật ký 2026-07-05 (2)).
+- Giai đoạn 3: đã xong toàn bộ (LabWork + Kanban board + Expense). Việc lặt vặt còn sót
+  (không nằm trong phạm vi đã chốt lúc đầu): liên kết Expense ↔ LabWork/Appointment,
+  UI biểu đồ cho `ExpenseSummaryDto` (hiện chỉ có API, chưa hiển thị chart), filter/tìm
+  kiếm trên board LabWork.
 
 ## Quyết định kỹ thuật
 
@@ -382,3 +441,18 @@ Management), chỉ bỏ phần UI nghiệp vụ (Patient/Appointment) sang React
   include `PrescriptionItems` (tránh join thừa cho màn hình danh sách) — bất kỳ màn hình
   nào cần đơn thuốc đầy đủ phải tự gọi `GetAsync(id)` để lấy chi tiết, không được giả định
   object từ danh sách đã có sẵn navigation collection.
+- **Kanban chỉ là UI**, không phải entity/domain riêng — board hiển thị dữ liệu `LabWork`
+  thật theo trạng thái (`GetBoardAsync`), kéo-thả gọi `UpdateStatusAsync`. Quyết định
+  này giữ cho không phải đồng bộ 2 nguồn dữ liệu (LabWork thật + Card/Task ảo) — nếu sau
+  này cần Kanban cho quy trình khác (vd luồng khám bệnh nhân trong ngày) thì làm thêm 1
+  board render khác trên cùng nguyên tắc, không tạo entity Task chung chung.
+- **Expense độc lập, không liên kết trực tiếp với LabWork/Appointment** — chi phí labo
+  ghi trên `LabWork.Cost` chỉ để tham khảo, không tự sinh ra 1 dòng `Expense` tương ứng.
+  Đơn giản hoá cho quy mô hiện tại; nếu cần báo cáo lợi nhuận chính xác (doanh thu -
+  chi phí thật) thì làm liên kết lúc đó, tránh code 2 nơi cùng đại diện 1 khái niệm chi
+  phí ngay từ đầu khi chưa rõ nhu cầu báo cáo cụ thể.
+- Mapperly `[Mapper] partial class` **không tự động đăng ký DI** — mọi mapper mới phải
+  thêm `context.Services.AddSingleton<XxxMapper>()` thủ công trong
+  `DentifyApplicationModule.ConfigureServices`. Quên bước này không gây lỗi biên dịch,
+  chỉ crash lúc runtime/test khi DI resolve AppService — luôn nhớ kiểm tra bước này khi
+  thêm AppService mới dùng Mapperly (xem nhật ký 2026-07-06 (4)).

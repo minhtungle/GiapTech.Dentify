@@ -33,4 +33,20 @@ public static class DentifyPermissions
         public const string Upload = Default + ".Upload";
         public const string Delete = Default + ".Delete";
     }
+
+    public static class LabWorks
+    {
+        public const string Default = GroupName + ".LabWorks";
+        public const string Create = Default + ".Create";
+        public const string Update = Default + ".Update";
+        public const string Delete = Default + ".Delete";
+    }
+
+    public static class Expenses
+    {
+        public const string Default = GroupName + ".Expenses";
+        public const string Create = Default + ".Create";
+        public const string Update = Default + ".Update";
+        public const string Delete = Default + ".Delete";
+    }
 }

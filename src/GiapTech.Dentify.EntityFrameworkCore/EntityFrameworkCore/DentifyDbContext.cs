@@ -5,6 +5,8 @@ using System.Text.Json;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.EntityFrameworkCore.ChangeTracking;
 using GiapTech.Dentify.Appointments;
+using GiapTech.Dentify.Expenses;
+using GiapTech.Dentify.LabWorks;
 using GiapTech.Dentify.Patients;
 using GiapTech.Dentify.ToothCharts;
 using Volo.Abp.AuditLogging.EntityFrameworkCore;
@@ -41,6 +43,8 @@ public class DentifyDbContext :
     public DbSet<ToothRecordHistory> ToothRecordHistories { get; set; }
     public DbSet<AppointmentPhoto> AppointmentPhotos { get; set; }
     public DbSet<PrescriptionItem> PrescriptionItems { get; set; }
+    public DbSet<LabWork> LabWorks { get; set; }
+    public DbSet<Expense> Expenses { get; set; }
 
 
     #region Entities from the modules
@@ -200,6 +204,43 @@ public class DentifyDbContext :
             b.HasOne<Appointment>().WithMany().HasForeignKey(x => x.AppointmentId).IsRequired();
 
             b.HasIndex(x => x.AppointmentId);
+        });
+
+        builder.Entity<LabWork>(b =>
+        {
+            b.ToTable(DentifyConsts.DbTablePrefix + "LabWorks", DentifyConsts.DbSchema);
+            b.ConfigureByConvention();
+
+            b.Property(x => x.LabName).IsRequired().HasMaxLength(LabWorkConsts.MaxLabNameLength);
+            b.Property(x => x.WorkType).IsRequired().HasMaxLength(LabWorkConsts.MaxWorkTypeLength);
+            b.Property(x => x.Notes).HasMaxLength(LabWorkConsts.MaxNotesLength);
+            b.Property(x => x.Cost).HasColumnType("decimal(18,2)");
+            b.Property(x => x.ToothNumberList)
+                .HasConversion(
+                    numbers => JsonSerializer.Serialize(numbers, (JsonSerializerOptions?)null),
+                    json => JsonSerializer.Deserialize<List<int>>(json, (JsonSerializerOptions?)null) ?? new List<int>())
+                .Metadata.SetValueComparer(new ValueComparer<List<int>>(
+                    (a, b2) => (a ?? new List<int>()).SequenceEqual(b2 ?? new List<int>()),
+                    a => a.Aggregate(0, (hash, item) => HashCode.Combine(hash, item)),
+                    a => a.ToList()));
+
+            b.HasOne<Patient>().WithMany().HasForeignKey(x => x.PatientId).IsRequired();
+            b.HasOne<Appointment>().WithMany().HasForeignKey(x => x.AppointmentId).IsRequired(false);
+
+            b.HasIndex(x => x.PatientId);
+            b.HasIndex(x => x.Status);
+        });
+
+        builder.Entity<Expense>(b =>
+        {
+            b.ToTable(DentifyConsts.DbTablePrefix + "Expenses", DentifyConsts.DbSchema);
+            b.ConfigureByConvention();
+
+            b.Property(x => x.Amount).HasColumnType("decimal(18,2)");
+            b.Property(x => x.Description).HasMaxLength(ExpenseConsts.MaxDescriptionLength);
+
+            b.HasIndex(x => x.ExpenseDate);
+            b.HasIndex(x => x.Category);
         });
     }
 }
