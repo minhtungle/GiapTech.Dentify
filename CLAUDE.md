@@ -9,10 +9,12 @@
 > Trạng thái hiện tại: xong Giai đoạn 1-4 (Patient + Appointment; Tooth Chart + Photo
 > upload + Prescription; LabWork + Kanban + Expense; Import/Export CSV + Backup/Restore
 > + Settings phòng khám), 1 đợt hoàn thiện UI/UX toàn diện (responsive mobile,
-> accessibility, error/empty/loading state, AlertDialog thay window.confirm), và bổ sung
+> accessibility, error/empty/loading state, AlertDialog thay window.confirm), bổ sung
 > Calendar view cho Lịch hẹn (FullCalendar) + trang chủ Dashboard tổng quan + module
-> Công việc (Task độc lập, phong cách tối giản kiểu Notion). Giai đoạn 5 (tuỳ chọn: AI
-> voice-to-note, AI scan hoá đơn, Patient Portal) chưa bắt đầu. Xem `docs/PROGRESS.md`
+> Công việc (Task độc lập, phong cách tối giản kiểu Notion), và 1 đợt polish riêng cho
+> 3 tính năng đó (fix bug locale tiếng Việt FullCalendar, Dashboard chịu lỗi từng phần,
+> Task sửa touch-device + accessibility). Giai đoạn 5 (tuỳ chọn: AI voice-to-note, AI
+> scan hoá đơn, Patient Portal) chưa bắt đầu. Xem `docs/PROGRESS.md`
 > để biết đang làm tới đâu.
 
 ## Kiến trúc tổng quan

@@ -154,6 +154,8 @@ export function TasksPage() {
     >
       <button
         type="button"
+        role="checkbox"
+        aria-checked={task.isDone}
         aria-label={task.isDone ? `Đánh dấu "${task.title}" chưa hoàn thành` : `Đánh dấu "${task.title}" đã hoàn thành`}
         onClick={() => void handleToggleDone(task)}
         disabled={togglingId === task.id}
@@ -185,7 +187,7 @@ export function TasksPage() {
         )}
       </div>
 
-      <div className="flex shrink-0 gap-1 opacity-0 transition-opacity group-hover:opacity-100">
+      <div className="flex shrink-0 gap-1 opacity-100 transition-opacity sm:opacity-0 sm:group-hover:opacity-100">
         <Button
           variant="ghost"
           size="icon"

@@ -25,9 +25,63 @@
 - [x] Bổ sung theo yêu cầu (xong): Calendar view cho Lịch hẹn (FullCalendar, kéo-thả đổi
       giờ), trang chủ Dashboard (tổng quan bệnh nhân/lịch hẹn/labo/chi phí), module
       Công việc (Task/to-do độc lập, phong cách tối giản kiểu Notion).
+- [x] Polish Calendar/Dashboard/Task (xong): fix bug locale tiếng Việt của FullCalendar,
+      Dashboard chịu lỗi từng phần (Promise.allSettled), Task sửa touch-device + a11y
+      checkbox, Calendar responsive mobile.
 - [ ] Giai đoạn 5 (tuỳ chọn): AI voice-to-note, AI scan hoá đơn, Patient Portal
 
 ## Nhật ký
+
+### 2026-07-07 (4) — Polish Calendar/Dashboard/Task vừa làm
+
+User yêu cầu "polish phần vừa làm" ngay sau khi hoàn thành mục (3) bên dưới. Dùng 1
+agent Explore audit riêng 3 file mới (không audit lại 7 trang cũ đã polish trước đó),
+so sánh với các pattern đã chuẩn hoá (ConfirmDialog, Skeleton, formatCurrency,
+aria-label). Audit tìm ra **1 bug thật** + 5 vấn đề mức Cao khác, tổng 18 điểm.
+
+- **Bug thật đã fix**: `AppointmentCalendar.tsx` set `locale="vi"` (string) nhưng
+  FullCalendar v6 yêu cầu import locale object riêng
+  (`@fullcalendar/core/locales/vi`) — string suông không có tác dụng, calendar vẫn
+  hiển thị tên thứ/tháng bằng tiếng Anh dù tưởng đã cấu hình tiếng Việt. Đã verify sau
+  fix bằng Playwright: header ngày đổi đúng từ Mon/Tue/Wed sang Thứ 2/Thứ 3/Thứ 4/CN.
+- **`TasksPage` — lặp lại đúng lỗi đã từng gặp và fix ở `AppointmentPhotosDialog`**:
+  action Sửa/Xoá dùng `opacity-0 group-hover:opacity-100` — trên thiết bị cảm ứng
+  (không có hover thật) 2 nút này gần như không thể bấm được. Sửa thành
+  `opacity-100 sm:opacity-0 sm:group-hover:opacity-100` (luôn hiện dưới breakpoint
+  `sm`, chỉ ẩn-hiện-khi-hover trên màn hình đủ rộng có chuột). Đây là lần thứ 2 gặp
+  đúng pattern lỗi này — nên nhớ **bất kỳ action nào ẩn sau hover đều phải xét lại trên
+  mobile trước khi coi là xong**, không chỉ riêng ảnh.
+  Checkbox tròn (`Circle`/`CheckCircle2` làm nút toggle done) thiếu `role="checkbox"` +
+  `aria-checked` — thêm cả 2, verify qua Playwright thấy đúng `aria-checked="false"`.
+- **`DashboardPage` — đổi `Promise.all` thành `Promise.allSettled`**: trước đó nếu bất
+  kỳ 1 trong 5 API (patients/appointments/labworks/expenses/tasks) lỗi, `Promise.all`
+  reject toàn bộ và trang hiện nguyên màn hình lỗi trắng trơn dù 4/5 API kia vẫn thành
+  công. Giờ mỗi phần dữ liệu độc lập (`string | null`/`T[] | null`), phần nào lỗi hiển
+  thị dấu `—` ở thẻ số liệu và dòng "Không tải được ..." ở khối chi tiết tương ứng,
+  không kéo sập toàn trang. Toast báo số lượng phần bị lỗi cụ thể thay vì thông báo
+  chung chung. Trạng thái lỗi hoàn toàn (không có `data` nào cả) giờ có nút "Thử lại"
+  gọi lại `loadData()` — trước đó là ngõ cụt phải tự reload trang.
+- **`AppointmentCalendar` — responsive mobile**: `headerToolbar` 3 cụm nút (điều
+  hướng / tiêu đề / chọn view) trước đó ép nằm 1 hàng, tràn ra ngoài trên màn hình hẹp.
+  Thêm CSS `.fc-header-toolbar { flex-wrap: wrap }` + giảm cỡ chữ tiêu đề dưới 640px —
+  verify bằng Playwright ở viewport 375px thấy toolbar co đúng theo khung, không tràn.
+  Cũng thêm `title`/`aria-label` tổng hợp (tên bệnh nhân + trạng thái + giá) cho mỗi ô
+  sự kiện — trước đó ở view Tháng chỉ hiện tên, ẩn hoàn toàn trạng thái/giá kể cả khi
+  hover hay dùng screen reader.
+- **Đã cân nhắc nhưng không sửa (ghi nhận, không phải bỏ sót)**: form Task chưa có
+  validate border-đỏ trực quan như G7 của đợt audit trước — nhưng đây không phải vấn đề
+  riêng của Task, mọi form trong app đều theo cùng 1 mức (chỉ `required` HTML), sửa
+  riêng 1 form sẽ tạo lệch chuẩn thay vì nhất quán hơn. Timezone khi lưu `dueDate` từ
+  input `type="date"` (`new Date(dateOnlyString).toISOString()`) có rủi ro lệch ngày ở
+  múi giờ âm — nhưng đây là pattern dùng chung trong toàn bộ codebase từ trước
+  (ExpensesPage, PatientsPage cũng làm y hệt), không phải lỗi riêng của code mới, và
+  rủi ro không xảy ra ở múi giờ Việt Nam (UTC+7, dương). Cả 2 điểm này nên xử lý đồng
+  loạt toàn app nếu làm, không vá riêng lẻ ở đây.
+- **Verify UI thật bằng Playwright** cho toàn bộ fix: locale tiếng Việt đúng, toolbar
+  responsive không tràn ở 375px, Dashboard vẫn hoạt động bình thường sau khi đổi cơ chế
+  lỗi, checkbox Task có đúng role/aria-checked, action buttons Task có opacity=1 trên
+  viewport mobile (xác nhận bằng `getComputedStyle` thật, không chỉ đọc class). Không
+  lỗi console.
 
 ### 2026-07-07 (3) — Calendar view + Dashboard trang chủ + Module Công việc
 

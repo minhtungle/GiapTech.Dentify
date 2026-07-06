@@ -118,3 +118,19 @@
 .notion-calendar .fc-daygrid-event-dot {
   display: none;
 }
+
+/* Responsive header: wrap toolbar groups instead of overflowing on narrow screens */
+.notion-calendar .fc-header-toolbar {
+  flex-wrap: wrap;
+  gap: 0.5rem;
+  row-gap: 0.5rem;
+}
+@media (max-width: 640px) {
+  .notion-calendar .fc-toolbar-title {
+    font-size: 0.95rem;
+  }
+  .notion-calendar .fc-toolbar-chunk {
+    display: flex;
+    justify-content: center;
+  }
+}

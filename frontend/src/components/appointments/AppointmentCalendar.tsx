@@ -3,6 +3,7 @@ import FullCalendar from "@fullcalendar/react"
 import dayGridPlugin from "@fullcalendar/daygrid"
 import timeGridPlugin from "@fullcalendar/timegrid"
 import interactionPlugin from "@fullcalendar/interaction"
+import viLocale from "@fullcalendar/core/locales/vi"
 import type { EventDropArg, EventInput } from "@fullcalendar/core"
 import type { AppointmentDto } from "@/types/appointment"
 import { APPOINTMENT_STATUS_LABELS_VI, AppointmentStatus } from "@/types/appointment"
@@ -76,7 +77,7 @@ export function AppointmentCalendar({
           right: "dayGridMonth,timeGridWeek,timeGridDay",
         }}
         buttonText={{ today: "Hôm nay", month: "Tháng", week: "Tuần", day: "Ngày" }}
-        locale="vi"
+        locale={viLocale}
         height="auto"
         events={events}
         editable
@@ -89,8 +90,13 @@ export function AppointmentCalendar({
         }
         eventContent={(arg) => {
           const appointment = arg.event.extendedProps.appointment as AppointmentDto
+          const summary = `${arg.event.title} — ${APPOINTMENT_STATUS_LABELS_VI[appointment.status]} · ${formatCurrency(appointment.price)}`
           return (
-            <div className="flex flex-col overflow-hidden px-1 py-0.5 text-xs leading-tight">
+            <div
+              className="flex flex-col overflow-hidden px-1 py-0.5 text-xs leading-tight"
+              title={summary}
+              aria-label={summary}
+            >
               <span className="truncate font-medium">{arg.event.title}</span>
               {arg.view.type !== "dayGridMonth" && (
                 <span className="truncate opacity-90">
