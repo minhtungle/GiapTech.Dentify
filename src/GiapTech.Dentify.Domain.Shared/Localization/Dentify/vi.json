@@ -33,6 +33,10 @@
     "Permission:Expenses.Delete": "Xoá",
     "Permission:ClinicSettings": "Cài đặt phòng khám",
     "Permission:ClinicSettings.Update": "Sửa",
+    "Permission:Tasks": "Công việc",
+    "Permission:Tasks.Create": "Tạo mới",
+    "Permission:Tasks.Update": "Sửa",
+    "Permission:Tasks.Delete": "Xoá",
 
     "Patient": "Bệnh nhân",
     "Patients": "Bệnh nhân",
@@ -169,6 +173,22 @@
     "ClinicSettings:Name": "Tên phòng khám",
     "ClinicSettings:Address": "Địa chỉ",
     "ClinicSettings:PhoneNumber": "Số điện thoại",
-    "ClinicSettings:LogoUrl": "URL logo"
+    "ClinicSettings:LogoUrl": "URL logo",
+
+    "Task": "Công việc",
+    "Tasks": "Công việc",
+    "NewTask": "Thêm công việc",
+    "EditTask": "Sửa công việc",
+    "Task:Title": "Tiêu đề",
+    "Task:Content": "Nội dung",
+    "Task:Priority": "Độ ưu tiên",
+    "Task:DueDate": "Hạn chót",
+    "Task:IsDone": "Hoàn thành",
+    "Task:NoTasks": "Chưa có công việc nào.",
+    "Task:DeletionConfirmationMessage": "Bạn có chắc muốn xoá công việc này?",
+
+    "TaskPriority:Low": "Thấp",
+    "TaskPriority:Medium": "Trung bình",
+    "TaskPriority:High": "Cao"
   }
 }

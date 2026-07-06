@@ -82,3 +82,39 @@
     color: var(--foreground);
   }
 }
+
+/* Minimal, Notion-style theming for FullCalendar */
+.notion-calendar {
+  --fc-border-color: var(--border);
+  --fc-page-bg-color: transparent;
+  --fc-neutral-bg-color: var(--muted);
+  --fc-today-bg-color: var(--accent);
+  --fc-button-bg-color: transparent;
+  --fc-button-border-color: var(--border);
+  --fc-button-hover-bg-color: var(--accent);
+  --fc-button-hover-border-color: var(--border);
+  --fc-button-active-bg-color: var(--accent);
+  --fc-button-text-color: var(--foreground);
+  font-size: 0.875rem;
+}
+.notion-calendar .fc-toolbar-title {
+  font-size: 1.05rem;
+  font-weight: 600;
+}
+.notion-calendar .fc-button {
+  box-shadow: none !important;
+  text-transform: none;
+  padding: 0.3rem 0.7rem;
+}
+.notion-calendar .fc-daygrid-day-number,
+.notion-calendar .fc-col-header-cell-cushion {
+  color: var(--foreground);
+}
+.notion-calendar .fc-event {
+  border-radius: var(--radius-sm);
+  border-width: 1px;
+  cursor: pointer;
+}
+.notion-calendar .fc-daygrid-event-dot {
+  display: none;
+}

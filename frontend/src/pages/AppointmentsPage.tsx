@@ -31,8 +31,10 @@ import {
   TableHeader,
   TableRow,
 } from "@/components/ui/table"
+import { Tabs, TabsList, TabsTrigger, TabsContent } from "@/components/ui/tabs"
 import { Tooltip, TooltipContent, TooltipTrigger } from "@/components/ui/tooltip"
 import { AppointmentPhotosDialog } from "@/components/appointments/AppointmentPhotosDialog"
+import { AppointmentCalendar } from "@/components/appointments/AppointmentCalendar"
 import { appointmentsApi } from "@/lib/appointments-api"
 import { patientsApi } from "@/lib/patients-api"
 import { ApiError } from "@/lib/api"
@@ -118,6 +120,8 @@ export function AppointmentsPage() {
   const [deletingAppointment, setDeletingAppointment] = useState<AppointmentDto | null>(null)
   const [isDeleting, setIsDeleting] = useState(false)
 
+  const [calendarAppointments, setCalendarAppointments] = useState<AppointmentDto[]>([])
+
   const loadData = async () => {
     setIsLoading(true)
     try {
@@ -139,6 +143,51 @@ export function AppointmentsPage() {
     void loadData()
   }, [])
 
+  const loadCalendarRange = async (fromDate: string, toDate: string) => {
+    try {
+      const result = await appointmentsApi.getCalendarView(fromDate, toDate)
+      setCalendarAppointments(result)
+    } catch (err) {
+      toast.error(err instanceof ApiError ? err.message : "Không tải được lịch hẹn")
+    }
+  }
+
+  const handleEventReschedule = async (appointmentId: string, newDateTime: string) => {
+    const appointment = calendarAppointments.find((a) => a.id === appointmentId)
+    if (!appointment) return
+
+    try {
+      await appointmentsApi.update(appointmentId, {
+        patientId: appointment.patientId,
+        doctorId: appointment.doctorId,
+        scheduledDateTime: newDateTime,
+        status: (Object.keys(AppointmentStatus) as AppointmentStatusName[]).find(
+          (key) => AppointmentStatus[key] === appointment.status,
+        ) ?? "Scheduled",
+        preOpNotes: appointment.preOpNotes,
+        postOpNotes: appointment.postOpNotes,
+        price: appointment.price,
+        prescriptionItems: appointment.prescriptionItems,
+      })
+      toast.success("Đã đổi giờ lịch hẹn")
+      setCalendarAppointments((prev) =>
+        prev.map((a) => (a.id === appointmentId ? { ...a, scheduledDateTime: newDateTime } : a)),
+      )
+      await loadData()
+    } catch (err) {
+      toast.error(err instanceof ApiError ? err.message : "Đổi giờ thất bại")
+      throw err
+    }
+  }
+
+  const handleSelectSlot = (dateTime: string) => {
+    if (patients.length === 0) return
+    setEditingId(null)
+    setForm({ ...emptyForm(patients[0]?.id ?? ""), scheduledDateTime: toLocalInputValue(dateTime) })
+    setPrescriptionRows([])
+    setDialogOpen(true)
+  }
+
   const openCreateDialog = () => {
     setEditingId(null)
     setForm(emptyForm(patients[0]?.id ?? ""))
@@ -146,8 +195,10 @@ export function AppointmentsPage() {
     setDialogOpen(true)
   }
 
-  const openEditDialog = async (summary: AppointmentDto) => {
-    setEditingId(summary.id)
+  const openEditDialog = async (summary: AppointmentDto) => openEditDialogById(summary.id)
+
+  const openEditDialogById = async (id: string) => {
+    setEditingId(id)
     setDialogOpen(true)
     setIsLoadingDetail(true)
 
@@ -155,7 +206,7 @@ export function AppointmentsPage() {
     // so fetch the full detail via GetAsync before populating the form.
     let appointment: AppointmentDto
     try {
-      appointment = await appointmentsApi.get(summary.id)
+      appointment = await appointmentsApi.get(id)
     } catch (err) {
       toast.error(err instanceof ApiError ? err.message : "Không tải được chi tiết lịch hẹn")
       setDialogOpen(false)
@@ -296,113 +347,132 @@ export function AppointmentsPage() {
         )}
       </div>
 
-      <div className="rounded-lg border">
-        <Table>
-          <TableHeader>
-            <TableRow>
-              <TableHead>Bệnh nhân</TableHead>
-              <TableHead>Thời gian</TableHead>
-              <TableHead>Trạng thái</TableHead>
-              <TableHead>Giá</TableHead>
-              <TableHead>Thanh toán</TableHead>
-              <TableHead className="text-right">Hành động</TableHead>
-            </TableRow>
-          </TableHeader>
-          <TableBody>
-            {isLoading &&
-              Array.from({ length: 5 }).map((_, i) => (
-                <TableRow key={i}>
-                  {Array.from({ length: 6 }).map((_, j) => (
-                    <TableCell key={j}>
-                      <Skeleton className="h-5 w-full max-w-32" />
-                    </TableCell>
-                  ))}
+      <Tabs defaultValue="table">
+        <TabsList>
+          <TabsTrigger value="table">Bảng</TabsTrigger>
+          <TabsTrigger value="calendar">Lịch</TabsTrigger>
+        </TabsList>
+
+        <TabsContent value="table">
+          <div className="rounded-lg border">
+            <Table>
+              <TableHeader>
+                <TableRow>
+                  <TableHead>Bệnh nhân</TableHead>
+                  <TableHead>Thời gian</TableHead>
+                  <TableHead>Trạng thái</TableHead>
+                  <TableHead>Giá</TableHead>
+                  <TableHead>Thanh toán</TableHead>
+                  <TableHead className="text-right">Hành động</TableHead>
                 </TableRow>
-              ))}
-            {!isLoading && appointments.length === 0 && (
-              <TableRow>
-                <TableCell colSpan={6} className="h-32 text-center">
-                  <div className="flex flex-col items-center gap-2 text-muted-foreground">
-                    <CalendarPlus className="size-8" />
-                    <p>Chưa có lịch hẹn nào.</p>
-                    {patients.length > 0 && (
-                      <Button variant="outline" size="sm" onClick={openCreateDialog}>
-                        <Plus className="size-4" />
-                        Thêm lịch hẹn đầu tiên
+              </TableHeader>
+              <TableBody>
+                {isLoading &&
+                  Array.from({ length: 5 }).map((_, i) => (
+                    <TableRow key={i}>
+                      {Array.from({ length: 6 }).map((_, j) => (
+                        <TableCell key={j}>
+                          <Skeleton className="h-5 w-full max-w-32" />
+                        </TableCell>
+                      ))}
+                    </TableRow>
+                  ))}
+                {!isLoading && appointments.length === 0 && (
+                  <TableRow>
+                    <TableCell colSpan={6} className="h-32 text-center">
+                      <div className="flex flex-col items-center gap-2 text-muted-foreground">
+                        <CalendarPlus className="size-8" />
+                        <p>Chưa có lịch hẹn nào.</p>
+                        {patients.length > 0 && (
+                          <Button variant="outline" size="sm" onClick={openCreateDialog}>
+                            <Plus className="size-4" />
+                            Thêm lịch hẹn đầu tiên
+                          </Button>
+                        )}
+                      </div>
+                    </TableCell>
+                  </TableRow>
+                )}
+                {appointments.map((appointment) => (
+                  <TableRow key={appointment.id}>
+                    <TableCell className="font-medium">{appointment.patientFullName}</TableCell>
+                    <TableCell>
+                      {new Date(appointment.scheduledDateTime).toLocaleString("vi-VN")}
+                    </TableCell>
+                    <TableCell>
+                      <Badge variant="outline">
+                        {APPOINTMENT_STATUS_LABELS_VI[appointment.status]}
+                      </Badge>
+                    </TableCell>
+                    <TableCell>{formatCurrency(appointment.price)}</TableCell>
+                    <TableCell>
+                      <Badge
+                        variant={
+                          appointment.paymentStatus === 2
+                            ? "success"
+                            : appointment.paymentStatus === 1
+                              ? "warning"
+                              : "destructive"
+                        }
+                      >
+                        {PAYMENT_STATUS_LABELS_VI[appointment.paymentStatus]}
+                      </Badge>
+                    </TableCell>
+                    <TableCell className="text-right">
+                      <Button
+                        variant="ghost"
+                        size="icon"
+                        title="Ảnh lịch hẹn"
+                        aria-label={`Xem ảnh lịch hẹn của ${appointment.patientFullName}`}
+                        onClick={() => setPhotosDialogAppointment(appointment)}
+                      >
+                        <Image className="size-4" />
                       </Button>
-                    )}
-                  </div>
-                </TableCell>
-              </TableRow>
-            )}
-            {appointments.map((appointment) => (
-              <TableRow key={appointment.id}>
-                <TableCell className="font-medium">{appointment.patientFullName}</TableCell>
-                <TableCell>
-                  {new Date(appointment.scheduledDateTime).toLocaleString("vi-VN")}
-                </TableCell>
-                <TableCell>
-                  <Badge variant="outline">
-                    {APPOINTMENT_STATUS_LABELS_VI[appointment.status]}
-                  </Badge>
-                </TableCell>
-                <TableCell>{formatCurrency(appointment.price)}</TableCell>
-                <TableCell>
-                  <Badge
-                    variant={
-                      appointment.paymentStatus === 2
-                        ? "success"
-                        : appointment.paymentStatus === 1
-                          ? "warning"
-                          : "destructive"
-                    }
-                  >
-                    {PAYMENT_STATUS_LABELS_VI[appointment.paymentStatus]}
-                  </Badge>
-                </TableCell>
-                <TableCell className="text-right">
-                  <Button
-                    variant="ghost"
-                    size="icon"
-                    title="Ảnh lịch hẹn"
-                    aria-label={`Xem ảnh lịch hẹn của ${appointment.patientFullName}`}
-                    onClick={() => setPhotosDialogAppointment(appointment)}
-                  >
-                    <Image className="size-4" />
-                  </Button>
-                  <Button
-                    variant="ghost"
-                    size="icon"
-                    title="Thanh toán"
-                    aria-label={`Cập nhật thanh toán cho ${appointment.patientFullName}`}
-                    onClick={() => openPaymentDialog(appointment)}
-                  >
-                    <Wallet className="size-4" />
-                  </Button>
-                  <Button
-                    variant="ghost"
-                    size="icon"
-                    title="Sửa"
-                    aria-label={`Sửa lịch hẹn của ${appointment.patientFullName}`}
-                    onClick={() => void openEditDialog(appointment)}
-                  >
-                    <Pencil className="size-4" />
-                  </Button>
-                  <Button
-                    variant="ghost"
-                    size="icon"
-                    title="Xoá"
-                    aria-label={`Xoá lịch hẹn của ${appointment.patientFullName}`}
-                    onClick={() => setDeletingAppointment(appointment)}
-                  >
-                    <Trash2 className="size-4" />
-                  </Button>
-                </TableCell>
-              </TableRow>
-            ))}
-          </TableBody>
-        </Table>
-      </div>
+                      <Button
+                        variant="ghost"
+                        size="icon"
+                        title="Thanh toán"
+                        aria-label={`Cập nhật thanh toán cho ${appointment.patientFullName}`}
+                        onClick={() => openPaymentDialog(appointment)}
+                      >
+                        <Wallet className="size-4" />
+                      </Button>
+                      <Button
+                        variant="ghost"
+                        size="icon"
+                        title="Sửa"
+                        aria-label={`Sửa lịch hẹn của ${appointment.patientFullName}`}
+                        onClick={() => void openEditDialog(appointment)}
+                      >
+                        <Pencil className="size-4" />
+                      </Button>
+                      <Button
+                        variant="ghost"
+                        size="icon"
+                        title="Xoá"
+                        aria-label={`Xoá lịch hẹn của ${appointment.patientFullName}`}
+                        onClick={() => setDeletingAppointment(appointment)}
+                      >
+                        <Trash2 className="size-4" />
+                      </Button>
+                    </TableCell>
+                  </TableRow>
+                ))}
+              </TableBody>
+            </Table>
+          </div>
+        </TabsContent>
+
+        <TabsContent value="calendar">
+          <AppointmentCalendar
+            appointments={calendarAppointments}
+            onDateRangeChange={(fromDate, toDate) => void loadCalendarRange(fromDate, toDate)}
+            onEventClick={(id) => void openEditDialogById(id)}
+            onEventReschedule={handleEventReschedule}
+            onSelectSlot={handleSelectSlot}
+          />
+        </TabsContent>
+      </Tabs>
 
       <Dialog open={dialogOpen} onOpenChange={setDialogOpen}>
         <DialogContent className="sm:max-w-2xl">

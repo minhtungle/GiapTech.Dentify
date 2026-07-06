@@ -33,6 +33,10 @@
     "Permission:Expenses.Delete": "Delete",
     "Permission:ClinicSettings": "Clinic Settings",
     "Permission:ClinicSettings.Update": "Edit",
+    "Permission:Tasks": "Tasks",
+    "Permission:Tasks.Create": "Create",
+    "Permission:Tasks.Update": "Edit",
+    "Permission:Tasks.Delete": "Delete",
 
     "Patient": "Patient",
     "Patients": "Patients",
@@ -169,6 +173,22 @@
     "ClinicSettings:Name": "Clinic name",
     "ClinicSettings:Address": "Address",
     "ClinicSettings:PhoneNumber": "Phone number",
-    "ClinicSettings:LogoUrl": "Logo URL"
+    "ClinicSettings:LogoUrl": "Logo URL",
+
+    "Task": "Task",
+    "Tasks": "Tasks",
+    "NewTask": "New task",
+    "EditTask": "Edit task",
+    "Task:Title": "Title",
+    "Task:Content": "Content",
+    "Task:Priority": "Priority",
+    "Task:DueDate": "Due date",
+    "Task:IsDone": "Done",
+    "Task:NoTasks": "No tasks yet.",
+    "Task:DeletionConfirmationMessage": "Are you sure you want to delete this task?",
+
+    "TaskPriority:Low": "Low",
+    "TaskPriority:Medium": "Medium",
+    "TaskPriority:High": "High"
   }
 }

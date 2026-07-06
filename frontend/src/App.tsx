@@ -1,12 +1,14 @@
-import { Navigate, Route, BrowserRouter, Routes } from "react-router-dom"
+import { Route, BrowserRouter, Routes } from "react-router-dom"
 import { AppLayout } from "@/components/layout/AppLayout"
 import { ProtectedRoute } from "@/components/layout/ProtectedRoute"
 import { AuthCallbackPage } from "@/pages/AuthCallbackPage"
+import { DashboardPage } from "@/pages/DashboardPage"
 import { PatientsPage } from "@/pages/PatientsPage"
 import { AppointmentsPage } from "@/pages/AppointmentsPage"
 import { ToothChartPage } from "@/pages/ToothChartPage"
 import { LabWorksPage } from "@/pages/LabWorksPage"
 import { ExpensesPage } from "@/pages/ExpensesPage"
+import { TasksPage } from "@/pages/TasksPage"
 import { SettingsPage } from "@/pages/SettingsPage"
 
 function App() {
@@ -14,7 +16,16 @@ function App() {
     <BrowserRouter>
       <Routes>
         <Route path="/auth-callback" element={<AuthCallbackPage />} />
-        <Route path="/" element={<Navigate to="/patients" replace />} />
+        <Route
+          path="/"
+          element={
+            <ProtectedRoute>
+              <AppLayout>
+                <DashboardPage />
+              </AppLayout>
+            </ProtectedRoute>
+          }
+        />
         <Route
           path="/patients"
           element={
@@ -61,6 +72,16 @@ function App() {
             <ProtectedRoute>
               <AppLayout>
                 <ExpensesPage />
+              </AppLayout>
+            </ProtectedRoute>
+          }
+        />
+        <Route
+          path="/tasks"
+          element={
+            <ProtectedRoute>
+              <AppLayout>
+                <TasksPage />
               </AppLayout>
             </ProtectedRoute>
           }

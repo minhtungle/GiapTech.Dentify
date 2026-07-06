@@ -8,6 +8,7 @@ using GiapTech.Dentify.Appointments;
 using GiapTech.Dentify.Expenses;
 using GiapTech.Dentify.LabWorks;
 using GiapTech.Dentify.Patients;
+using GiapTech.Dentify.Tasks;
 using GiapTech.Dentify.ToothCharts;
 using Volo.Abp.AuditLogging.EntityFrameworkCore;
 using Volo.Abp.BackgroundJobs.EntityFrameworkCore;
@@ -45,6 +46,7 @@ public class DentifyDbContext :
     public DbSet<PrescriptionItem> PrescriptionItems { get; set; }
     public DbSet<LabWork> LabWorks { get; set; }
     public DbSet<Expense> Expenses { get; set; }
+    public DbSet<TaskItem> TaskItems { get; set; }
 
 
     #region Entities from the modules
@@ -241,6 +243,18 @@ public class DentifyDbContext :
 
             b.HasIndex(x => x.ExpenseDate);
             b.HasIndex(x => x.Category);
+        });
+
+        builder.Entity<TaskItem>(b =>
+        {
+            b.ToTable(DentifyConsts.DbTablePrefix + "TaskItems", DentifyConsts.DbSchema);
+            b.ConfigureByConvention();
+
+            b.Property(x => x.Title).IsRequired().HasMaxLength(TaskConsts.MaxTitleLength);
+            b.Property(x => x.Content).HasMaxLength(TaskConsts.MaxContentLength);
+
+            b.HasIndex(x => x.IsDone);
+            b.HasIndex(x => x.DueDate);
         });
     }
 }

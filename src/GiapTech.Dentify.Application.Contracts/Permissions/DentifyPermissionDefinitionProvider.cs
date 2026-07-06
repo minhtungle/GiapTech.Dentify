@@ -41,6 +41,11 @@ public class DentifyPermissionDefinitionProvider : PermissionDefinitionProvider
 
         var clinicSettings = myGroup.AddPermission(DentifyPermissions.ClinicSettings.Default, L("Permission:ClinicSettings"));
         clinicSettings.AddChild(DentifyPermissions.ClinicSettings.Update, L("Permission:ClinicSettings.Update"));
+
+        var tasks = myGroup.AddPermission(DentifyPermissions.Tasks.Default, L("Permission:Tasks"));
+        tasks.AddChild(DentifyPermissions.Tasks.Create, L("Permission:Tasks.Create"));
+        tasks.AddChild(DentifyPermissions.Tasks.Update, L("Permission:Tasks.Update"));
+        tasks.AddChild(DentifyPermissions.Tasks.Delete, L("Permission:Tasks.Delete"));
     }
 
     private static LocalizableString L(string name)

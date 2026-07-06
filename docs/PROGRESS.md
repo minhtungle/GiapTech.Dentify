@@ -22,9 +22,88 @@
 - [x] Hoàn thiện UI/UX (xong): audit toàn diện 7 trang + fix — sửa 1 bug mất dữ liệu
       thật, sidebar responsive mobile, skeleton loading, empty state có CTA, AlertDialog
       thay window.confirm, accessibility cho sơ đồ răng (bàn phím/screen reader).
+- [x] Bổ sung theo yêu cầu (xong): Calendar view cho Lịch hẹn (FullCalendar, kéo-thả đổi
+      giờ), trang chủ Dashboard (tổng quan bệnh nhân/lịch hẹn/labo/chi phí), module
+      Công việc (Task/to-do độc lập, phong cách tối giản kiểu Notion).
 - [ ] Giai đoạn 5 (tuỳ chọn): AI voice-to-note, AI scan hoá đơn, Patient Portal
 
 ## Nhật ký
+
+### 2026-07-07 (3) — Calendar view + Dashboard trang chủ + Module Công việc
+
+User yêu cầu thêm 3 việc cùng lúc: (1) giao diện calendar cho Lịch hẹn, (2) trang chủ
+tổng quan số liệu, (3) module ghi chú/task, tất cả "tham khảo cách hiển thị Notion".
+Xác nhận phạm vi qua AskUserQuestion trước khi làm: Calendar đầy đủ Tháng/Tuần/Ngày +
+kéo-thả (không phải chỉ xem tĩnh); Task độc lập không gắn Patient/Appointment; "phong
+cách Notion" hiểu là thẩm mỹ tối giản/nhiều khoảng trắng, không phải yêu cầu block-based
+editor hay multi-view database thật sự của Notion.
+
+- **Calendar — dùng thư viện `@fullcalendar/react` + `daygrid`/`timegrid`/`interaction`
+  plugin**, không tự viết lưới ngày/giờ từ đầu (chi phí tự làm kéo-thả + resize + multi-view
+  đúng UX quá cao so với lợi ích). `AppointmentsPage` giờ có `Tabs` (Bảng/Lịch, dùng
+  `@radix-ui/react-tabs` đã cài sẵn nhưng chưa có wrapper — tạo mới `components/ui/tabs.tsx`)
+  — Bảng dùng đúng danh sách phân trang cũ, Lịch dùng riêng `getCalendarView(fromDate,
+  toDate)` đã có sẵn từ Giai đoạn 1 (trước đó không có UI nào gọi tới). Kéo-thả sự kiện
+  gọi `appointmentsApi.update` với `scheduledDateTime` mới, giữ nguyên mọi field khác
+  (bao gồm `prescriptionItems` — lấy từ chính object đang có trong state, không gọi lại
+  API); nếu update lỗi thì `arg.revert()` của FullCalendar tự đưa event về vị trí cũ.
+  Click vào ô ngày trống mở dialog tạo mới với giờ đã điền sẵn.
+  **Giới hạn đã biết và chấp nhận**: `Appointment` domain không có trường thời lượng
+  (chỉ có `scheduledDateTime`), nên calendar hiển thị mỗi lịch hẹn với khối thời gian cố
+  định 30 phút chỉ để có chiều cao hiển thị trên `timeGrid` — đây là hiển thị thuần tuý,
+  không lưu xuống DB, không ảnh hưởng dữ liệu thật.
+  CSS tối giản kiểu Notion cho FullCalendar viết riêng trong `index.css` (`.notion-calendar`
+  block) — ánh xạ theme variables có sẵn (`--border`, `--muted`, `--accent`) vào biến CSS
+  riêng của FullCalendar (`--fc-*`) thay vì để theme mặc định sặc sỡ của thư viện.
+- **Dashboard — không thêm endpoint backend mới**, gọi song song 5 API đã có sẵn qua
+  `Promise.all`: `patientsApi.getList` (đếm tổng), `appointmentsApi.getCalendarView`
+  (lịch hẹn trong ngày, dùng `startOfDay`/`endOfDay` tính range), `labWorksApi.getBoard`
+  (lọc bỏ trạng thái `Attached` để ra "đang xử lý"), `expensesApi.getSummary` (tổng chi
+  phí tháng hiện tại), `tasksApi.getOverview` (5 việc chưa xong sắp đến hạn nhất). 4 thẻ
+  số liệu đầu trang đều là `Link` điều hướng thẳng sang trang chi tiết tương ứng (bấm vào
+  "Bệnh nhân" đi tới `/patients`, v.v.) — giữ dashboard làm điểm khởi đầu điều hướng,
+  không phải trang xem thụ động. Route `/` đổi từ `<Navigate to="/patients">` (redirect
+  cứng) thành route thật cho `DashboardPage`.
+- **Module Công việc (`TaskItem`)** — entity mới hoàn toàn độc lập (không FK tới
+  Patient/Appointment nào, đúng như đã chốt phạm vi), theo đúng pattern `Expense` đã có:
+  `Title`, `Content`, `IsDone`, `Priority` (Low/Medium/High), `DueDate` optional.
+  **Đặt tên entity là `TaskItem` chứ không phải `Task`** để tránh xung đột/nhầm lẫn với
+  `System.Threading.Tasks.Task` dùng khắp nơi trong signature async của C#
+  (`Task<TaskItemDto> GetAsync(...)` sẽ rất dễ đọc nhầm nếu entity cũng tên `Task`).
+  `GetOverviewListAsync()` (không phân trang, giới hạn 5, loại `IsDone`, sắp theo
+  `DueDate` rồi `Priority` giảm dần) dùng chung cho cả `TasksPage` (không, TasksPage
+  dùng `GetListAsync` phân trang đầy đủ) — thực ra endpoint riêng này chỉ phục vụ
+  Dashboard, tách biệt vì Dashboard cần gọn+nhanh, còn trang Công việc cần đầy đủ/phân
+  trang/filter. `ToggleDoneAsync` là action riêng (không qua `UpdateAsync` chung) vì đây
+  là thao tác tần suất cao nhất (check/uncheck liên tục) — tách để FE có thể optimistic-update
+  UI ngay (đổi state trước, gọi API sau, rollback nếu lỗi) mà không phải gửi lại toàn bộ
+  form.
+  **Frontend "phong cách Notion"**: danh sách phẳng (không bảng/không card nặng nề),
+  icon tròn rỗng/đặc làm checkbox (`Circle`/`CheckCircle2` từ lucide, không dùng input
+  checkbox thô), action Sửa/Xoá **ẩn mặc định, chỉ hiện khi hover** (`opacity-0
+  group-hover:opacity-100`) — cùng pattern đã áp dụng cho `AppointmentPhotosDialog`
+  trước đó nhưng lần này **chủ đích giữ hover-only** vì đây là thao tác phụ ít dùng trên
+  desktop (khác với nút xoá ảnh vốn phải luôn hiện vì hay dùng trên tablet cảm ứng) —
+  không phải mâu thuẫn với quyết định trước, mà là áp dụng đúng ngữ cảnh khác nhau.
+  Task đã xong hiển thị dưới, chữ gạch ngang mờ màu, tách nhóm rõ với `border-t`.
+- **Bài học cũ được áp dụng lại, không lặp lỗi**: nhớ đăng ký `TaskItemMapper` vào
+  `DentifyApplicationModule.ConfigureServices` (`AddSingleton`) ngay từ đầu, không đợi
+  tới lúc chạy test mới phát hiện thiếu như đã từng xảy ra ở Giai đoạn 3 — build sạch +
+  test pass ngay từ lần chạy đầu tiên cho phần Task, không phải fix lại.
+- **Test**: 5 test `TaskItemAppServiceTests` (tạo với priority mặc định Medium, toggle
+  done 2 chiều, filter theo `IsDone`, overview loại trừ task đã xong, xoá). Tổng test:
+  40 → 45, tất cả pass.
+  **Verify UI thật bằng Playwright** cả 3 tính năng cùng lúc: Dashboard hiển thị đúng số
+  liệu khớp DB (2 bệnh nhân, 1 lịch hẹn hôm nay, 1 ca labo đang xử lý, đúng tổng chi phí
+  tháng — đối chiếu bằng ảnh chụp màn hình thật, không chỉ đọc text); Calendar chuyển
+  tab Bảng↔Lịch đúng, FullCalendar render đúng lịch hẹn vào đúng ô ngày, tiêu đề
+  tháng/nút Tháng-Tuần-Ngày hiển thị tiếng Việt; Task tạo mới → đếm "X việc cần làm · Y
+  đã hoàn thành" cập nhật đúng ngay → bấm toggle done → chữ gạch ngang đúng. Không lỗi
+  console trong suốt quá trình test cả 3 tính năng.
+- Chưa làm (ngoài phạm vi đã chốt): Task gắn với Patient/Appointment (đã hỏi và chốt
+  độc lập), Calendar hiển thị theo bác sĩ/phòng khám riêng (multi-resource view của
+  FullCalendar — chưa cần vì phòng khám hiện chưa phân theo nhiều bác sĩ song song trên
+  UI), block-based editor thật cho nội dung Task (hiện chỉ là `Textarea` phẳng).
 
 ### 2026-07-07 (2) — Hoàn thiện UI/UX toàn bộ frontend (không thêm tính năng mới)
 
@@ -651,3 +730,16 @@ thêm nếu dùng đúng `docker-compose.yml` mặc định của dự án.
   `tabIndex`, `aria-label`, và xử lý phím Enter/Space** nếu không phải là `<button>`
   gốc — áp dụng sau khi phát hiện `ToothChartSvg` hoàn toàn không dùng được bằng bàn
   phím (xem nhật ký 2026-07-07 (2)).
+- **Calendar dùng thư viện `@fullcalendar/react` thay vì tự viết** — chi phí tự làm
+  đúng UX kéo-thả/resize/multi-view (Tháng/Tuần/Ngày) quá cao so với lợi ích, và
+  `Appointment.getCalendarView` API đã có sẵn từ Giai đoạn 1 chỉ cần 1 UI thật sự dùng
+  tới. Lịch hẹn hiển thị thời lượng cố định 30 phút trên calendar (không lưu DB) vì
+  domain hiện không có trường thời lượng — chấp nhận được cho mục đích hiển thị.
+- **`TaskItem` là entity độc lập, đặt tên khác `Task`** để không trùng/nhầm với
+  `System.Threading.Tasks.Task` dùng khắp AppService async. `ToggleDoneAsync` tách
+  riêng khỏi `UpdateAsync` vì đây là thao tác tần suất cao nhất, cần optimistic-update
+  ở frontend mà không gửi lại toàn bộ form.
+- **Dashboard không có endpoint backend riêng** — gọi song song các API list/summary đã
+  có sẵn của từng module qua `Promise.all`. Nếu sau này thêm số liệu tổng hợp phức tạp
+  hơn (biểu đồ theo thời gian, so sánh kỳ) thì mới cân nhắc viết 1
+  `IDashboardAppService` riêng để tránh N request round-trip.

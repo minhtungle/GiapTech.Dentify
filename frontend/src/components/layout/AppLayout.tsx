@@ -3,7 +3,9 @@ import type { ReactNode } from "react"
 import { NavLink } from "react-router-dom"
 import {
   CalendarDays,
+  CheckSquare,
   FlaskConical,
+  LayoutDashboard,
   LogOut,
   Menu,
   Receipt,
@@ -17,20 +19,23 @@ import { Dialog, DialogContent, DialogTitle } from "@/components/ui/dialog"
 import { cn } from "@/lib/utils"
 
 const navItems = [
+  { to: "/", label: "Trang chủ", icon: LayoutDashboard, end: true },
   { to: "/patients", label: "Bệnh nhân", icon: Users },
   { to: "/appointments", label: "Lịch hẹn", icon: CalendarDays },
   { to: "/lab-works", label: "Labo", icon: FlaskConical },
   { to: "/expenses", label: "Chi phí", icon: Receipt },
+  { to: "/tasks", label: "Công việc", icon: CheckSquare },
   { to: "/settings", label: "Cài đặt", icon: Settings },
 ]
 
 function SidebarNav({ onNavigate }: { onNavigate?: () => void }) {
   return (
     <nav className="flex flex-col gap-1 px-2">
-      {navItems.map(({ to, label, icon: Icon }) => (
+      {navItems.map(({ to, label, icon: Icon, end }) => (
         <NavLink
           key={to}
           to={to}
+          end={end}
           onClick={onNavigate}
           className={({ isActive }) =>
             cn(
