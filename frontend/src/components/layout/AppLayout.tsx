@@ -1,6 +1,6 @@
 import type { ReactNode } from "react"
 import { NavLink } from "react-router-dom"
-import { CalendarDays, FlaskConical, LogOut, Receipt, Smile, Users } from "lucide-react"
+import { CalendarDays, FlaskConical, LogOut, Receipt, Settings, Smile, Users } from "lucide-react"
 import { useAuth } from "@/auth/AuthProvider"
 import { Button } from "@/components/ui/button"
 import { cn } from "@/lib/utils"
@@ -10,6 +10,7 @@ const navItems = [
   { to: "/appointments", label: "Lịch hẹn", icon: CalendarDays },
   { to: "/lab-works", label: "Labo", icon: FlaskConical },
   { to: "/expenses", label: "Chi phí", icon: Receipt },
+  { to: "/settings", label: "Cài đặt", icon: Settings },
 ]
 
 export function AppLayout({ children }: { children: ReactNode }) {

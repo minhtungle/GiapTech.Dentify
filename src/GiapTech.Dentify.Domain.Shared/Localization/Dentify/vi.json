@@ -31,6 +31,8 @@
     "Permission:Expenses.Create": "Tạo mới",
     "Permission:Expenses.Update": "Sửa",
     "Permission:Expenses.Delete": "Xoá",
+    "Permission:ClinicSettings": "Cài đặt phòng khám",
+    "Permission:ClinicSettings.Update": "Sửa",
 
     "Patient": "Bệnh nhân",
     "Patients": "Bệnh nhân",
@@ -161,6 +163,12 @@
     "Dentify:00006": "Định dạng ảnh không được hỗ trợ (chỉ chấp nhận JPEG, PNG, WEBP).",
     "Dentify:00007": "Kích thước ảnh vượt quá giới hạn cho phép (tối đa 10MB).",
     "Dentify:00008": "Không tìm thấy ảnh.",
-    "Dentify:00009": "Không tìm thấy thuốc trong đơn."
+    "Dentify:00009": "Không tìm thấy thuốc trong đơn.",
+
+    "ClinicSettings": "Cài đặt phòng khám",
+    "ClinicSettings:Name": "Tên phòng khám",
+    "ClinicSettings:Address": "Địa chỉ",
+    "ClinicSettings:PhoneNumber": "Số điện thoại",
+    "ClinicSettings:LogoUrl": "URL logo"
   }
 }

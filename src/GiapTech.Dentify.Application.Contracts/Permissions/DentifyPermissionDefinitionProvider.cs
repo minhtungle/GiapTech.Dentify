@@ -38,6 +38,9 @@ public class DentifyPermissionDefinitionProvider : PermissionDefinitionProvider
         expenses.AddChild(DentifyPermissions.Expenses.Create, L("Permission:Expenses.Create"));
         expenses.AddChild(DentifyPermissions.Expenses.Update, L("Permission:Expenses.Update"));
         expenses.AddChild(DentifyPermissions.Expenses.Delete, L("Permission:Expenses.Delete"));
+
+        var clinicSettings = myGroup.AddPermission(DentifyPermissions.ClinicSettings.Default, L("Permission:ClinicSettings"));
+        clinicSettings.AddChild(DentifyPermissions.ClinicSettings.Update, L("Permission:ClinicSettings.Update"));
     }
 
     private static LocalizableString L(string name)

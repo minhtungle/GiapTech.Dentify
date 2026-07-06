@@ -31,6 +31,8 @@
     "Permission:Expenses.Create": "Create",
     "Permission:Expenses.Update": "Edit",
     "Permission:Expenses.Delete": "Delete",
+    "Permission:ClinicSettings": "Clinic Settings",
+    "Permission:ClinicSettings.Update": "Edit",
 
     "Patient": "Patient",
     "Patients": "Patients",
@@ -161,6 +163,12 @@
     "Dentify:00006": "Unsupported photo format (only JPEG, PNG, WEBP are allowed).",
     "Dentify:00007": "Photo size exceeds the allowed limit (max 10MB).",
     "Dentify:00008": "Appointment photo not found.",
-    "Dentify:00009": "Prescription item not found."
+    "Dentify:00009": "Prescription item not found.",
+
+    "ClinicSettings": "Clinic Settings",
+    "ClinicSettings:Name": "Clinic name",
+    "ClinicSettings:Address": "Address",
+    "ClinicSettings:PhoneNumber": "Phone number",
+    "ClinicSettings:LogoUrl": "Logo URL"
   }
 }

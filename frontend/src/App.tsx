@@ -7,6 +7,7 @@ import { AppointmentsPage } from "@/pages/AppointmentsPage"
 import { ToothChartPage } from "@/pages/ToothChartPage"
 import { LabWorksPage } from "@/pages/LabWorksPage"
 import { ExpensesPage } from "@/pages/ExpensesPage"
+import { SettingsPage } from "@/pages/SettingsPage"
 
 function App() {
   return (
@@ -60,6 +61,16 @@ function App() {
             <ProtectedRoute>
               <AppLayout>
                 <ExpensesPage />
+              </AppLayout>
+            </ProtectedRoute>
+          }
+        />
+        <Route
+          path="/settings"
+          element={
+            <ProtectedRoute>
+              <AppLayout>
+                <SettingsPage />
               </AppLayout>
             </ProtectedRoute>
           }

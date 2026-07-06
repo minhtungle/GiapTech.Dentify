@@ -6,7 +6,11 @@ public class DentifySettingDefinitionProvider : SettingDefinitionProvider
 {
     public override void Define(ISettingDefinitionContext context)
     {
-        //Define your own settings here. Example:
-        //context.Add(new SettingDefinition(DentifySettings.MySetting1));
+        context.Add(
+            new SettingDefinition(DentifySettings.Clinic.Name, "Dentify"),
+            new SettingDefinition(DentifySettings.Clinic.Address),
+            new SettingDefinition(DentifySettings.Clinic.PhoneNumber),
+            new SettingDefinition(DentifySettings.Clinic.LogoUrl)
+        );
     }
 }

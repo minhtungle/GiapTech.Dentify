@@ -16,10 +16,66 @@
       thay text tự do).
 - [x] Giai đoạn 3 (xong): LabWork (theo dõi ca labo ngoài + Kanban board kéo-thả trạng
       thái) + Expense (sổ chi phí theo danh mục).
-- [ ] Giai đoạn 4: Import/Export CSV + Backup/Restore + Settings đầy đủ
+- [x] Giai đoạn 4 (xong): Import/Export CSV (Patient + Expense, xử lý ở frontend),
+      Backup/Restore qua script `pg_dump`/`pg_restore`, Settings (thông tin phòng khám
+      qua ABP Setting Management).
 - [ ] Giai đoạn 5 (tuỳ chọn): AI voice-to-note, AI scan hoá đơn, Patient Portal
 
 ## Nhật ký
+
+### 2026-07-07 — Giai đoạn 4 (hoàn tất): Import/Export CSV + Backup/Restore + Settings
+
+Xác nhận phạm vi với user trước khi làm (2 vòng AskUserQuestion): (1) CSV chỉ áp dụng cho
+Patient + Expense (không làm Appointment); (2) Backup/Restore dùng script
+`pg_dump`/`pg_restore` tiện ích thay vì xây tính năng trong app; (3) Settings chỉ cần
+thông tin phòng khám (tên/địa chỉ/SĐT/logo), không làm ToothNotationSystem hay cấu hình
+nghiệp vụ khác ở giai đoạn này.
+
+- **Import/Export CSV — quyết định xử lý ở frontend, không thêm endpoint backend**: hỏi
+  lại user và xác nhận trước khi code vì đây là lựa chọn kiến trúc có đánh đổi rõ —
+  Export gọi thẳng API `GetListAsync` đã có (`maxResultCount: 1000`), convert JSON→CSV
+  bằng JS thuần (`lib/csv.ts`, tự viết parser/serializer CSV RFC 4180 cơ bản, không thêm
+  thư viện ngoài). Import đọc file CSV, validate từng dòng ở client, rồi gọi tuần tự
+  `Create()` đã có cho từng dòng hợp lệ — lỗi dòng nào báo dòng đó, dòng hợp lệ vẫn được
+  tạo dù có dòng khác lỗi. Lý do chọn cách này thay vì viết `ExportCsvAsync`/
+  `ImportCsvAsync` ở backend: tận dụng 100% validation/business rule đã có trong
+  AppService (không viết lại lần 2 cho batch), tránh lặp lại vấn đề route POST-only đã
+  gặp với `AppointmentPhoto.DownloadAsync` (`IRemoteStreamContent` không hợp với
+  `<a download>` browser-native). Đánh đổi: import file rất lớn (hàng nghìn dòng) sẽ chậm
+  hơn vì N request tuần tự thay vì 1 bulk insert — chấp nhận được cho quy mô 1 phòng khám.
+- **Settings — lần đầu dùng ABP Setting Management thật** (trước đây `App:ClientUrl` chỉ
+  là đọc thẳng `appsettings.json`, không phải ABP Setting). `DentifySettings.Clinic.*`
+  định nghĩa trong `DentifySettingDefinitionProvider`, đọc qua `SettingProvider` (sẵn có
+  trên `ApplicationService`), ghi qua `ISettingManager.SetGlobalAsync` (namespace
+  `Volo.Abp.SettingManagement`, khác với `Volo.Abp.Settings.ISettingProvider` chỉ đọc).
+  Dùng global scope (không theo tenant/user) vì đây là cấu hình chung cho cả phòng khám.
+  Không dùng UI Settings có sẵn của ABP MVC (`Volo.Abp.SettingManagement.Web` — vốn cắm
+  vào admin Razor) vì toàn bộ UI nghiệp vụ đã chuyển sang React từ đầu dự án; thay vào đó
+  viết 1 trang `/settings` mới trong React gọi qua AppService tự viết
+  (`IClinicSettingsAppService`) — không có generic AppService nào của ABP
+  SettingManagement module expose custom setting group qua REST, chỉ có sẵn cho nhóm
+  Email.
+- **Backup/Restore — không code trong app**: 2 script `scripts/backup-db.sh` /
+  `restore-db.sh` bọc `pg_dump -F c` / `pg_restore --clean --if-exists`, tự nhận diện
+  container Postgres đang chạy (`docker ps --filter name=postgres`) hoặc fallback gọi
+  thẳng `pg_dump`/`pg_restore` nếu Postgres cài local (không qua Docker). **Đã tự chạy
+  thật cả backup và restore để verify** (không chỉ đọc code): backup DB đang có dữ liệu
+  test → đếm số dòng 3 bảng (`AppPatients`, `AppAppointments`, `AppExpenses`) → restore
+  lại từ chính file backup đó → đếm lại, khớp 100% với trước khi restore. Phát hiện 1 bug
+  lúc verify: truyền đường dẫn tuyệt đối làm output file (`/tmp/foo.dump`) khiến script
+  nối nhầm thành `/tmp//tmp/foo.dump` khi copy vào container — fix bằng `basename` trước
+  khi ghép đường dẫn trong container, giữ nguyên đường dẫn gốc khi `docker cp` ra ngoài.
+- **Test**: 2 test `ClinicSettingsAppServiceTests` (default value đúng lúc chưa set,
+  update rồi đọc lại đúng). Tổng test: 39 → 41, tất cả pass. CSV import/export và Settings
+  UI **không có test tự động phía frontend** (dự án chưa có test framework nào cho React)
+  — đã verify bằng Playwright thật: lưu Settings → reload trang → giá trị vẫn đúng (xác
+  nhận qua DB `AbpSettings` bảng); xuất CSV Patient/Expense → tải file thật → đọc nội dung
+  đúng định dạng UTF-8 BOM + header tiếng Việt; nhập CSV → dòng mới xuất hiện đúng trong
+  bảng, đối chiếu khớp với DB. Không lỗi console trong toàn bộ luồng.
+- Chưa làm (để lại, không nằm trong phạm vi đã chốt): CSV cho Appointment, UI Settings
+  cho `ToothNotationSystem` (Palmer/Universal — đã nhắc từ Giai đoạn 2, vẫn để dành),
+  logo upload trực tiếp (hiện `LogoUrl` chỉ nhận URL ngoài, không có nút upload file như
+  AppointmentPhoto).
 
 ### 2026-07-06 (4) — Giai đoạn 3 (hoàn tất): LabWork + Expense
 
@@ -396,6 +452,23 @@ Management), chỉ bỏ phần UI nghiệp vụ (Patient/Appointment) sang React
   (không nằm trong phạm vi đã chốt lúc đầu): liên kết Expense ↔ LabWork/Appointment,
   UI biểu đồ cho `ExpenseSummaryDto` (hiện chỉ có API, chưa hiển thị chart), filter/tìm
   kiếm trên board LabWork.
+- Giai đoạn 4: đã xong toàn bộ (CSV Patient/Expense, Backup/Restore script, Settings
+  phòng khám). Việc lặt vặt còn sót: CSV cho Appointment, upload logo trực tiếp (hiện
+  chỉ nhận URL), UI Settings cho `ToothNotationSystem`.
+
+## Cách backup / restore database
+
+```bash
+./scripts/backup-db.sh                    # tạo file backup-YYYYMMDD-HHMMSS.dump
+./scripts/backup-db.sh my-backup.dump     # hoặc chỉ định tên file
+
+./scripts/restore-db.sh my-backup.dump    # LƯU Ý: ghi đè toàn bộ dữ liệu hiện có
+```
+
+Script tự nhận diện container Postgres đang chạy qua `docker ps` (khớp tên chứa
+"postgres"); nếu không có container nào thì tự fallback gọi `pg_dump`/`pg_restore` cục
+bộ (yêu cầu Postgres cài trên máy, lắng nghe `localhost:5432`). Không cần cấu hình gì
+thêm nếu dùng đúng `docker-compose.yml` mặc định của dự án.
 
 ## Quyết định kỹ thuật
 
@@ -456,3 +529,17 @@ Management), chỉ bỏ phần UI nghiệp vụ (Patient/Appointment) sang React
   `DentifyApplicationModule.ConfigureServices`. Quên bước này không gây lỗi biên dịch,
   chỉ crash lúc runtime/test khi DI resolve AppService — luôn nhớ kiểm tra bước này khi
   thêm AppService mới dùng Mapperly (xem nhật ký 2026-07-06 (4)).
+- **CSV import/export xử lý ở frontend**, không có endpoint backend riêng — Export gọi
+  thẳng API list đã có rồi convert JS, Import đọc CSV rồi gọi tuần tự API Create đã có
+  cho từng dòng. Tận dụng validation/business rule có sẵn, tránh viết lại lần 2 cho
+  batch; đánh đổi là import file rất lớn sẽ chậm hơn bulk insert thật (chấp nhận được ở
+  quy mô 1 phòng khám). Xem nhật ký 2026-07-07.
+- **Settings dùng `ISettingManager`/`ISettingProvider` thật của ABP**, KHÔNG dùng UI
+  Settings có sẵn của `Volo.Abp.SettingManagement.Web` (vốn cắm vào admin Razor) — vì
+  toàn bộ UI nghiệp vụ đã chuyển sang React từ đầu dự án. Mỗi nhóm setting mới (ngoài
+  Email đã có sẵn AppService của module) cần tự viết AppService riêng expose qua REST,
+  không có generic endpoint nào của ABP SettingManagement cho custom setting.
+- **Backup/Restore dùng script `pg_dump`/`pg_restore` thuần**, không xây tính năng
+  trong app — tin cậy hơn, không phải tự xử lý file lớn/transaction/downtime. Script tự
+  nhận diện container Postgres qua `docker ps`, fallback gọi thẳng nếu chạy Postgres
+  local không qua Docker.

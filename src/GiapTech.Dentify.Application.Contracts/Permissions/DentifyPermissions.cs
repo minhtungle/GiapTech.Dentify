@@ -49,4 +49,10 @@ public static class DentifyPermissions
         public const string Update = Default + ".Update";
         public const string Delete = Default + ".Delete";
     }
+
+    public static class ClinicSettings
+    {
+        public const string Default = GroupName + ".ClinicSettings";
+        public const string Update = Default + ".Update";
+    }
 }

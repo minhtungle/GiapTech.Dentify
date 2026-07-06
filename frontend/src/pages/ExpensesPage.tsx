@@ -1,6 +1,6 @@
-import { useEffect, useState } from "react"
-import type { FormEvent } from "react"
-import { Pencil, Plus, Trash2 } from "lucide-react"
+import { useEffect, useRef, useState } from "react"
+import type { ChangeEvent, FormEvent } from "react"
+import { Download, Pencil, Plus, Trash2, Upload } from "lucide-react"
 import { toast } from "sonner"
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
@@ -31,6 +31,7 @@ import {
 } from "@/components/ui/table"
 import { expensesApi } from "@/lib/expenses-api"
 import { ApiError } from "@/lib/api"
+import { downloadCsv, parseCsvToObjects, toCsv } from "@/lib/csv"
 import type { CreateUpdateExpenseDto, ExpenseCategoryName, ExpenseDto } from "@/types/expense"
 import {
   EXPENSE_CATEGORY_LABELS_VI,
@@ -57,6 +58,9 @@ export function ExpensesPage() {
   const [editingId, setEditingId] = useState<string | null>(null)
   const [form, setForm] = useState<CreateUpdateExpenseDto>(emptyForm())
   const [isSaving, setIsSaving] = useState(false)
+
+  const [isImporting, setIsImporting] = useState(false)
+  const importInputRef = useRef<HTMLInputElement>(null)
 
   const loadData = async () => {
     setIsLoading(true)
@@ -133,6 +137,85 @@ export function ExpensesPage() {
     }
   }
 
+  const handleExportCsv = async () => {
+    try {
+      const result = await expensesApi.getList({ maxResultCount: 1000, sorting: "expenseDate desc" })
+      const csv = toCsv(
+        ["Ngày", "Danh mục", "Số tiền", "Ghi chú"],
+        result.items.map((e) => [
+          e.expenseDate.slice(0, 10),
+          EXPENSE_CATEGORY_LABELS_VI[e.category],
+          e.amount,
+          e.description ?? "",
+        ]),
+      )
+      downloadCsv(`chi-phi-${new Date().toISOString().slice(0, 10)}.csv`, csv)
+      toast.success(`Đã xuất ${result.items.length} khoản chi ra CSV`)
+    } catch (err) {
+      toast.error(err instanceof ApiError ? err.message : "Xuất CSV thất bại")
+    }
+  }
+
+  const handleImportCsv = async (e: ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0]
+    e.target.value = ""
+    if (!file) return
+
+    const text = await file.text()
+    const rows = parseCsvToObjects(text)
+    if (rows.length === 0) {
+      toast.error("File CSV không có dữ liệu")
+      return
+    }
+
+    setIsImporting(true)
+    let successCount = 0
+    const errors: string[] = []
+
+    for (let i = 0; i < rows.length; i++) {
+      const row = rows[i]
+      const expenseDate = row["Ngày"]?.trim()
+      const amountText = row["Số tiền"]?.trim()
+      const amount = Number(amountText)
+
+      if (!expenseDate || !amountText || Number.isNaN(amount) || amount <= 0) {
+        errors.push(`Dòng ${i + 2}: thiếu Ngày hoặc Số tiền không hợp lệ`)
+        continue
+      }
+
+      const categoryLabel = row["Danh mục"]?.trim()
+      const category = (Object.keys(EXPENSE_CATEGORY_LABELS_VI) as unknown as (keyof typeof EXPENSE_CATEGORY_LABELS_VI)[]).find(
+        (key) => EXPENSE_CATEGORY_LABELS_VI[key] === categoryLabel,
+      )
+      const categoryName = (Object.keys(ExpenseCategory) as ExpenseCategoryName[]).find(
+        (key) => ExpenseCategory[key] === (category ?? ExpenseCategory.Other),
+      ) ?? "Other"
+
+      try {
+        await expensesApi.create({
+          expenseDate: new Date(expenseDate).toISOString(),
+          amount,
+          category: categoryName,
+          description: row["Ghi chú"]?.trim() || undefined,
+        })
+        successCount++
+      } catch (err) {
+        const message = err instanceof ApiError ? err.message : "Lỗi không xác định"
+        errors.push(`Dòng ${i + 2}: ${message}`)
+      }
+    }
+
+    setIsImporting(false)
+
+    if (successCount > 0) {
+      toast.success(`Đã nhập ${successCount}/${rows.length} khoản chi`)
+      await loadData()
+    }
+    if (errors.length > 0) {
+      toast.error(`${errors.length} dòng lỗi: ${errors.slice(0, 3).join("; ")}${errors.length > 3 ? "..." : ""}`)
+    }
+  }
+
   return (
     <div className="flex flex-col gap-4">
       <div className="flex items-center justify-between">
@@ -142,10 +225,31 @@ export function ExpensesPage() {
             {totalCount} khoản chi — Tổng: {totalAmount.toLocaleString("vi-VN")}
           </p>
         </div>
-        <Button onClick={openCreateDialog}>
-          <Plus />
-          Thêm chi phí
-        </Button>
+        <div className="flex gap-2">
+          <input
+            ref={importInputRef}
+            type="file"
+            accept=".csv"
+            className="hidden"
+            onChange={(e) => void handleImportCsv(e)}
+          />
+          <Button
+            variant="outline"
+            onClick={() => importInputRef.current?.click()}
+            disabled={isImporting}
+          >
+            <Upload className="size-4" />
+            {isImporting ? "Đang nhập..." : "Nhập CSV"}
+          </Button>
+          <Button variant="outline" onClick={() => void handleExportCsv()}>
+            <Download className="size-4" />
+            Xuất CSV
+          </Button>
+          <Button onClick={openCreateDialog}>
+            <Plus />
+            Thêm chi phí
+          </Button>
+        </div>
       </div>
 
       <div className="rounded-lg border">

@@ -1,7 +1,7 @@
-import { useEffect, useState } from "react"
-import type { FormEvent } from "react"
+import { useEffect, useRef, useState } from "react"
+import type { ChangeEvent, FormEvent } from "react"
 import { useNavigate } from "react-router-dom"
-import { Pencil, Plus, Smile, Trash2 } from "lucide-react"
+import { Download, Pencil, Plus, Smile, Trash2, Upload } from "lucide-react"
 import { toast } from "sonner"
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
@@ -32,6 +32,7 @@ import {
 } from "@/components/ui/table"
 import { patientsApi } from "@/lib/patients-api"
 import { ApiError } from "@/lib/api"
+import { downloadCsv, parseCsvToObjects, toCsv } from "@/lib/csv"
 import type { CreateUpdatePatientDto, GenderName, PatientDto } from "@/types/patient"
 import { Gender, GENDER_LABELS_VI } from "@/types/patient"
 
@@ -72,6 +73,9 @@ export function PatientsPage() {
   const [form, setForm] = useState<CreateUpdatePatientDto>(EMPTY_FORM)
   const [tagsInput, setTagsInput] = useState("")
   const [isSaving, setIsSaving] = useState(false)
+
+  const [isImporting, setIsImporting] = useState(false)
+  const importInputRef = useRef<HTMLInputElement>(null)
 
   const loadPatients = async () => {
     setIsLoading(true)
@@ -151,6 +155,95 @@ export function PatientsPage() {
     }
   }
 
+  const handleExportCsv = async () => {
+    try {
+      const result = await patientsApi.getList({ maxResultCount: 1000 })
+      const csv = toCsv(
+        ["Họ và tên", "Ngày sinh", "Giới tính", "Số điện thoại", "Email", "Địa chỉ", "Tags", "Ghi chú"],
+        result.items.map((p) => [
+          p.fullName,
+          p.dateOfBirth.slice(0, 10),
+          GENDER_LABELS_VI[p.gender],
+          p.phoneNumber ?? "",
+          p.email ?? "",
+          p.address ?? "",
+          p.tags.join("; "),
+          p.notes ?? "",
+        ]),
+      )
+      downloadCsv(`benh-nhan-${new Date().toISOString().slice(0, 10)}.csv`, csv)
+      toast.success(`Đã xuất ${result.items.length} bệnh nhân ra CSV`)
+    } catch (err) {
+      toast.error(err instanceof ApiError ? err.message : "Xuất CSV thất bại")
+    }
+  }
+
+  const handleImportCsv = async (e: ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0]
+    e.target.value = ""
+    if (!file) return
+
+    const text = await file.text()
+    const rows = parseCsvToObjects(text)
+    if (rows.length === 0) {
+      toast.error("File CSV không có dữ liệu")
+      return
+    }
+
+    setIsImporting(true)
+    let successCount = 0
+    const errors: string[] = []
+
+    for (let i = 0; i < rows.length; i++) {
+      const row = rows[i]
+      const fullName = row["Họ và tên"]?.trim()
+      const dateOfBirth = row["Ngày sinh"]?.trim()
+
+      if (!fullName || !dateOfBirth) {
+        errors.push(`Dòng ${i + 2}: thiếu Họ và tên hoặc Ngày sinh`)
+        continue
+      }
+
+      const genderLabel = row["Giới tính"]?.trim()
+      const gender = (Object.keys(GENDER_LABELS_VI) as unknown as Gender[]).find(
+        (key) => GENDER_LABELS_VI[key] === genderLabel,
+      )
+      const genderName = (Object.keys(Gender) as GenderName[]).find(
+        (key) => Gender[key] === (gender ?? Gender.Male),
+      ) ?? "Male"
+
+      try {
+        await patientsApi.create({
+          fullName,
+          dateOfBirth,
+          gender: genderName,
+          phoneNumber: row["Số điện thoại"]?.trim() || undefined,
+          email: row["Email"]?.trim() || undefined,
+          address: row["Địa chỉ"]?.trim() || undefined,
+          notes: row["Ghi chú"]?.trim() || undefined,
+          tags: (row["Tags"] ?? "")
+            .split(";")
+            .map((t) => t.trim())
+            .filter(Boolean),
+        })
+        successCount++
+      } catch (err) {
+        const message = err instanceof ApiError ? err.message : "Lỗi không xác định"
+        errors.push(`Dòng ${i + 2} (${fullName}): ${message}`)
+      }
+    }
+
+    setIsImporting(false)
+
+    if (successCount > 0) {
+      toast.success(`Đã nhập ${successCount}/${rows.length} bệnh nhân`)
+      await loadPatients()
+    }
+    if (errors.length > 0) {
+      toast.error(`${errors.length} dòng lỗi: ${errors.slice(0, 3).join("; ")}${errors.length > 3 ? "..." : ""}`)
+    }
+  }
+
   return (
     <div className="flex flex-col gap-4">
       <div className="flex items-center justify-between">
@@ -158,10 +251,31 @@ export function PatientsPage() {
           <h1 className="text-2xl font-semibold">Bệnh nhân</h1>
           <p className="text-sm text-muted-foreground">{totalCount} bệnh nhân</p>
         </div>
-        <Button onClick={openCreateDialog}>
-          <Plus />
-          Thêm bệnh nhân
-        </Button>
+        <div className="flex gap-2">
+          <input
+            ref={importInputRef}
+            type="file"
+            accept=".csv"
+            className="hidden"
+            onChange={(e) => void handleImportCsv(e)}
+          />
+          <Button
+            variant="outline"
+            onClick={() => importInputRef.current?.click()}
+            disabled={isImporting}
+          >
+            <Upload className="size-4" />
+            {isImporting ? "Đang nhập..." : "Nhập CSV"}
+          </Button>
+          <Button variant="outline" onClick={() => void handleExportCsv()}>
+            <Download className="size-4" />
+            Xuất CSV
+          </Button>
+          <Button onClick={openCreateDialog}>
+            <Plus />
+            Thêm bệnh nhân
+          </Button>
+        </div>
       </div>
 
       <div className="flex gap-2">
