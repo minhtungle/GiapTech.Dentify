@@ -11,12 +11,74 @@
 - [x] Đổi kiến trúc: DB → PostgreSQL, frontend nghiệp vụ tách riêng (React + shadcn/ui,
       OAuth2 PKCE), backend chỉ còn AuthServer + API + admin Razor, toàn bộ triển khai
       qua Docker Compose
-- [ ] Giai đoạn 2: Tooth Chart module (SVG interactive) + Photo upload + Prescription chi tiết
+- [x] Giai đoạn 2 (một phần): Tooth Chart module (SVG interactive) — xong. Photo upload +
+      Prescription chi tiết (PrescriptionItem) — CHƯA làm, để dành việc kế tiếp.
 - [ ] Giai đoạn 3: LabWork + Expense + Kanban
 - [ ] Giai đoạn 4: Import/Export CSV + Backup/Restore + Settings đầy đủ
 - [ ] Giai đoạn 5 (tuỳ chọn): AI voice-to-note, AI scan hoá đơn, Patient Portal
 
 ## Nhật ký
+
+### 2026-07-06 — Giai đoạn 2 (một phần): Tooth Chart module
+
+Làm trên máy mới (clone từ git, VS Code extension) — môi trường chưa có gì, đã tự cài
+.NET 10 SDK (`dotnet-install.sh`), Docker Desktop, `Volo.Abp.Studio.Cli` (`abp install-libs`),
+`dotnet-ef`. Gặp 1 trở ngại môi trường: npm cache `~/.npm` bị owner sai (do lần cài trước
+dùng `sudo npm`) → dùng `npm install --cache /tmp/npm-cache-dentify` thay vì sửa quyền
+(không có sudo non-interactive).
+
+- **Domain**: `ToothChart` (FullAuditedAggregateRoot, 1-1 với Patient) chứa collection
+  `ToothRecord` (entity con, `Entity<Guid>`, unique theo `(ToothChartId, ToothNumber)`).
+  `ToothRecordHistory` — **cố ý làm aggregate root RIÊNG** (không phải child collection
+  của ToothChart) vì đây là log append-only sẽ phình to theo thời gian sống của bệnh nhân;
+  nhét vào ToothChart sẽ buộc phải load toàn bộ lịch sử mỗi lần chỉ cần xem trạng thái hiện
+  tại. `ToothNumbers` (Domain.Shared): danh sách số răng chuẩn ISO 3950 duy nhất dùng trong
+  toàn bộ backend — Palmer/Universal chỉ là hiển thị, KHÔNG lưu, convert ở frontend nếu cần
+  sau này (chưa làm, hiện chỉ hiển thị số ISO).
+  Răng vĩnh viễn: 11-18/21-28/31-38/41-48 (32 răng). Răng sữa: 51-55/61-65/71-75/81-85
+  (20 răng) — chọn bộ nào dựa vào `Patient.IsChildPatient` lúc tạo chart lần đầu.
+- **EF Core**: `IToothChartRepository` (custom repo interface ở Domain, implement ở
+  EntityFrameworkCore) — **bắt buộc** vì cần `.Include(x => x.Records)` khi load
+  (navigation dùng private backing field `_records`, phải `HasField` + generic
+  `IRepository<ToothChart,Guid>` mặc định của ABP không hỗ trợ include tuỳ ý; Application
+  layer không nên biết `Microsoft.EntityFrameworkCore` trực tiếp). Migration
+  `AddToothChart`: 3 bảng `AppToothCharts`, `AppToothRecords`, `AppToothRecordHistories`.
+- **Application**: `ToothChartAppService.GetAsync(id)` tạo chart **lazy** nếu bệnh nhân
+  chưa có (insert toàn bộ `ToothRecord` Healthy cho đúng bộ răng). `UpdateStatusAsync`
+  vừa cập nhật `ToothRecord` (ghi đè) vừa insert 1 `ToothRecordHistory` mới (không ghi đè)
+  — 2 aggregate khác nhau nên AppService là nơi điều phối (đúng theo DDD, domain method
+  của 1 aggregate không được tự ý ghi vào aggregate khác).
+  **Lưu ý route ABP convention**: đặt tên method đúng `GetAsync(Guid id)` (tham số phải
+  tên "id") thì ABP mới sinh route `{id}` trong path; nếu tên khác ("patientId") sẽ bị
+  đẩy xuống query string dù cùng là action Get. Method custom (`UpdateStatusAsync`,
+  `GetHistoryAsync`) thì mọi tham số Guid/int đầu vào tự động thành path segment theo thứ
+  tự, không cần đặt tên "id". Ban đầu đặt tên method trùng theo kiểu
+  `GetToothChartAsync`/`UpdateToothStatusAsync` khiến route bị lặp đoạn
+  (`/tooth-chart/tooth-chart/{patientId}`) — đã đổi lại cho gọn.
+  **Bẫy đã gặp**: sau khi thêm permission mới (`Dentify.ToothChart.*`) phải **chạy lại
+  DbMigrator** (seed lại `AbpPermissionGrants` cho role admin) RỒI **restart backend**
+  (permission checker có cache in-memory, không tự invalidate) — nếu không sẽ bị 403 dù
+  code đúng.
+- **Frontend**: `ToothChartSvg` component tự vẽ (không dùng thư viện SVG dạng răng có sẵn)
+  — 2 hàng (hàm trên/dưới), mỗi răng là `<rect>` bo góc tô màu theo `ToothStatus` + label
+  số răng bên dưới, click vào `<g>` mở dialog. `ToothChartPage` (route
+  `/patients/:patientId/tooth-chart`, link từ nút icon 🙂 trong bảng Patients): dialog
+  đổi status + notes, nút "Xem lịch sử" load on-demand (không tự load history khi mở dialog
+  để đỡ 1 request không cần thiết cho thao tác đổi status thông thường).
+  Enum wire format giữ đúng convention đã ghi trước đó (response = số, request = string).
+- **Test**: `ToothChartAppServiceTests` (6 test: tạo lazy đúng bộ răng theo tuổi, không tạo
+  lại lần 2, update + ghi history, nhiều lần đổi status không đè lịch sử cũ, tooth number
+  không hợp lệ → BusinessException). Tổng test toàn repo: 16 → 22 (EfCoreTests) + 1
+  (WebTests) = 23, tất cả pass.
+  **Đã verify UI thật bằng Playwright** (không phải chỉ dotnet test): login → tạo bệnh
+  nhân → mở sơ đồ răng → click răng 11 → đổi "Sâu răng" + ghi chú → lưu → răng đổi màu đỏ
+  trên SVG + toast đúng → mở lại → xem lịch sử → thấy đúng entry vừa tạo. Không có lỗi
+  console.
+- Chưa làm (để lại cho lần sau): Photo upload (IBlobContainer) + Prescription chi tiết —
+  đây là phần còn lại của Giai đoạn 2 theo kế hoạch gốc. Hiển thị theo Palmer/Universal
+  notation ở frontend (hiện chỉ có ISO 3950). Không cho chọn `appointmentId` khi cập nhật
+  tình trạng răng từ UI (field có trong API nhưng chưa có chỗ chọn lịch hẹn liên quan trên
+  form — cần khi làm tích hợp Appointment ↔ ToothChart).
 
 ### 2026-07-05 (2) — Đổi kiến trúc: PostgreSQL + React frontend (shadcn) + Docker
 
@@ -143,9 +205,11 @@ Management), chỉ bỏ phần UI nghiệp vụ (Patient/Appointment) sang React
 
 ## TODO / việc đang dở
 
-- Giai đoạn 2: Tooth Chart module (SVG interactive, ISO 3950/Palmer/Universal),
-  Photo upload (IBlobContainer), Prescription chi tiết (PrescriptionItem). Trang React
-  tương ứng cũng làm ở `frontend/`, không quay lại Razor.
+- Giai đoạn 2 (phần còn lại): Photo upload cho Appointment (IBlobContainer), Prescription
+  chi tiết (bảng `PrescriptionItem` thay vì text tự do như hiện tại).
+- Tooth Chart: hiển thị theo Palmer/Universal notation ở frontend (Setting
+  `Clinic.ToothNotationSystem` — hiện chưa có UI Settings, chỉ mới có ISO 3950), cho chọn
+  `appointmentId` liên quan khi cập nhật tình trạng răng.
 - Cân nhắc thêm `IsOperator` (bool) trên UserExtension để lọc danh sách bác sĩ trong
   Appointment (hiện đang cho chọn từ toàn bộ Identity Users).
 - Production thật cho Docker Compose: reverse proxy + TLS thật + `openiddict.pfx` thật
@@ -170,3 +234,9 @@ Management), chỉ bỏ phần UI nghiệp vụ (Patient/Appointment) sang React
 - Frontend components trong `frontend/src/components/ui/` là code tự viết theo convention
   shadcn (vendor-in-repo), không phải package npm "shadcn" — đúng triết lý gốc của
   shadcn (copy-paste ownership), và tránh phải gọi CLI cần mạng ra ngoài allowlist.
+- `ToothRecordHistory` là aggregate root độc lập, không phải child collection của
+  `ToothChart` — log append-only phình to vô hạn theo thời gian, tách riêng để không phải
+  load hết lịch sử mỗi lần chỉ cần xem trạng thái hiện tại (xem nhật ký 2026-07-06).
+- Số răng dùng **duy nhất chuẩn ISO 3950** trong toàn bộ backend/API; Palmer/Universal (nếu
+  làm) chỉ là convert hiển thị ở frontend, không lưu thêm cột nào — tránh phải đồng bộ 3
+  hệ ký hiệu mỗi khi đổi trạng thái răng.

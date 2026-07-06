@@ -21,6 +21,9 @@ public class DentifyPermissionDefinitionProvider : PermissionDefinitionProvider
         appointments.AddChild(DentifyPermissions.Appointments.Update, L("Permission:Appointments.Update"));
         appointments.AddChild(DentifyPermissions.Appointments.Delete, L("Permission:Appointments.Delete"));
         appointments.AddChild(DentifyPermissions.Appointments.ManagePayment, L("Permission:Appointments.ManagePayment"));
+
+        var toothChart = myGroup.AddPermission(DentifyPermissions.ToothChart.Default, L("Permission:ToothChart"));
+        toothChart.AddChild(DentifyPermissions.ToothChart.Update, L("Permission:ToothChart.Update"));
     }
 
     private static LocalizableString L(string name)

@@ -4,6 +4,7 @@ import { ProtectedRoute } from "@/components/layout/ProtectedRoute"
 import { AuthCallbackPage } from "@/pages/AuthCallbackPage"
 import { PatientsPage } from "@/pages/PatientsPage"
 import { AppointmentsPage } from "@/pages/AppointmentsPage"
+import { ToothChartPage } from "@/pages/ToothChartPage"
 
 function App() {
   return (
@@ -27,6 +28,16 @@ function App() {
             <ProtectedRoute>
               <AppLayout>
                 <AppointmentsPage />
+              </AppLayout>
+            </ProtectedRoute>
+          }
+        />
+        <Route
+          path="/patients/:patientId/tooth-chart"
+          element={
+            <ProtectedRoute>
+              <AppLayout>
+                <ToothChartPage />
               </AppLayout>
             </ProtectedRoute>
           }

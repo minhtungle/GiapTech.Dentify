@@ -18,6 +18,8 @@
     "Permission:Appointments.Update": "Sửa",
     "Permission:Appointments.Delete": "Xoá",
     "Permission:Appointments.ManagePayment": "Quản lý thanh toán",
+    "Permission:ToothChart": "Sơ đồ răng",
+    "Permission:ToothChart.Update": "Sửa",
 
     "Patient": "Bệnh nhân",
     "Patients": "Bệnh nhân",
@@ -67,8 +69,27 @@
     "PaymentStatus:PartiallyPaid": "Thanh toán một phần",
     "PaymentStatus:Paid": "Đã thanh toán",
 
+    "ToothChart": "Sơ đồ răng",
+    "ToothChart:History": "Lịch sử",
+    "ToothChart:UpdateStatus": "Cập nhật tình trạng răng",
+    "ToothChart:Status": "Tình trạng",
+    "ToothChart:Notes": "Ghi chú",
+    "ToothChart:LastUpdated": "Cập nhật lần cuối",
+    "ToothChart:NoHistory": "Răng này chưa có lịch sử.",
+
+    "ToothStatus:Healthy": "Khoẻ mạnh",
+    "ToothStatus:Decayed": "Sâu răng",
+    "ToothStatus:Filled": "Đã trám",
+    "ToothStatus:Missing": "Mất răng",
+    "ToothStatus:Crown": "Bọc răng sứ",
+    "ToothStatus:RootCanal": "Điều trị tuỷ",
+    "ToothStatus:Extracted": "Đã nhổ",
+    "ToothStatus:Implant": "Cấy ghép Implant",
+
     "Dentify:00001": "Không tìm thấy bệnh nhân.",
     "Dentify:00002": "Không tìm thấy lịch hẹn.",
-    "Dentify:00003": "Số tiền đã thanh toán không được vượt quá giá dịch vụ."
+    "Dentify:00003": "Số tiền đã thanh toán không được vượt quá giá dịch vụ.",
+    "Dentify:00004": "Số răng không hợp lệ.",
+    "Dentify:00005": "Không tìm thấy thông tin răng."
   }
 }

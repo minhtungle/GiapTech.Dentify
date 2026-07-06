@@ -20,4 +20,10 @@ public static class DentifyPermissions
         public const string Delete = Default + ".Delete";
         public const string ManagePayment = Default + ".ManagePayment";
     }
+
+    public static class ToothChart
+    {
+        public const string Default = GroupName + ".ToothChart";
+        public const string Update = Default + ".Update";
+    }
 }

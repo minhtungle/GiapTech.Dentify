@@ -1,6 +1,7 @@
 import { useEffect, useState } from "react"
 import type { FormEvent } from "react"
-import { Pencil, Plus, Trash2 } from "lucide-react"
+import { useNavigate } from "react-router-dom"
+import { Pencil, Plus, Smile, Trash2 } from "lucide-react"
 import { toast } from "sonner"
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
@@ -60,6 +61,7 @@ function toDto(form: CreateUpdatePatientDto, tagsInput: string): CreateUpdatePat
 }
 
 export function PatientsPage() {
+  const navigate = useNavigate()
   const [patients, setPatients] = useState<PatientDto[]>([])
   const [totalCount, setTotalCount] = useState(0)
   const [filter, setFilter] = useState("")
@@ -227,6 +229,14 @@ export function PatientsPage() {
                   </div>
                 </TableCell>
                 <TableCell className="text-right">
+                  <Button
+                    variant="ghost"
+                    size="icon"
+                    title="Sơ đồ răng"
+                    onClick={() => navigate(`/patients/${patient.id}/tooth-chart`)}
+                  >
+                    <Smile className="size-4" />
+                  </Button>
                   <Button variant="ghost" size="icon" onClick={() => openEditDialog(patient)}>
                     <Pencil className="size-4" />
                   </Button>

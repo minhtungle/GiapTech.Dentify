@@ -18,6 +18,8 @@
     "Permission:Appointments.Update": "Edit",
     "Permission:Appointments.Delete": "Delete",
     "Permission:Appointments.ManagePayment": "Manage payment",
+    "Permission:ToothChart": "Tooth Chart",
+    "Permission:ToothChart.Update": "Edit",
 
     "Patient": "Patient",
     "Patients": "Patients",
@@ -67,8 +69,27 @@
     "PaymentStatus:PartiallyPaid": "Partially paid",
     "PaymentStatus:Paid": "Paid",
 
+    "ToothChart": "Tooth Chart",
+    "ToothChart:History": "History",
+    "ToothChart:UpdateStatus": "Update tooth status",
+    "ToothChart:Status": "Status",
+    "ToothChart:Notes": "Notes",
+    "ToothChart:LastUpdated": "Last updated",
+    "ToothChart:NoHistory": "No history for this tooth yet.",
+
+    "ToothStatus:Healthy": "Healthy",
+    "ToothStatus:Decayed": "Decayed",
+    "ToothStatus:Filled": "Filled",
+    "ToothStatus:Missing": "Missing",
+    "ToothStatus:Crown": "Crown",
+    "ToothStatus:RootCanal": "Root canal",
+    "ToothStatus:Extracted": "Extracted",
+    "ToothStatus:Implant": "Implant",
+
     "Dentify:00001": "Patient not found.",
     "Dentify:00002": "Appointment not found.",
-    "Dentify:00003": "Paid amount cannot exceed the appointment price."
+    "Dentify:00003": "Paid amount cannot exceed the appointment price.",
+    "Dentify:00004": "Invalid tooth number.",
+    "Dentify:00005": "Tooth record not found."
   }
 }

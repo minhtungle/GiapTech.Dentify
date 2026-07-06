@@ -6,6 +6,7 @@ using Microsoft.EntityFrameworkCore;
 using Microsoft.EntityFrameworkCore.ChangeTracking;
 using GiapTech.Dentify.Appointments;
 using GiapTech.Dentify.Patients;
+using GiapTech.Dentify.ToothCharts;
 using Volo.Abp.AuditLogging.EntityFrameworkCore;
 using Volo.Abp.BackgroundJobs.EntityFrameworkCore;
 using Volo.Abp.BlobStoring.Database.EntityFrameworkCore;
@@ -36,6 +37,8 @@ public class DentifyDbContext :
 
     public DbSet<Patient> Patients { get; set; }
     public DbSet<Appointment> Appointments { get; set; }
+    public DbSet<ToothChart> ToothCharts { get; set; }
+    public DbSet<ToothRecordHistory> ToothRecordHistories { get; set; }
 
 
     #region Entities from the modules
@@ -132,6 +135,41 @@ public class DentifyDbContext :
             b.HasIndex(x => x.PatientId);
             b.HasIndex(x => x.DoctorId);
             b.HasIndex(x => x.ScheduledDateTime);
+        });
+
+        builder.Entity<ToothChart>(b =>
+        {
+            b.ToTable(DentifyConsts.DbTablePrefix + "ToothCharts", DentifyConsts.DbSchema);
+            b.ConfigureByConvention();
+
+            b.HasOne<Patient>().WithOne().HasForeignKey<ToothChart>(x => x.PatientId).IsRequired();
+            b.HasIndex(x => x.PatientId).IsUnique();
+
+            b.HasMany(x => x.Records).WithOne().HasForeignKey(x => x.ToothChartId).IsRequired();
+            b.Navigation(x => x.Records).HasField("_records").UsePropertyAccessMode(PropertyAccessMode.Field);
+        });
+
+        builder.Entity<ToothRecord>(b =>
+        {
+            b.ToTable(DentifyConsts.DbTablePrefix + "ToothRecords", DentifyConsts.DbSchema);
+            b.ConfigureByConvention();
+
+            b.Property(x => x.Notes).HasMaxLength(ToothChartConsts.MaxNotesLength);
+
+            b.HasIndex(x => new { x.ToothChartId, x.ToothNumber }).IsUnique();
+        });
+
+        builder.Entity<ToothRecordHistory>(b =>
+        {
+            b.ToTable(DentifyConsts.DbTablePrefix + "ToothRecordHistories", DentifyConsts.DbSchema);
+            b.ConfigureByConvention();
+
+            b.Property(x => x.Notes).HasMaxLength(ToothChartConsts.MaxNotesLength);
+
+            b.HasOne<Patient>().WithMany().HasForeignKey(x => x.PatientId).IsRequired();
+            b.HasOne<Appointment>().WithMany().HasForeignKey(x => x.AppointmentId).IsRequired(false);
+
+            b.HasIndex(x => new { x.PatientId, x.ToothNumber });
         });
     }
 }
