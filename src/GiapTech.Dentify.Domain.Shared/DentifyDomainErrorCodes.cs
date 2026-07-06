@@ -12,4 +12,5 @@ public static class DentifyDomainErrorCodes
     public const string UnsupportedPhotoContentType = "Dentify:00006";
     public const string PhotoSizeTooLarge = "Dentify:00007";
     public const string AppointmentPhotoNotFound = "Dentify:00008";
+    public const string PrescriptionItemNotFound = "Dentify:00009";
 }

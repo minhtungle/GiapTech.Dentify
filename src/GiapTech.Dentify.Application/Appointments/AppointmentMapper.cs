@@ -12,4 +12,6 @@ public partial class AppointmentMapper
     [MapperIgnoreSource(nameof(Appointment.ExtraProperties))]
     [MapperIgnoreSource(nameof(Appointment.ConcurrencyStamp))]
     public partial AppointmentDto MapToDto(Appointment appointment);
+
+    public partial PrescriptionItemDto MapToDto(PrescriptionItem prescriptionItem);
 }

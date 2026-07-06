@@ -11,14 +11,68 @@
 - [x] Đổi kiến trúc: DB → PostgreSQL, frontend nghiệp vụ tách riêng (React + shadcn/ui,
       OAuth2 PKCE), backend chỉ còn AuthServer + API + admin Razor, toàn bộ triển khai
       qua Docker Compose
-- [x] Giai đoạn 2 (gần xong): Tooth Chart module (SVG interactive) — xong. Photo upload
-      cho Appointment (IBlobContainer, lưu DB) — xong. Prescription chi tiết
-      (PrescriptionItem) — CHƯA làm, để dành việc kế tiếp.
+- [x] Giai đoạn 2 (xong): Tooth Chart module (SVG interactive), Photo upload cho
+      Appointment (IBlobContainer, lưu DB), Prescription chi tiết (bảng PrescriptionItem
+      thay text tự do).
 - [ ] Giai đoạn 3: LabWork + Expense + Kanban
 - [ ] Giai đoạn 4: Import/Export CSV + Backup/Restore + Settings đầy đủ
 - [ ] Giai đoạn 5 (tuỳ chọn): AI voice-to-note, AI scan hoá đơn, Patient Portal
 
 ## Nhật ký
+
+### 2026-07-06 (3) — Giai đoạn 2 (hoàn tất): Prescription chi tiết (PrescriptionItem)
+
+Cùng máy/phiên làm việc với 2 mục dưới. Xác nhận với user trước khi làm: **xoá hẳn**
+field `Prescription` (text tự do) cũ trên `Appointment`, thay hoàn toàn bằng bảng
+`PrescriptionItem` — không giữ song song 2 nơi nhập cùng 1 khái niệm. Migration DROP
+COLUMN `Prescription` (chấp nhận mất dữ liệu cũ vì DB đang ở giai đoạn test).
+
+- **Domain**: `PrescriptionItem` — khác với `AppointmentPhoto`/`ToothRecordHistory`,
+  đây là **child collection thật của `Appointment`** (không phải aggregate root riêng)
+  vì: (1) số lượng bị chặn nhỏ (vài chục dòng thuốc/lịch hẹn, không phải log vô hạn),
+  (2) luôn cần load cùng lúc khi xem/sửa đơn thuốc của 1 lịch hẹn, (3) vòng đời gắn chặt
+  — xoá Appointment thì xoá theo (FK `ON DELETE CASCADE`). Constructor và các setter là
+  `internal` (không `public`) — chỉ `Appointment` (cùng assembly Domain) được phép tạo/sửa
+  qua `AddPrescriptionItem`/`UpdatePrescriptionItem`/`RemovePrescriptionItem`, giữ đúng
+  nguyên tắc DDD "chỉ sửa entity con qua aggregate root".
+- **EF Core**: giống pattern `ToothChart.Records` — cần `IAppointmentRepository` custom
+  (`GetWithDetailsAsync` với `.Include(x => x.PrescriptionItems)`) vì generic
+  `IRepository<Appointment,Guid>.GetAsync()` KHÔNG tự include navigation collection.
+  Migration `AddPrescriptionItem`: DROP COLUMN `Prescription` (cảnh báo "may result in
+  loss of data" — đã xác nhận trước, chấp nhận được), CREATE TABLE `AppPrescriptionItems`
+  với FK cascade delete.
+- **Application**: `CreateUpdateAppointmentDto.PrescriptionItems` — danh sách
+  `CreateUpdatePrescriptionItemDto` có `Id` **optional**: `Id == null` → dòng thuốc mới
+  (thêm), `Id` có giá trị → dòng đã tồn tại (sửa). AppService tự tính diff: dòng nào
+  không còn trong danh sách gửi lên thì bị xoá (`ApplyPrescriptionItems` — so sánh
+  `HashSet<Guid>` các Id gửi lên với các Id hiện có). Đây là kiểu "lưu toàn bộ danh sách
+  1 lần" (như form nhiều dòng), không có API thêm/sửa/xoá từng dòng riêng lẻ — đơn giản
+  hơn cho UI vì chỉ có 1 nút Lưu duy nhất cho cả appointment lẫn đơn thuốc.
+- **Bug phát hiện qua Playwright, đã fix**: `GetListAsync` (danh sách lịch hẹn trong
+  bảng) dùng `GetQueryableAsync()` từ repo generic — **không** include
+  `PrescriptionItems`, nên object `AppointmentDto` trong danh sách luôn có
+  `prescriptionItems: []` rỗng dù DB có dữ liệu thật. Bug lộ ra khi mở lại dialog Sửa:
+  form dùng thẳng object từ danh sách (state cũ) làm nguồn dữ liệu ban đầu → luôn hiển
+  thị "chưa có thuốc nào" dù đã lưu trước đó. **Fix**: `openEditDialog` giờ là async,
+  gọi `appointmentsApi.get(id)` (route `GetAsync` dùng `GetWithDetailsAsync`, có include
+  đầy đủ) để lấy chi tiết thật trước khi điền form, chỉ dùng object từ danh sách làm
+  giá trị tạm hiển thị ngay khi dialog vừa mở (tránh giật màn hình trắng). Đây là lý do
+  bắt buộc phải test bằng trình duyệt thật (Playwright) thay vì chỉ tin unit test — test
+  AppService pass 100% (vì gọi thẳng `GetAsync`/`UpdateAsync` của AppService, không đi
+  qua tầng list-rồi-edit của UI) nhưng bug này chỉ lộ ra ở đúng luồng thao tác thật của
+  người dùng.
+- **Frontend**: `AppointmentsPage` — bỏ hẳn `<Textarea>` Prescription, thay bằng danh
+  sách dòng thuốc động (thêm/sửa/xoá dòng ngay trong dialog, mỗi dòng: Tên thuốc/Liều
+  lượng/Số lượng/Hướng dẫn). Dùng key tạm phía client (`temp-N`) cho dòng mới chưa có
+  `id` để React render list ổn định, tách riêng field `id` (gửi lên server) khỏi `key`
+  (chỉ dùng nội bộ UI).
+- **Test**: 2 test mới (`Should_Create_Appointment_With_Prescription_Items`,
+  `Should_Update_Prescription_Items_Add_Edit_Remove` — verify thêm, sửa số
+  lượng/liều dùng, và xoá dòng không còn trong danh sách gửi lên). Tổng test: 28 → 30,
+  tất cả pass. **Verify UI thật bằng Playwright**: thêm 2 dòng thuốc → lưu → mở lại dialog
+  xác nhận đúng 2 dòng đã lưu (bắt được bug nêu trên ở bước này) → sau khi fix, sửa số
+  lượng 1 dòng + xoá dòng còn lại → lưu → mở lại lần 3 xác nhận đúng trạng thái cuối cùng
+  khớp với DB — không lỗi console.
 
 ### 2026-07-06 (2) — Giai đoạn 2 (tiếp): Photo upload cho Appointment
 
@@ -273,9 +327,9 @@ Management), chỉ bỏ phần UI nghiệp vụ (Patient/Appointment) sang React
 
 ## TODO / việc đang dở
 
-- Giai đoạn 2 (phần còn lại): Prescription chi tiết (bảng `PrescriptionItem` thay vì
-  text tự do như hiện tại). UI xoá/sửa `Caption` cho ảnh appointment (field đã có ở
-  domain, chưa có form nhập).
+- Giai đoạn 2: đã xong toàn bộ (Tooth Chart, Photo upload, Prescription chi tiết).
+  Việc lặt vặt còn sót: UI xoá/sửa `Caption` cho ảnh appointment (field đã có ở domain,
+  chưa có form nhập).
 - Tooth Chart: hiển thị theo Palmer/Universal notation ở frontend (Setting
   `Clinic.ToothNotationSystem` — hiện chưa có UI Settings, chỉ mới có ISO 3950), cho chọn
   `appointmentId` liên quan khi cập nhật tình trạng răng.
@@ -317,3 +371,14 @@ Management), chỉ bỏ phần UI nghiệp vụ (Patient/Appointment) sang React
   Controller MVC tay — nhất quán với cách các AppService khác tự sinh route, dù cái giá
   là route download bị sinh ra dạng `POST` thay vì `GET` (frontend phải tự fetch bằng
   POST rồi tạo blob URL, không gán thẳng vào `<img src>`).
+- `PrescriptionItem` là **child collection thật của `Appointment`** (khác với
+  `AppointmentPhoto`/`ToothRecordHistory` — 2 cái đó là aggregate root độc lập) vì số
+  lượng bị chặn nhỏ và luôn cần load cùng lúc với appointment; constructor/setter
+  `internal`, chỉ sửa qua domain method của `Appointment`
+  (`Add/Update/RemovePrescriptionItem`) — đúng nguyên tắc DDD 1 aggregate root kiểm soát
+  toàn bộ entity con của nó. Field `Prescription` (text tự do) cũ đã bị xoá hẳn, không
+  giữ song song (xem nhật ký 2026-07-06 (3)).
+- List views (`GetListAsync`, `GetCalendarViewAsync`) của Appointment **không**
+  include `PrescriptionItems` (tránh join thừa cho màn hình danh sách) — bất kỳ màn hình
+  nào cần đơn thuốc đầy đủ phải tự gọi `GetAsync(id)` để lấy chi tiết, không được giả định
+  object từ danh sách đã có sẵn navigation collection.

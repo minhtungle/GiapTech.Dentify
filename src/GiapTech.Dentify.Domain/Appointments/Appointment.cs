@@ -1,4 +1,6 @@
 using System;
+using System.Collections.Generic;
+using System.Linq;
 using Volo.Abp;
 using Volo.Abp.Domain.Entities.Auditing;
 
@@ -12,10 +14,12 @@ public class Appointment : FullAuditedAggregateRoot<Guid>
     public AppointmentStatus Status { get; private set; }
     public string? PreOpNotes { get; private set; }
     public string? PostOpNotes { get; private set; }
-    public string? Prescription { get; private set; }
     public decimal Price { get; private set; }
     public decimal PaidAmount { get; private set; }
     public PaymentStatus PaymentStatus { get; private set; }
+
+    private readonly List<PrescriptionItem> _prescriptionItems = new();
+    public IReadOnlyList<PrescriptionItem> PrescriptionItems => _prescriptionItems;
 
     protected Appointment()
     {
@@ -53,11 +57,38 @@ public class Appointment : FullAuditedAggregateRoot<Guid>
         Status = status;
     }
 
-    public void SetClinicalNotes(string? preOpNotes, string? postOpNotes, string? prescription)
+    public void SetClinicalNotes(string? preOpNotes, string? postOpNotes)
     {
         PreOpNotes = Check.Length(preOpNotes, nameof(preOpNotes), AppointmentConsts.MaxNotesLength);
         PostOpNotes = Check.Length(postOpNotes, nameof(postOpNotes), AppointmentConsts.MaxNotesLength);
-        Prescription = Check.Length(prescription, nameof(prescription), AppointmentConsts.MaxPrescriptionLength);
+    }
+
+    public PrescriptionItem AddPrescriptionItem(Guid id, string drugName, string? dosage, int quantity, string? instructions)
+    {
+        var item = new PrescriptionItem(id, Id, drugName, dosage, quantity, instructions);
+        _prescriptionItems.Add(item);
+        return item;
+    }
+
+    public void UpdatePrescriptionItem(Guid itemId, string drugName, string? dosage, int quantity, string? instructions)
+    {
+        var item = GetPrescriptionItem(itemId);
+        item.SetDrugName(drugName);
+        item.SetDosage(dosage);
+        item.SetQuantity(quantity);
+        item.SetInstructions(instructions);
+    }
+
+    public void RemovePrescriptionItem(Guid itemId)
+    {
+        var item = GetPrescriptionItem(itemId);
+        _prescriptionItems.Remove(item);
+    }
+
+    private PrescriptionItem GetPrescriptionItem(Guid itemId)
+    {
+        return _prescriptionItems.SingleOrDefault(x => x.Id == itemId)
+            ?? throw new BusinessException(DentifyDomainErrorCodes.PrescriptionItemNotFound);
     }
 
     public void SetPrice(decimal price)

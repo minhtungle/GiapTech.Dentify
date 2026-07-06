@@ -56,7 +56,6 @@
     "Appointment:Status": "Trạng thái",
     "Appointment:PreOpNotes": "Ghi chú trước điều trị",
     "Appointment:PostOpNotes": "Ghi chú sau điều trị",
-    "Appointment:Prescription": "Đơn thuốc",
     "Appointment:Price": "Giá dịch vụ",
     "Appointment:PaidAmount": "Đã thanh toán",
     "Appointment:PaymentStatus": "Trạng thái thanh toán",
@@ -95,6 +94,14 @@
     "AppointmentPhoto:NoPhotos": "Chưa có ảnh nào.",
     "AppointmentPhoto:DeletionConfirmationMessage": "Bạn có chắc muốn xoá ảnh này?",
 
+    "PrescriptionItem": "Đơn thuốc",
+    "PrescriptionItem:DrugName": "Tên thuốc",
+    "PrescriptionItem:Dosage": "Liều lượng",
+    "PrescriptionItem:Quantity": "Số lượng",
+    "PrescriptionItem:Instructions": "Hướng dẫn sử dụng",
+    "PrescriptionItem:Add": "Thêm thuốc",
+    "PrescriptionItem:NoItems": "Chưa có thuốc nào trong đơn.",
+
     "Dentify:00001": "Không tìm thấy bệnh nhân.",
     "Dentify:00002": "Không tìm thấy lịch hẹn.",
     "Dentify:00003": "Số tiền đã thanh toán không được vượt quá giá dịch vụ.",
@@ -102,6 +109,7 @@
     "Dentify:00005": "Không tìm thấy thông tin răng.",
     "Dentify:00006": "Định dạng ảnh không được hỗ trợ (chỉ chấp nhận JPEG, PNG, WEBP).",
     "Dentify:00007": "Kích thước ảnh vượt quá giới hạn cho phép (tối đa 10MB).",
-    "Dentify:00008": "Không tìm thấy ảnh."
+    "Dentify:00008": "Không tìm thấy ảnh.",
+    "Dentify:00009": "Không tìm thấy thuốc trong đơn."
   }
 }

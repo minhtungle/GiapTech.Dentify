@@ -17,13 +17,13 @@ namespace GiapTech.Dentify.Application.Appointments;
 [Authorize(DentifyPermissions.Appointments.Default)]
 public class AppointmentAppService : ApplicationService, IAppointmentAppService
 {
-    private readonly IRepository<Appointment, Guid> _appointmentRepository;
+    private readonly IAppointmentRepository _appointmentRepository;
     private readonly IRepository<Patient, Guid> _patientRepository;
     private readonly IRepository<IdentityUser, Guid> _identityUserRepository;
     private readonly AppointmentMapper _appointmentMapper;
 
     public AppointmentAppService(
-        IRepository<Appointment, Guid> appointmentRepository,
+        IAppointmentRepository appointmentRepository,
         IRepository<Patient, Guid> patientRepository,
         IRepository<IdentityUser, Guid> identityUserRepository,
         AppointmentMapper appointmentMapper)
@@ -36,7 +36,7 @@ public class AppointmentAppService : ApplicationService, IAppointmentAppService
 
     public virtual async Task<AppointmentDto> GetAsync(Guid id)
     {
-        var appointment = await _appointmentRepository.GetAsync(id);
+        var appointment = await _appointmentRepository.GetWithDetailsAsync(id);
         return (await MapToDtosAsync(new List<Appointment> { appointment })).Single();
     }
 
@@ -83,7 +83,8 @@ public class AppointmentAppService : ApplicationService, IAppointmentAppService
             input.DoctorId);
 
         appointment.ChangeStatus(input.Status);
-        appointment.SetClinicalNotes(input.PreOpNotes, input.PostOpNotes, input.Prescription);
+        appointment.SetClinicalNotes(input.PreOpNotes, input.PostOpNotes);
+        ApplyPrescriptionItems(appointment, input.PrescriptionItems);
 
         await _appointmentRepository.InsertAsync(appointment);
 
@@ -93,7 +94,7 @@ public class AppointmentAppService : ApplicationService, IAppointmentAppService
     [Authorize(DentifyPermissions.Appointments.Update)]
     public virtual async Task<AppointmentDto> UpdateAsync(Guid id, CreateUpdateAppointmentDto input)
     {
-        var appointment = await _appointmentRepository.GetAsync(id);
+        var appointment = await _appointmentRepository.GetWithDetailsAsync(id);
 
         await EnsurePatientExistsAsync(input.PatientId);
 
@@ -101,12 +102,38 @@ public class AppointmentAppService : ApplicationService, IAppointmentAppService
         appointment.Reschedule(input.ScheduledDateTime);
         appointment.AssignDoctor(input.DoctorId);
         appointment.ChangeStatus(input.Status);
-        appointment.SetClinicalNotes(input.PreOpNotes, input.PostOpNotes, input.Prescription);
+        appointment.SetClinicalNotes(input.PreOpNotes, input.PostOpNotes);
         appointment.SetPrice(input.Price);
+        ApplyPrescriptionItems(appointment, input.PrescriptionItems);
 
         await _appointmentRepository.UpdateAsync(appointment);
 
         return (await MapToDtosAsync(new List<Appointment> { appointment })).Single();
+    }
+
+    private void ApplyPrescriptionItems(Appointment appointment, List<CreateUpdatePrescriptionItemDto> items)
+    {
+        var incomingIds = items.Where(x => x.Id.HasValue).Select(x => x.Id!.Value).ToHashSet();
+
+        foreach (var existing in appointment.PrescriptionItems.ToList())
+        {
+            if (!incomingIds.Contains(existing.Id))
+            {
+                appointment.RemovePrescriptionItem(existing.Id);
+            }
+        }
+
+        foreach (var item in items)
+        {
+            if (item.Id.HasValue)
+            {
+                appointment.UpdatePrescriptionItem(item.Id.Value, item.DrugName, item.Dosage, item.Quantity, item.Instructions);
+            }
+            else
+            {
+                appointment.AddPrescriptionItem(GuidGenerator.Create(), item.DrugName, item.Dosage, item.Quantity, item.Instructions);
+            }
+        }
     }
 
     [Authorize(DentifyPermissions.Appointments.Delete)]
@@ -118,7 +145,7 @@ public class AppointmentAppService : ApplicationService, IAppointmentAppService
     [Authorize(DentifyPermissions.Appointments.ManagePayment)]
     public virtual async Task<AppointmentDto> UpdatePaymentAsync(Guid id, UpdatePaymentDto input)
     {
-        var appointment = await _appointmentRepository.GetAsync(id);
+        var appointment = await _appointmentRepository.GetWithDetailsAsync(id);
 
         appointment.RecordPayment(input.PaidAmount);
 

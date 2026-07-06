@@ -1,4 +1,6 @@
 using System;
+using System.Collections.Generic;
+using System.Linq;
 using System.Threading.Tasks;
 using GiapTech.Dentify.Application.Contracts.Appointments;
 using GiapTech.Dentify.Application.Contracts.Patients;
@@ -137,5 +139,65 @@ public abstract class AppointmentAppServiceTests<TStartupModule> : DentifyApplic
         await _appointmentAppService.DeleteAsync(appointment.Id);
 
         await Should.ThrowAsync<Exception>(async () => await _appointmentAppService.GetAsync(appointment.Id));
+    }
+
+    [Fact]
+    public async Task Should_Create_Appointment_With_Prescription_Items()
+    {
+        var patientId = await CreateTestPatientAsync();
+
+        var result = await _appointmentAppService.CreateAsync(new CreateUpdateAppointmentDto
+        {
+            PatientId = patientId,
+            ScheduledDateTime = DateTime.Now.AddDays(1),
+            Price = 500000,
+            PrescriptionItems = new List<CreateUpdatePrescriptionItemDto>
+            {
+                new() { DrugName = "Amoxicillin", Dosage = "500mg", Quantity = 20, Instructions = "Uống 2 lần/ngày sau ăn" },
+                new() { DrugName = "Paracetamol", Dosage = "500mg", Quantity = 10 }
+            }
+        });
+
+        result.PrescriptionItems.Count.ShouldBe(2);
+        result.PrescriptionItems.ShouldContain(x => x.DrugName == "Amoxicillin" && x.Quantity == 20);
+
+        var fetched = await _appointmentAppService.GetAsync(result.Id);
+        fetched.PrescriptionItems.Count.ShouldBe(2);
+    }
+
+    [Fact]
+    public async Task Should_Update_Prescription_Items_Add_Edit_Remove()
+    {
+        var patientId = await CreateTestPatientAsync();
+        var created = await _appointmentAppService.CreateAsync(new CreateUpdateAppointmentDto
+        {
+            PatientId = patientId,
+            ScheduledDateTime = DateTime.Now.AddDays(1),
+            Price = 100,
+            PrescriptionItems = new List<CreateUpdatePrescriptionItemDto>
+            {
+                new() { DrugName = "Ibuprofen", Quantity = 5 },
+                new() { DrugName = "ToBeRemoved", Quantity = 1 }
+            }
+        });
+
+        var toKeep = created.PrescriptionItems.Single(x => x.DrugName == "Ibuprofen");
+
+        var updated = await _appointmentAppService.UpdateAsync(created.Id, new CreateUpdateAppointmentDto
+        {
+            PatientId = patientId,
+            ScheduledDateTime = created.ScheduledDateTime,
+            Price = 100,
+            PrescriptionItems = new List<CreateUpdatePrescriptionItemDto>
+            {
+                new() { Id = toKeep.Id, DrugName = "Ibuprofen", Quantity = 15, Dosage = "200mg" },
+                new() { DrugName = "NewDrug", Quantity = 3 }
+            }
+        });
+
+        updated.PrescriptionItems.Count.ShouldBe(2);
+        updated.PrescriptionItems.ShouldContain(x => x.Id == toKeep.Id && x.Quantity == 15 && x.Dosage == "200mg");
+        updated.PrescriptionItems.ShouldContain(x => x.DrugName == "NewDrug");
+        updated.PrescriptionItems.ShouldNotContain(x => x.DrugName == "ToBeRemoved");
     }
 }

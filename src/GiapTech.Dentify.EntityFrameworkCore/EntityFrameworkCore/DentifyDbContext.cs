@@ -40,6 +40,7 @@ public class DentifyDbContext :
     public DbSet<ToothChart> ToothCharts { get; set; }
     public DbSet<ToothRecordHistory> ToothRecordHistories { get; set; }
     public DbSet<AppointmentPhoto> AppointmentPhotos { get; set; }
+    public DbSet<PrescriptionItem> PrescriptionItems { get; set; }
 
 
     #region Entities from the modules
@@ -127,15 +128,29 @@ public class DentifyDbContext :
 
             b.Property(x => x.PreOpNotes).HasMaxLength(AppointmentConsts.MaxNotesLength);
             b.Property(x => x.PostOpNotes).HasMaxLength(AppointmentConsts.MaxNotesLength);
-            b.Property(x => x.Prescription).HasMaxLength(AppointmentConsts.MaxPrescriptionLength);
             b.Property(x => x.Price).HasColumnType("decimal(18,2)");
             b.Property(x => x.PaidAmount).HasColumnType("decimal(18,2)");
 
             b.HasOne<Patient>().WithMany().HasForeignKey(x => x.PatientId).IsRequired();
 
+            b.HasMany(x => x.PrescriptionItems).WithOne().HasForeignKey(x => x.AppointmentId).IsRequired();
+            b.Navigation(x => x.PrescriptionItems).HasField("_prescriptionItems").UsePropertyAccessMode(PropertyAccessMode.Field);
+
             b.HasIndex(x => x.PatientId);
             b.HasIndex(x => x.DoctorId);
             b.HasIndex(x => x.ScheduledDateTime);
+        });
+
+        builder.Entity<PrescriptionItem>(b =>
+        {
+            b.ToTable(DentifyConsts.DbTablePrefix + "PrescriptionItems", DentifyConsts.DbSchema);
+            b.ConfigureByConvention();
+
+            b.Property(x => x.DrugName).IsRequired().HasMaxLength(PrescriptionItemConsts.MaxDrugNameLength);
+            b.Property(x => x.Dosage).HasMaxLength(PrescriptionItemConsts.MaxDosageLength);
+            b.Property(x => x.Instructions).HasMaxLength(PrescriptionItemConsts.MaxInstructionsLength);
+
+            b.HasIndex(x => x.AppointmentId);
         });
 
         builder.Entity<ToothChart>(b =>

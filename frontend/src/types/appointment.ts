@@ -38,6 +38,23 @@ export const PAYMENT_STATUS_LABELS_VI: Record<PaymentStatus, string> = {
   [PaymentStatus.Paid]: "Đã thanh toán",
 }
 
+export interface PrescriptionItemDto {
+  id: string
+  appointmentId: string
+  drugName: string
+  dosage?: string | null
+  quantity: number
+  instructions?: string | null
+}
+
+export interface CreateUpdatePrescriptionItemDto {
+  id?: string | null
+  drugName: string
+  dosage?: string | null
+  quantity: number
+  instructions?: string | null
+}
+
 export interface AppointmentDto {
   id: string
   patientId: string
@@ -48,10 +65,10 @@ export interface AppointmentDto {
   status: AppointmentStatus
   preOpNotes?: string | null
   postOpNotes?: string | null
-  prescription?: string | null
   price: number
   paidAmount: number
   paymentStatus: PaymentStatus
+  prescriptionItems: PrescriptionItemDto[]
 }
 
 export interface CreateUpdateAppointmentDto {
@@ -61,8 +78,8 @@ export interface CreateUpdateAppointmentDto {
   status: AppointmentStatusName
   preOpNotes?: string | null
   postOpNotes?: string | null
-  prescription?: string | null
   price: number
+  prescriptionItems: CreateUpdatePrescriptionItemDto[]
 }
 
 export interface UpdatePaymentDto {

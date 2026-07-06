@@ -1,4 +1,5 @@
 using System;
+using System.Collections.Generic;
 using System.ComponentModel.DataAnnotations;
 using GiapTech.Dentify.Appointments;
 
@@ -22,9 +23,8 @@ public class CreateUpdateAppointmentDto
     [StringLength(AppointmentConsts.MaxNotesLength)]
     public string? PostOpNotes { get; set; }
 
-    [StringLength(AppointmentConsts.MaxPrescriptionLength)]
-    public string? Prescription { get; set; }
-
     [Range(0, double.MaxValue)]
     public decimal Price { get; set; }
+
+    public List<CreateUpdatePrescriptionItemDto> PrescriptionItems { get; set; } = new();
 }
