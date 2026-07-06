@@ -1,13 +1,15 @@
 import { useEffect, useRef, useState } from "react"
 import type { ChangeEvent, FormEvent } from "react"
 import { useNavigate } from "react-router-dom"
-import { Download, Pencil, Plus, Smile, Trash2, Upload } from "lucide-react"
+import { Download, Pencil, Plus, Smile, Trash2, Upload, UserPlus } from "lucide-react"
 import { toast } from "sonner"
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
 import { Label } from "@/components/ui/label"
+import { Skeleton } from "@/components/ui/skeleton"
 import { Textarea } from "@/components/ui/textarea"
 import { Badge } from "@/components/ui/badge"
+import { ConfirmDialog } from "@/components/ConfirmDialog"
 import {
   Dialog,
   DialogContent,
@@ -77,6 +79,9 @@ export function PatientsPage() {
   const [isImporting, setIsImporting] = useState(false)
   const importInputRef = useRef<HTMLInputElement>(null)
 
+  const [deletingPatient, setDeletingPatient] = useState<PatientDto | null>(null)
+  const [isDeleting, setIsDeleting] = useState(false)
+
   const loadPatients = async () => {
     setIsLoading(true)
     try {
@@ -144,14 +149,18 @@ export function PatientsPage() {
     }
   }
 
-  const handleDelete = async (patient: PatientDto) => {
-    if (!confirm(`Xoá bệnh nhân "${patient.fullName}"?`)) return
+  const handleDelete = async () => {
+    if (!deletingPatient) return
+    setIsDeleting(true)
     try {
-      await patientsApi.delete(patient.id)
+      await patientsApi.delete(deletingPatient.id)
       toast.success("Đã xoá bệnh nhân")
+      setDeletingPatient(null)
       await loadPatients()
     } catch (err) {
       toast.error(err instanceof ApiError ? err.message : "Xoá thất bại")
+    } finally {
+      setIsDeleting(false)
     }
   }
 
@@ -267,11 +276,11 @@ export function PatientsPage() {
             <Upload className="size-4" />
             {isImporting ? "Đang nhập..." : "Nhập CSV"}
           </Button>
-          <Button variant="outline" onClick={() => void handleExportCsv()}>
+          <Button variant="outline" onClick={() => void handleExportCsv()} disabled={isImporting}>
             <Download className="size-4" />
             Xuất CSV
           </Button>
-          <Button onClick={openCreateDialog}>
+          <Button onClick={openCreateDialog} disabled={isImporting}>
             <Plus />
             Thêm bệnh nhân
           </Button>
@@ -304,21 +313,31 @@ export function PatientsPage() {
             </TableRow>
           </TableHeader>
           <TableBody>
-            {isLoading && (
-              <TableRow>
-                <TableCell colSpan={6} className="text-center text-muted-foreground">
-                  Đang tải...
-                </TableCell>
-              </TableRow>
-            )}
+            {isLoading &&
+              Array.from({ length: 5 }).map((_, i) => (
+                <TableRow key={i}>
+                  {Array.from({ length: 6 }).map((_, j) => (
+                    <TableCell key={j}>
+                      <Skeleton className="h-5 w-full max-w-32" />
+                    </TableCell>
+                  ))}
+                </TableRow>
+              ))}
             {!isLoading && patients.length === 0 && (
               <TableRow>
-                <TableCell colSpan={6} className="text-center text-muted-foreground">
-                  Chưa có bệnh nhân nào.
+                <TableCell colSpan={6} className="h-32 text-center">
+                  <div className="flex flex-col items-center gap-2 text-muted-foreground">
+                    <UserPlus className="size-8" />
+                    <p>Chưa có bệnh nhân nào.</p>
+                    <Button variant="outline" size="sm" onClick={openCreateDialog}>
+                      <Plus className="size-4" />
+                      Thêm bệnh nhân đầu tiên
+                    </Button>
+                  </div>
                 </TableCell>
               </TableRow>
             )}
-            {patients.map((patient) => (
+            {!isLoading && patients.map((patient) => (
               <TableRow key={patient.id}>
                 <TableCell className="font-medium">
                   {patient.fullName}
@@ -347,14 +366,27 @@ export function PatientsPage() {
                     variant="ghost"
                     size="icon"
                     title="Sơ đồ răng"
+                    aria-label={`Xem sơ đồ răng của ${patient.fullName}`}
                     onClick={() => navigate(`/patients/${patient.id}/tooth-chart`)}
                   >
                     <Smile className="size-4" />
                   </Button>
-                  <Button variant="ghost" size="icon" onClick={() => openEditDialog(patient)}>
+                  <Button
+                    variant="ghost"
+                    size="icon"
+                    title="Sửa"
+                    aria-label={`Sửa thông tin ${patient.fullName}`}
+                    onClick={() => openEditDialog(patient)}
+                  >
                     <Pencil className="size-4" />
                   </Button>
-                  <Button variant="ghost" size="icon" onClick={() => void handleDelete(patient)}>
+                  <Button
+                    variant="ghost"
+                    size="icon"
+                    title="Xoá"
+                    aria-label={`Xoá bệnh nhân ${patient.fullName}`}
+                    onClick={() => setDeletingPatient(patient)}
+                  >
                     <Trash2 className="size-4" />
                   </Button>
                 </TableCell>
@@ -393,12 +425,12 @@ export function PatientsPage() {
                 />
               </div>
               <div className="grid gap-2">
-                <Label>Giới tính</Label>
+                <Label htmlFor="gender">Giới tính</Label>
                 <Select
                   value={form.gender}
                   onValueChange={(value: GenderName) => setForm({ ...form, gender: value })}
                 >
-                  <SelectTrigger>
+                  <SelectTrigger id="gender">
                     <SelectValue />
                   </SelectTrigger>
                   <SelectContent>
@@ -466,6 +498,15 @@ export function PatientsPage() {
           </form>
         </DialogContent>
       </Dialog>
+
+      <ConfirmDialog
+        open={deletingPatient !== null}
+        onOpenChange={(open) => !open && setDeletingPatient(null)}
+        title="Xoá bệnh nhân"
+        description={`Bạn có chắc muốn xoá bệnh nhân "${deletingPatient?.fullName}"? Hành động này không thể hoàn tác.`}
+        isConfirming={isDeleting}
+        onConfirm={() => void handleDelete()}
+      />
     </div>
   )
 }

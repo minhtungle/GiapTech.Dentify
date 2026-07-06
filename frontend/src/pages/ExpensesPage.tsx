@@ -1,12 +1,14 @@
 import { useEffect, useRef, useState } from "react"
 import type { ChangeEvent, FormEvent } from "react"
-import { Download, Pencil, Plus, Trash2, Upload } from "lucide-react"
+import { Download, Pencil, Plus, Receipt, Trash2, Upload } from "lucide-react"
 import { toast } from "sonner"
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
 import { Label } from "@/components/ui/label"
+import { Skeleton } from "@/components/ui/skeleton"
 import { Textarea } from "@/components/ui/textarea"
 import { Badge } from "@/components/ui/badge"
+import { ConfirmDialog } from "@/components/ConfirmDialog"
 import {
   Dialog,
   DialogContent,
@@ -32,6 +34,7 @@ import {
 import { expensesApi } from "@/lib/expenses-api"
 import { ApiError } from "@/lib/api"
 import { downloadCsv, parseCsvToObjects, toCsv } from "@/lib/csv"
+import { formatCurrency } from "@/lib/utils"
 import type { CreateUpdateExpenseDto, ExpenseCategoryName, ExpenseDto } from "@/types/expense"
 import {
   EXPENSE_CATEGORY_LABELS_VI,
@@ -61,6 +64,9 @@ export function ExpensesPage() {
 
   const [isImporting, setIsImporting] = useState(false)
   const importInputRef = useRef<HTMLInputElement>(null)
+
+  const [deletingExpense, setDeletingExpense] = useState<ExpenseDto | null>(null)
+  const [isDeleting, setIsDeleting] = useState(false)
 
   const loadData = async () => {
     setIsLoading(true)
@@ -126,14 +132,18 @@ export function ExpensesPage() {
     }
   }
 
-  const handleDelete = async (expense: ExpenseDto) => {
-    if (!confirm(`Xoá khoản chi "${expense.description || EXPENSE_CATEGORY_LABELS_VI[expense.category]}"?`)) return
+  const handleDelete = async () => {
+    if (!deletingExpense) return
+    setIsDeleting(true)
     try {
-      await expensesApi.delete(expense.id)
+      await expensesApi.delete(deletingExpense.id)
       toast.success("Đã xoá chi phí")
+      setDeletingExpense(null)
       await loadData()
     } catch (err) {
       toast.error(err instanceof ApiError ? err.message : "Xoá thất bại")
+    } finally {
+      setIsDeleting(false)
     }
   }
 
@@ -222,7 +232,7 @@ export function ExpensesPage() {
         <div>
           <h1 className="text-2xl font-semibold">Chi phí</h1>
           <p className="text-sm text-muted-foreground">
-            {totalCount} khoản chi — Tổng: {totalAmount.toLocaleString("vi-VN")}
+            {totalCount} khoản chi — Tổng: {formatCurrency(totalAmount)}
           </p>
         </div>
         <div className="flex gap-2">
@@ -230,6 +240,7 @@ export function ExpensesPage() {
             ref={importInputRef}
             type="file"
             accept=".csv"
+            aria-label="Chọn file CSV để nhập"
             className="hidden"
             onChange={(e) => void handleImportCsv(e)}
           />
@@ -241,11 +252,11 @@ export function ExpensesPage() {
             <Upload className="size-4" />
             {isImporting ? "Đang nhập..." : "Nhập CSV"}
           </Button>
-          <Button variant="outline" onClick={() => void handleExportCsv()}>
+          <Button variant="outline" onClick={() => void handleExportCsv()} disabled={isImporting}>
             <Download className="size-4" />
             Xuất CSV
           </Button>
-          <Button onClick={openCreateDialog}>
+          <Button onClick={openCreateDialog} disabled={isImporting}>
             <Plus />
             Thêm chi phí
           </Button>
@@ -264,33 +275,55 @@ export function ExpensesPage() {
             </TableRow>
           </TableHeader>
           <TableBody>
-            {isLoading && (
-              <TableRow>
-                <TableCell colSpan={5} className="text-center text-muted-foreground">
-                  Đang tải...
-                </TableCell>
-              </TableRow>
-            )}
+            {isLoading &&
+              Array.from({ length: 5 }).map((_, i) => (
+                <TableRow key={i}>
+                  {Array.from({ length: 5 }).map((_, j) => (
+                    <TableCell key={j}>
+                      <Skeleton className="h-5 w-full max-w-32" />
+                    </TableCell>
+                  ))}
+                </TableRow>
+              ))}
             {!isLoading && expenses.length === 0 && (
               <TableRow>
-                <TableCell colSpan={5} className="text-center text-muted-foreground">
-                  Chưa có khoản chi nào.
+                <TableCell colSpan={5} className="h-32 text-center">
+                  <div className="flex flex-col items-center gap-2 text-muted-foreground">
+                    <Receipt className="size-8" />
+                    <p>Chưa có khoản chi nào.</p>
+                    <Button variant="outline" size="sm" onClick={openCreateDialog}>
+                      <Plus className="size-4" />
+                      Thêm khoản chi đầu tiên
+                    </Button>
+                  </div>
                 </TableCell>
               </TableRow>
             )}
-            {expenses.map((expense) => (
+            {!isLoading && expenses.map((expense) => (
               <TableRow key={expense.id}>
                 <TableCell>{new Date(expense.expenseDate).toLocaleDateString("vi-VN")}</TableCell>
                 <TableCell>
                   <Badge variant="outline">{EXPENSE_CATEGORY_LABELS_VI[expense.category]}</Badge>
                 </TableCell>
-                <TableCell className="font-medium">{expense.amount.toLocaleString("vi-VN")}</TableCell>
+                <TableCell className="font-medium">{formatCurrency(expense.amount)}</TableCell>
                 <TableCell className="text-muted-foreground">{expense.description || "—"}</TableCell>
                 <TableCell className="text-right">
-                  <Button variant="ghost" size="icon" onClick={() => openEditDialog(expense)}>
+                  <Button
+                    variant="ghost"
+                    size="icon"
+                    title="Sửa"
+                    aria-label={`Sửa khoản chi ${expense.description || EXPENSE_CATEGORY_LABELS_VI[expense.category]}`}
+                    onClick={() => openEditDialog(expense)}
+                  >
                     <Pencil className="size-4" />
                   </Button>
-                  <Button variant="ghost" size="icon" onClick={() => void handleDelete(expense)}>
+                  <Button
+                    variant="ghost"
+                    size="icon"
+                    title="Xoá"
+                    aria-label={`Xoá khoản chi ${expense.description || EXPENSE_CATEGORY_LABELS_VI[expense.category]}`}
+                    onClick={() => setDeletingExpense(expense)}
+                  >
                     <Trash2 className="size-4" />
                   </Button>
                 </TableCell>
@@ -319,12 +352,12 @@ export function ExpensesPage() {
                 />
               </div>
               <div className="grid gap-2">
-                <Label>Danh mục</Label>
+                <Label htmlFor="category">Danh mục</Label>
                 <Select
                   value={form.category}
                   onValueChange={(value: ExpenseCategoryName) => setForm({ ...form, category: value })}
                 >
-                  <SelectTrigger>
+                  <SelectTrigger id="category">
                     <SelectValue />
                   </SelectTrigger>
                   <SelectContent>
@@ -368,6 +401,15 @@ export function ExpensesPage() {
           </form>
         </DialogContent>
       </Dialog>
+
+      <ConfirmDialog
+        open={deletingExpense !== null}
+        onOpenChange={(open) => !open && setDeletingExpense(null)}
+        title="Xoá khoản chi"
+        description={`Bạn có chắc muốn xoá khoản chi "${deletingExpense?.description || (deletingExpense && EXPENSE_CATEGORY_LABELS_VI[deletingExpense.category])}"? Hành động này không thể hoàn tác.`}
+        isConfirming={isDeleting}
+        onConfirm={() => void handleDelete()}
+      />
     </div>
   )
 }

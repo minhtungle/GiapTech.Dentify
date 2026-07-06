@@ -1,5 +1,5 @@
 import { useEffect, useRef, useState } from "react"
-import { Trash2, Upload } from "lucide-react"
+import { ImageIcon, Trash2, Upload } from "lucide-react"
 import { toast } from "sonner"
 import { Button } from "@/components/ui/button"
 import {
@@ -8,6 +8,8 @@ import {
   DialogHeader,
   DialogTitle,
 } from "@/components/ui/dialog"
+import { Skeleton } from "@/components/ui/skeleton"
+import { ConfirmDialog } from "@/components/ConfirmDialog"
 import { appointmentPhotoApi } from "@/lib/appointment-photo-api"
 import { ApiError } from "@/lib/api"
 import {
@@ -34,6 +36,9 @@ export function AppointmentPhotosDialog({
   const [photos, setPhotos] = useState<PhotoWithUrl[]>([])
   const [isLoading, setIsLoading] = useState(false)
   const [isUploading, setIsUploading] = useState(false)
+  const [isDeleting, setIsDeleting] = useState(false)
+  const [deletingPhoto, setDeletingPhoto] = useState<PhotoWithUrl | null>(null)
+  const [previewPhoto, setPreviewPhoto] = useState<PhotoWithUrl | null>(null)
   const fileInputRef = useRef<HTMLInputElement>(null)
 
   const revokeAllBlobUrls = (list: PhotoWithUrl[]) => {
@@ -99,14 +104,18 @@ export function AppointmentPhotosDialog({
     }
   }
 
-  const handleDelete = async (photo: PhotoWithUrl) => {
-    if (!appointmentId || !confirm("Xoá ảnh này?")) return
+  const handleDelete = async () => {
+    if (!appointmentId || !deletingPhoto) return
+    setIsDeleting(true)
     try {
-      await appointmentPhotoApi.delete(photo.id)
+      await appointmentPhotoApi.delete(deletingPhoto.id)
       toast.success("Đã xoá ảnh")
+      setDeletingPhoto(null)
       await loadPhotos(appointmentId)
     } catch (err) {
       toast.error(err instanceof ApiError ? err.message : "Xoá ảnh thất bại")
+    } finally {
+      setIsDeleting(false)
     }
   }
 
@@ -123,6 +132,7 @@ export function AppointmentPhotosDialog({
               ref={fileInputRef}
               type="file"
               accept={ALLOWED_PHOTO_CONTENT_TYPES.join(",")}
+              aria-label="Chọn ảnh để tải lên"
               className="hidden"
               onChange={(e) => void handleFileSelected(e)}
             />
@@ -136,26 +146,44 @@ export function AppointmentPhotosDialog({
             </Button>
           </div>
 
-          {isLoading && <p className="text-sm text-muted-foreground">Đang tải...</p>}
+          {isLoading && (
+            <div className="grid grid-cols-3 gap-3">
+              {Array.from({ length: 3 }).map((_, i) => (
+                <Skeleton key={i} className="aspect-square w-full" />
+              ))}
+            </div>
+          )}
 
           {!isLoading && photos.length === 0 && (
-            <p className="text-sm text-muted-foreground">Chưa có ảnh nào.</p>
+            <div className="flex flex-col items-center gap-2 py-6 text-muted-foreground">
+              <ImageIcon className="size-8" />
+              <p>Chưa có ảnh nào.</p>
+            </div>
           )}
 
           {!isLoading && photos.length > 0 && (
             <div className="grid grid-cols-3 gap-3">
               {photos.map((photo) => (
-                <div key={photo.id} className="group relative overflow-hidden rounded-lg border">
-                  <img
-                    src={photo.blobUrl}
-                    alt={photo.fileName}
-                    className="aspect-square w-full object-cover"
-                  />
+                <div key={photo.id} className="relative overflow-hidden rounded-lg border">
+                  <button
+                    type="button"
+                    className="block w-full"
+                    aria-label={`Xem ảnh lớn: ${photo.fileName}`}
+                    onClick={() => setPreviewPhoto(photo)}
+                  >
+                    <img
+                      src={photo.blobUrl}
+                      alt={photo.fileName}
+                      className="aspect-square w-full object-cover"
+                    />
+                  </button>
                   <Button
                     variant="destructive"
                     size="icon"
-                    className="absolute top-1 right-1 size-7 opacity-0 transition-opacity group-hover:opacity-100"
-                    onClick={() => void handleDelete(photo)}
+                    className="absolute top-1 right-1 size-7"
+                    title="Xoá ảnh"
+                    aria-label={`Xoá ảnh ${photo.fileName}`}
+                    onClick={() => setDeletingPhoto(photo)}
                   >
                     <Trash2 className="size-3.5" />
                   </Button>
@@ -165,6 +193,30 @@ export function AppointmentPhotosDialog({
           )}
         </div>
       </DialogContent>
+
+      <Dialog open={previewPhoto !== null} onOpenChange={(open) => !open && setPreviewPhoto(null)}>
+        <DialogContent className="max-w-3xl">
+          <DialogHeader>
+            <DialogTitle className="sr-only">{previewPhoto?.fileName}</DialogTitle>
+          </DialogHeader>
+          {previewPhoto && (
+            <img
+              src={previewPhoto.blobUrl}
+              alt={previewPhoto.fileName}
+              className="max-h-[75vh] w-full object-contain"
+            />
+          )}
+        </DialogContent>
+      </Dialog>
+
+      <ConfirmDialog
+        open={deletingPhoto !== null}
+        onOpenChange={(open) => !open && setDeletingPhoto(null)}
+        title="Xoá ảnh"
+        description="Bạn có chắc muốn xoá ảnh này? Hành động này không thể hoàn tác."
+        isConfirming={isDeleting}
+        onConfirm={() => void handleDelete()}
+      />
     </Dialog>
   )
 }

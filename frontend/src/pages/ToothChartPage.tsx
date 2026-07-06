@@ -1,10 +1,11 @@
 import { useEffect, useState } from "react"
 import type { FormEvent } from "react"
 import { useNavigate, useParams } from "react-router-dom"
-import { ArrowLeft, History } from "lucide-react"
+import { AlertCircle, ArrowLeft, History } from "lucide-react"
 import { toast } from "sonner"
 import { Button } from "@/components/ui/button"
 import { Label } from "@/components/ui/label"
+import { Skeleton } from "@/components/ui/skeleton"
 import { Textarea } from "@/components/ui/textarea"
 import { Badge } from "@/components/ui/badge"
 import {
@@ -45,6 +46,7 @@ export function ToothChartPage() {
   const [patient, setPatient] = useState<PatientDto | null>(null)
   const [chart, setChart] = useState<ToothChartDto | null>(null)
   const [isLoading, setIsLoading] = useState(true)
+  const [loadError, setLoadError] = useState(false)
 
   const [selectedTooth, setSelectedTooth] = useState<number | null>(null)
   const [statusValue, setStatusValue] = useState<ToothStatusName>("Healthy")
@@ -57,6 +59,7 @@ export function ToothChartPage() {
   const loadData = async () => {
     if (!patientId) return
     setIsLoading(true)
+    setLoadError(false)
     try {
       const [patientResult, chartResult] = await Promise.all([
         patientsApi.get(patientId),
@@ -66,6 +69,7 @@ export function ToothChartPage() {
       setChart(chartResult)
     } catch (err) {
       toast.error(err instanceof ApiError ? err.message : "Không tải được sơ đồ răng")
+      setLoadError(true)
     } finally {
       setIsLoading(false)
     }
@@ -123,23 +127,48 @@ export function ToothChartPage() {
   return (
     <div className="flex flex-col gap-4">
       <div className="flex items-center gap-3">
-        <Button variant="ghost" size="icon" onClick={() => navigate("/patients")}>
+        <Button
+          variant="ghost"
+          size="icon"
+          title="Quay lại"
+          aria-label="Quay lại danh sách bệnh nhân"
+          onClick={() => navigate("/patients")}
+        >
           <ArrowLeft className="size-4" />
         </Button>
         <div>
           <h1 className="text-2xl font-semibold">Sơ đồ răng</h1>
-          <p className="text-sm text-muted-foreground">
-            {patient ? patient.fullName : "Đang tải..."}
+          <div className="flex items-center text-sm text-muted-foreground">
+            {isLoading ? (
+              <Skeleton className="h-4 w-32" />
+            ) : (
+              <span>{patient?.fullName ?? "Không tải được thông tin bệnh nhân"}</span>
+            )}
             {chart?.isChildPatient && (
               <Badge variant="secondary" className="ml-2">
                 Răng sữa
               </Badge>
             )}
-          </p>
+          </div>
         </div>
       </div>
 
-      {isLoading && <p className="text-muted-foreground">Đang tải sơ đồ răng...</p>}
+      {isLoading && (
+        <div className="flex flex-col items-center gap-4 rounded-lg border bg-card p-6">
+          <Skeleton className="h-8 w-full max-w-md" />
+          <Skeleton className="h-64 w-full max-w-lg" />
+        </div>
+      )}
+
+      {!isLoading && loadError && (
+        <div className="flex flex-col items-center gap-3 rounded-lg border bg-card p-10 text-muted-foreground">
+          <AlertCircle className="size-8" />
+          <p>Không tải được sơ đồ răng. Vui lòng thử lại.</p>
+          <Button variant="outline" size="sm" onClick={() => void loadData()}>
+            Thử lại
+          </Button>
+        </div>
+      )}
 
       {!isLoading && chart && (
         <>
@@ -184,12 +213,12 @@ export function ToothChartPage() {
             )}
 
             <div className="grid gap-2">
-              <Label>Tình trạng</Label>
+              <Label htmlFor="tooth-status">Tình trạng</Label>
               <Select
                 value={statusValue}
                 onValueChange={(value: ToothStatusName) => setStatusValue(value)}
               >
-                <SelectTrigger>
+                <SelectTrigger id="tooth-status">
                   <SelectValue />
                 </SelectTrigger>
                 <SelectContent>

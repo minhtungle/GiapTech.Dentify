@@ -1,12 +1,14 @@
 import { useEffect, useState } from "react"
 import type { FormEvent } from "react"
-import { Image, Pencil, Pill, Plus, Trash2, Wallet, X } from "lucide-react"
+import { CalendarPlus, Image, Pencil, Pill, Plus, Trash2, Wallet, X } from "lucide-react"
 import { toast } from "sonner"
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
 import { Label } from "@/components/ui/label"
+import { Skeleton } from "@/components/ui/skeleton"
 import { Textarea } from "@/components/ui/textarea"
 import { Badge } from "@/components/ui/badge"
+import { ConfirmDialog } from "@/components/ConfirmDialog"
 import {
   Dialog,
   DialogContent,
@@ -29,10 +31,12 @@ import {
   TableHeader,
   TableRow,
 } from "@/components/ui/table"
+import { Tooltip, TooltipContent, TooltipTrigger } from "@/components/ui/tooltip"
 import { AppointmentPhotosDialog } from "@/components/appointments/AppointmentPhotosDialog"
 import { appointmentsApi } from "@/lib/appointments-api"
 import { patientsApi } from "@/lib/patients-api"
 import { ApiError } from "@/lib/api"
+import { formatCurrency } from "@/lib/utils"
 import type {
   AppointmentDto,
   AppointmentStatusName,
@@ -101,6 +105,7 @@ export function AppointmentsPage() {
   const [form, setForm] = useState<CreateUpdateAppointmentDto>(emptyForm())
   const [prescriptionRows, setPrescriptionRows] = useState<PrescriptionItemRow[]>([])
   const [isSaving, setIsSaving] = useState(false)
+  const [isLoadingDetail, setIsLoadingDetail] = useState(false)
 
   const [paymentDialogAppointment, setPaymentDialogAppointment] =
     useState<AppointmentDto | null>(null)
@@ -109,6 +114,9 @@ export function AppointmentsPage() {
 
   const [photosDialogAppointment, setPhotosDialogAppointment] =
     useState<AppointmentDto | null>(null)
+
+  const [deletingAppointment, setDeletingAppointment] = useState<AppointmentDto | null>(null)
+  const [isDeleting, setIsDeleting] = useState(false)
 
   const loadData = async () => {
     setIsLoading(true)
@@ -141,15 +149,20 @@ export function AppointmentsPage() {
   const openEditDialog = async (summary: AppointmentDto) => {
     setEditingId(summary.id)
     setDialogOpen(true)
+    setIsLoadingDetail(true)
 
     // GetListAsync doesn't include PrescriptionItems (avoids an extra join for the table view),
     // so fetch the full detail via GetAsync before populating the form.
-    let appointment = summary
+    let appointment: AppointmentDto
     try {
       appointment = await appointmentsApi.get(summary.id)
     } catch (err) {
       toast.error(err instanceof ApiError ? err.message : "Không tải được chi tiết lịch hẹn")
+      setDialogOpen(false)
+      setIsLoadingDetail(false)
+      return
     }
+    setIsLoadingDetail(false)
 
     setForm({
       patientId: appointment.patientId,
@@ -218,14 +231,18 @@ export function AppointmentsPage() {
     }
   }
 
-  const handleDelete = async (appointment: AppointmentDto) => {
-    if (!confirm(`Xoá lịch hẹn của "${appointment.patientFullName}"?`)) return
+  const handleDelete = async () => {
+    if (!deletingAppointment) return
+    setIsDeleting(true)
     try {
-      await appointmentsApi.delete(appointment.id)
+      await appointmentsApi.delete(deletingAppointment.id)
       toast.success("Đã xoá lịch hẹn")
+      setDeletingAppointment(null)
       await loadData()
     } catch (err) {
       toast.error(err instanceof ApiError ? err.message : "Xoá thất bại")
+    } finally {
+      setIsDeleting(false)
     }
   }
 
@@ -259,10 +276,24 @@ export function AppointmentsPage() {
           <h1 className="text-2xl font-semibold">Lịch hẹn</h1>
           <p className="text-sm text-muted-foreground">{totalCount} lịch hẹn</p>
         </div>
-        <Button onClick={openCreateDialog} disabled={patients.length === 0}>
-          <Plus />
-          Thêm lịch hẹn
-        </Button>
+        {patients.length === 0 ? (
+          <Tooltip>
+            <TooltipTrigger asChild>
+              <span>
+                <Button disabled>
+                  <Plus />
+                  Thêm lịch hẹn
+                </Button>
+              </span>
+            </TooltipTrigger>
+            <TooltipContent>Cần thêm bệnh nhân trước khi tạo lịch hẹn</TooltipContent>
+          </Tooltip>
+        ) : (
+          <Button onClick={openCreateDialog}>
+            <Plus />
+            Thêm lịch hẹn
+          </Button>
+        )}
       </div>
 
       <div className="rounded-lg border">
@@ -278,17 +309,29 @@ export function AppointmentsPage() {
             </TableRow>
           </TableHeader>
           <TableBody>
-            {isLoading && (
-              <TableRow>
-                <TableCell colSpan={6} className="text-center text-muted-foreground">
-                  Đang tải...
-                </TableCell>
-              </TableRow>
-            )}
+            {isLoading &&
+              Array.from({ length: 5 }).map((_, i) => (
+                <TableRow key={i}>
+                  {Array.from({ length: 6 }).map((_, j) => (
+                    <TableCell key={j}>
+                      <Skeleton className="h-5 w-full max-w-32" />
+                    </TableCell>
+                  ))}
+                </TableRow>
+              ))}
             {!isLoading && appointments.length === 0 && (
               <TableRow>
-                <TableCell colSpan={6} className="text-center text-muted-foreground">
-                  Chưa có lịch hẹn nào.
+                <TableCell colSpan={6} className="h-32 text-center">
+                  <div className="flex flex-col items-center gap-2 text-muted-foreground">
+                    <CalendarPlus className="size-8" />
+                    <p>Chưa có lịch hẹn nào.</p>
+                    {patients.length > 0 && (
+                      <Button variant="outline" size="sm" onClick={openCreateDialog}>
+                        <Plus className="size-4" />
+                        Thêm lịch hẹn đầu tiên
+                      </Button>
+                    )}
+                  </div>
                 </TableCell>
               </TableRow>
             )}
@@ -303,7 +346,7 @@ export function AppointmentsPage() {
                     {APPOINTMENT_STATUS_LABELS_VI[appointment.status]}
                   </Badge>
                 </TableCell>
-                <TableCell>{appointment.price.toLocaleString("vi-VN")}</TableCell>
+                <TableCell>{formatCurrency(appointment.price)}</TableCell>
                 <TableCell>
                   <Badge
                     variant={
@@ -322,17 +365,36 @@ export function AppointmentsPage() {
                     variant="ghost"
                     size="icon"
                     title="Ảnh lịch hẹn"
+                    aria-label={`Xem ảnh lịch hẹn của ${appointment.patientFullName}`}
                     onClick={() => setPhotosDialogAppointment(appointment)}
                   >
                     <Image className="size-4" />
                   </Button>
-                  <Button variant="ghost" size="icon" onClick={() => openPaymentDialog(appointment)}>
+                  <Button
+                    variant="ghost"
+                    size="icon"
+                    title="Thanh toán"
+                    aria-label={`Cập nhật thanh toán cho ${appointment.patientFullName}`}
+                    onClick={() => openPaymentDialog(appointment)}
+                  >
                     <Wallet className="size-4" />
                   </Button>
-                  <Button variant="ghost" size="icon" onClick={() => void openEditDialog(appointment)}>
+                  <Button
+                    variant="ghost"
+                    size="icon"
+                    title="Sửa"
+                    aria-label={`Sửa lịch hẹn của ${appointment.patientFullName}`}
+                    onClick={() => void openEditDialog(appointment)}
+                  >
                     <Pencil className="size-4" />
                   </Button>
-                  <Button variant="ghost" size="icon" onClick={() => void handleDelete(appointment)}>
+                  <Button
+                    variant="ghost"
+                    size="icon"
+                    title="Xoá"
+                    aria-label={`Xoá lịch hẹn của ${appointment.patientFullName}`}
+                    onClick={() => setDeletingAppointment(appointment)}
+                  >
                     <Trash2 className="size-4" />
                   </Button>
                 </TableCell>
@@ -343,19 +405,19 @@ export function AppointmentsPage() {
       </div>
 
       <Dialog open={dialogOpen} onOpenChange={setDialogOpen}>
-        <DialogContent>
+        <DialogContent className="sm:max-w-2xl">
           <form onSubmit={handleSubmit} className="flex flex-col gap-4">
             <DialogHeader>
               <DialogTitle>{editingId ? "Sửa lịch hẹn" : "Thêm lịch hẹn"}</DialogTitle>
             </DialogHeader>
 
             <div className="grid gap-2">
-              <Label>Bệnh nhân</Label>
+              <Label htmlFor="patientId">Bệnh nhân</Label>
               <Select
                 value={form.patientId}
                 onValueChange={(value: string) => setForm({ ...form, patientId: value })}
               >
-                <SelectTrigger>
+                <SelectTrigger id="patientId">
                   <SelectValue placeholder="Chọn bệnh nhân" />
                 </SelectTrigger>
                 <SelectContent>
@@ -380,14 +442,14 @@ export function AppointmentsPage() {
                 />
               </div>
               <div className="grid gap-2">
-                <Label>Trạng thái</Label>
+                <Label htmlFor="status">Trạng thái</Label>
                 <Select
                   value={form.status}
                   onValueChange={(value: AppointmentStatusName) =>
                     setForm({ ...form, status: value })
                   }
                 >
-                  <SelectTrigger>
+                  <SelectTrigger id="status">
                     <SelectValue />
                   </SelectTrigger>
                   <SelectContent>
@@ -448,14 +510,20 @@ export function AppointmentsPage() {
               )}
 
               {prescriptionRows.map((row) => (
-                <div key={row.key} className="grid grid-cols-[2fr_1fr_5rem_2fr_auto] gap-2 items-start">
+                <div
+                  key={row.key}
+                  className="grid grid-cols-2 gap-2 rounded-md border p-2 sm:grid-cols-[2fr_1fr_5rem_2fr_auto] sm:items-start sm:border-0 sm:p-0"
+                >
                   <Input
                     placeholder="Tên thuốc"
+                    aria-label="Tên thuốc"
+                    className="col-span-2 sm:col-span-1"
                     value={row.data.drugName}
                     onChange={(e) => updatePrescriptionRow(row.key, { drugName: e.target.value })}
                   />
                   <Input
                     placeholder="Liều lượng"
+                    aria-label="Liều lượng"
                     value={row.data.dosage ?? ""}
                     onChange={(e) => updatePrescriptionRow(row.key, { dosage: e.target.value })}
                   />
@@ -463,11 +531,14 @@ export function AppointmentsPage() {
                     type="number"
                     min={1}
                     placeholder="SL"
+                    aria-label="Số lượng"
                     value={row.data.quantity}
                     onChange={(e) => updatePrescriptionRow(row.key, { quantity: Number(e.target.value) })}
                   />
                   <Input
                     placeholder="Hướng dẫn sử dụng"
+                    aria-label="Hướng dẫn sử dụng"
+                    className="col-span-2 sm:col-span-1"
                     value={row.data.instructions ?? ""}
                     onChange={(e) => updatePrescriptionRow(row.key, { instructions: e.target.value })}
                   />
@@ -475,6 +546,9 @@ export function AppointmentsPage() {
                     type="button"
                     variant="ghost"
                     size="icon"
+                    className="col-span-2 justify-self-end sm:col-span-1"
+                    title="Xoá dòng thuốc"
+                    aria-label="Xoá dòng thuốc"
                     onClick={() => removePrescriptionRow(row.key)}
                   >
                     <X className="size-4" />
@@ -484,8 +558,8 @@ export function AppointmentsPage() {
             </div>
 
             <DialogFooter>
-              <Button type="submit" disabled={isSaving}>
-                {isSaving ? "Đang lưu..." : "Lưu"}
+              <Button type="submit" disabled={isSaving || isLoadingDetail}>
+                {isSaving ? "Đang lưu..." : isLoadingDetail ? "Đang tải..." : "Lưu"}
               </Button>
             </DialogFooter>
           </form>
@@ -502,7 +576,7 @@ export function AppointmentsPage() {
               <DialogTitle>Cập nhật thanh toán</DialogTitle>
             </DialogHeader>
             <p className="text-sm text-muted-foreground">
-              Giá dịch vụ: {paymentDialogAppointment?.price.toLocaleString("vi-VN")}
+              Giá dịch vụ: {paymentDialogAppointment && formatCurrency(paymentDialogAppointment.price)}
             </p>
             <div className="grid gap-2">
               <Label htmlFor="paidAmount">Số tiền đã thanh toán</Label>
@@ -510,12 +584,26 @@ export function AppointmentsPage() {
                 id="paidAmount"
                 type="number"
                 min={0}
+                max={paymentDialogAppointment?.price}
                 value={paidAmountInput}
                 onChange={(e) => setPaidAmountInput(e.target.value)}
               />
+              {paymentDialogAppointment &&
+                Number(paidAmountInput) > paymentDialogAppointment.price && (
+                  <p className="text-sm text-destructive">
+                    Số tiền không được vượt quá giá dịch vụ.
+                  </p>
+                )}
             </div>
             <DialogFooter>
-              <Button type="submit" disabled={isSavingPayment}>
+              <Button
+                type="submit"
+                disabled={
+                  isSavingPayment ||
+                  (paymentDialogAppointment !== null &&
+                    Number(paidAmountInput) > paymentDialogAppointment.price)
+                }
+              >
                 {isSavingPayment ? "Đang lưu..." : "Lưu"}
               </Button>
             </DialogFooter>
@@ -527,6 +615,15 @@ export function AppointmentsPage() {
         appointmentId={photosDialogAppointment?.id ?? null}
         patientName={photosDialogAppointment?.patientFullName}
         onOpenChange={(open) => !open && setPhotosDialogAppointment(null)}
+      />
+
+      <ConfirmDialog
+        open={deletingAppointment !== null}
+        onOpenChange={(open) => !open && setDeletingAppointment(null)}
+        title="Xoá lịch hẹn"
+        description={`Bạn có chắc muốn xoá lịch hẹn của "${deletingAppointment?.patientFullName}"? Hành động này không thể hoàn tác.`}
+        isConfirming={isDeleting}
+        onConfirm={() => void handleDelete()}
       />
     </div>
   )

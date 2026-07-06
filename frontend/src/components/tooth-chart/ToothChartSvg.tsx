@@ -1,6 +1,6 @@
 import { cn } from "@/lib/utils"
 import type { ToothRecordDto } from "@/types/toothChart"
-import { TOOTH_STATUS_COLORS } from "@/types/toothChart"
+import { TOOTH_STATUS_COLORS, TOOTH_STATUS_LABELS_VI, ToothStatus } from "@/types/toothChart"
 
 const PERMANENT_UPPER = [18, 17, 16, 15, 14, 13, 12, 11, 21, 22, 23, 24, 25, 26, 27, 28]
 const PERMANENT_LOWER = [48, 47, 46, 45, 44, 43, 42, 41, 31, 32, 33, 34, 35, 36, 37, 38]
@@ -48,14 +48,26 @@ export function ToothChartSvg({
   const renderRow = (row: { toothNumber: number; x: number }[], y: number) =>
     row.map(({ toothNumber, x }) => {
       const record = recordByNumber.get(toothNumber)
-      const color = record ? TOOTH_STATUS_COLORS[record.status] : TOOTH_STATUS_COLORS[0]
+      const status = record?.status ?? ToothStatus.Healthy
+      const color = TOOTH_STATUS_COLORS[status]
       const isSelected = selectedTooth === toothNumber
+      const label = `Răng số ${toothNumber} — ${TOOTH_STATUS_LABELS_VI[status]}`
       return (
         <g
           key={toothNumber}
           transform={`translate(${x}, ${y})`}
           onClick={() => onToothClick(toothNumber)}
-          className="cursor-pointer"
+          onKeyDown={(e) => {
+            if (e.key === "Enter" || e.key === " ") {
+              e.preventDefault()
+              onToothClick(toothNumber)
+            }
+          }}
+          role="button"
+          tabIndex={0}
+          aria-label={label}
+          aria-pressed={isSelected}
+          className="cursor-pointer focus:outline-none focus-visible:[&>rect]:stroke-[3] focus-visible:[&>rect]:stroke-sky-500"
         >
           <rect
             width={TOOTH_SIZE}
@@ -81,8 +93,8 @@ export function ToothChartSvg({
     <svg
       viewBox={`0 0 ${width} ${height}`}
       className={cn("h-auto w-full max-w-3xl")}
-      role="img"
-      aria-label="Sơ đồ răng"
+      role="group"
+      aria-label="Sơ đồ răng — chọn 1 răng để xem hoặc cập nhật tình trạng"
     >
       {renderRow(upperRow, 4)}
       <line

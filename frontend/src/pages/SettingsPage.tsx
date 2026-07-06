@@ -5,6 +5,7 @@ import { toast } from "sonner"
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
 import { Label } from "@/components/ui/label"
+import { Skeleton } from "@/components/ui/skeleton"
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
 import { clinicSettingsApi } from "@/lib/clinic-settings-api"
 import { ApiError } from "@/lib/api"
@@ -60,7 +61,19 @@ export function SettingsPage() {
       </div>
 
       {isLoading ? (
-        <p className="text-sm text-muted-foreground">Đang tải...</p>
+        <Card className="max-w-xl">
+          <CardHeader>
+            <Skeleton className="h-5 w-40" />
+          </CardHeader>
+          <CardContent className="flex flex-col gap-4">
+            {Array.from({ length: 4 }).map((_, i) => (
+              <div key={i} className="grid gap-2">
+                <Skeleton className="h-4 w-24" />
+                <Skeleton className="h-9 w-full" />
+              </div>
+            ))}
+          </CardContent>
+        </Card>
       ) : (
         <Card className="max-w-xl">
           <CardHeader>
@@ -104,6 +117,22 @@ export function SettingsPage() {
                   value={form.logoUrl ?? ""}
                   onChange={(e) => setForm({ ...form, logoUrl: e.target.value })}
                 />
+                {form.logoUrl && (
+                  <div className="flex items-center gap-2 rounded-md border p-2">
+                    <img
+                      src={form.logoUrl}
+                      alt="Xem trước logo"
+                      className="size-12 rounded object-contain"
+                      onError={(e) => {
+                        e.currentTarget.style.display = "none"
+                      }}
+                      onLoad={(e) => {
+                        e.currentTarget.style.display = "block"
+                      }}
+                    />
+                    <span className="text-xs text-muted-foreground">Xem trước</span>
+                  </div>
+                )}
               </div>
 
               <div>

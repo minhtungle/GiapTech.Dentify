@@ -19,11 +19,107 @@
 - [x] Giai đoạn 4 (xong): Import/Export CSV (Patient + Expense, xử lý ở frontend),
       Backup/Restore qua script `pg_dump`/`pg_restore`, Settings (thông tin phòng khám
       qua ABP Setting Management).
+- [x] Hoàn thiện UI/UX (xong): audit toàn diện 7 trang + fix — sửa 1 bug mất dữ liệu
+      thật, sidebar responsive mobile, skeleton loading, empty state có CTA, AlertDialog
+      thay window.confirm, accessibility cho sơ đồ răng (bàn phím/screen reader).
 - [ ] Giai đoạn 5 (tuỳ chọn): AI voice-to-note, AI scan hoá đơn, Patient Portal
 
 ## Nhật ký
 
-### 2026-07-07 — Giai đoạn 4 (hoàn tất): Import/Export CSV + Backup/Restore + Settings
+### 2026-07-07 (2) — Hoàn thiện UI/UX toàn bộ frontend (không thêm tính năng mới)
+
+Sau khi xong 4 giai đoạn chính, user yêu cầu tập trung hoàn thiện UI/UX của những gì đã
+có (không thêm tính năng). Dùng 1 agent Explore đọc toàn bộ 7 trang
+(Patients/Appointments/LabWorks/Expenses/Settings/ToothChart/AuthCallback) + component
+con để audit trước khi sửa — audit tìm ra **1 bug thật** (không chỉ UI) và hàng loạt vấn
+đề UX theo tiêu chí: loading state, empty state, error handling, responsive, form
+validation, accessibility, tính nhất quán.
+
+- **Bug thật đã fix**: `AppointmentsPage.openEditDialog` — khi `GetAsync(id)` để lấy chi
+  tiết lịch hẹn (kèm đơn thuốc) bị lỗi mạng/server, code cũ vẫn tiếp tục mở dialog dùng
+  dữ liệu tóm tắt từ danh sách (thiếu `prescriptionItems`). Nếu người dùng không để ý
+  toast lỗi và bấm Lưu, đơn thuốc hiện có của bệnh nhân sẽ bị **xoá sạch** mà không có
+  cảnh báo. Fix: đóng dialog + return sớm khi fetch lỗi, thêm state `isLoadingDetail`
+  disable nút Lưu trong lúc tải.
+- **Component dùng chung mới**: `Skeleton` (loading row/card thay text "Đang tải..."),
+  `Tooltip`/`TooltipProvider` (giải thích lý do nút bị disable), `AlertDialog` (Radix,
+  thay hoàn toàn `window.confirm()` — không tự custom được message, không đồng bộ theme,
+  không có loading state khi xoá), `ConfirmDialog` (wrapper tái dùng AlertDialog cho
+  pattern xoá lặp lại ở 5 trang). Cài thêm `@radix-ui/react-tooltip`,
+  `@radix-ui/react-alert-dialog` — 2 package Radix duy nhất còn thiếu so với các
+  primitive khác đã dùng (`dialog`, `select`, `label`, `tabs`).
+- **Sidebar responsive**: `AppLayout` cũ có `<aside className="w-60">` cố định, không
+  responsive, phá layout hoàn toàn trên mobile (< md). Sửa: sidebar chính `hidden
+  md:flex`, thêm header mobile với nút hamburger mở **drawer** (dùng lại `Dialog`
+  Radix có sẵn, style lại thành panel trượt từ trái thay vì modal giữa màn hình) chứa
+  cùng nav + nút đăng xuất.
+- **Áp dụng đồng loạt cho mọi trang danh sách** (Patients/Appointments/Expenses):
+  skeleton loading (5 hàng giả lập đúng số cột), empty state có icon + text + nút CTA
+  hành động tiếp theo (thay vì 1 dòng chữ xám nhạt), `AlertDialog` xác nhận xoá có
+  state `isDeleting` (disable nút trong lúc xử lý, tránh double-submit), `aria-label`
+  mô tả đầy đủ (kèm tên bệnh nhân/khoản chi cụ thể) cho mọi icon-button thay vì chỉ có
+  `title` hoặc không có gì, `htmlFor`/`id` liên kết đúng giữa `Label` và `SelectTrigger`
+  (trước đó nhiều Select không click-to-focus được từ label).
+- **`formatCurrency` helper mới** (`lib/utils.ts`) — trước đó 5 chỗ khác nhau hiện tiền
+  bằng `amount.toLocaleString("vi-VN")` không có đơn vị (dễ nhầm số thuần), giờ thống
+  nhất `${amount.toLocaleString("vi-VN")} ₫`.
+- **AppointmentsPage — sửa riêng**: dialog đơn thuốc mở rộng `sm:max-w-2xl` (từ mặc
+  định `max-w-lg` quá hẹp cho 5 field/dòng); grid dòng thuốc đổi từ
+  `grid-cols-[2fr_1fr_5rem_2fr_auto]` cố định (vỡ trên màn hẹp) sang responsive
+  (`grid-cols-2` xếp dọc trên mobile, 5 cột từ `sm` trở lên); nút "Thêm lịch hẹn" khi
+  disabled (chưa có bệnh nhân) bọc trong `Tooltip` giải thích lý do thay vì mờ đi không
+  rõ nguyên nhân; dialog thanh toán thêm validate + hiển thị lỗi trực quan khi số tiền
+  vượt giá dịch vụ (trước đó im lặng cho nhập, chỉ chặn ở backend).
+- **AppointmentPhotosDialog — sửa riêng**: nút xoá ảnh trước đó chỉ hiện khi
+  `group-hover` — trên thiết bị cảm ứng (tablet bác sĩ dùng khi khám) **hoàn toàn
+  không bấm được** vì không có hover thật. Fix: nút xoá luôn hiển thị. Thêm lightbox
+  (dialog phụ) xem ảnh cỡ lớn khi click — trước đó click ảnh không làm gì ngoài xoá.
+- **ToothChartSvg — accessibility nghiêm trọng nhất tìm thấy**: mỗi `<g>` đại diện 1
+  răng chỉ có `onClick`, không `role`, không `tabIndex`, không `aria-label` riêng —
+  người dùng bàn phím/screen reader **không thể chọn từng răng**, tức tính năng cốt lõi
+  của trang (ghi nhận tình trạng răng) hoàn toàn không dùng được nếu không có chuột.
+  Fix: thêm `role="button"`, `tabIndex={0}`, `aria-label` mô tả số răng + tình trạng
+  hiện tại, `onKeyDown` xử lý Enter/Space, `aria-pressed` cho răng đang chọn. **Đã verify
+  thật bằng Playwright**: `page.keyboard.press('Enter')` sau khi `focus()` vào 1 răng
+  mở đúng dialog cập nhật — xác nhận thao tác bàn phím hoạt động, không chỉ đọc code.
+- **ToothChartPage — sửa riêng**: tiêu đề trang mãi hiện "Đang tải..." kể cả khi đã load
+  xong nhưng thất bại (dùng `patient ? ... : "Đang tải..."` — sai logic, không phân biệt
+  "đang tải" với "tải lỗi"). Toàn bộ nội dung chính cũng trống trơn khi lỗi, chỉ có toast
+  tự biến mất — người dùng refresh không hiểu chuyện gì xảy ra. Fix: thêm state
+  `loadError` riêng, hiển thị khối lỗi rõ ràng (icon + text + nút "Thử lại" gọi lại
+  `loadData()`).
+- **LabWorksPage — sửa riêng**: kéo-thả HTML5 (`draggable`) **không hoạt động trên
+  touch device** và không có phương án thay thế — bác sĩ dùng tablet sẽ không đổi được
+  trạng thái ca labo. Fix: thêm `Select` nhỏ ngay trong mỗi card gọi cùng hàm
+  `changeStatus` dùng chung với `handleDrop` — kéo-thả và dropdown đều cập nhật đúng,
+  hoạt động trên mọi thiết bị. Cũng tăng kích thước icon-button từ `size-6` lên `size-8`
+  (dưới ngưỡng touch-target 44px khuyến nghị), thêm empty-state cho cột rỗng.
+- **AuthCallbackPage — sửa riêng**: khi đăng nhập lỗi, trang cũ chỉ hiện text màu xám
+  giống hệt trạng thái loading, không có nút nào — người dùng bị **kẹt hoàn toàn, không
+  có lối thoát** khỏi trang này nếu OpenIddict callback lỗi. Fix: icon lỗi màu đỏ rõ
+  ràng, nút "Về trang chủ" + "Thử đăng nhập lại" (gọi lại `userManager.signinRedirect()`).
+- **SettingsPage — sửa riêng**: thêm preview ảnh logo ngay dưới input URL (trước đó nhập
+  URL không có cách nào xác nhận đã đúng link trước khi lưu), skeleton cho form lúc tải.
+- **Bug tự phát hiện lúc verify (không có trong audit ban đầu)**: sau khi thêm
+  `Skeleton` vào `ToothChartPage`, Playwright báo lỗi console "cannot be a descendant of
+  `<p>`" — do `<Skeleton>` (render ra `<div>`) bị đặt trong thẻ `<p>` (HTML không cho
+  phép block-level element trong `<p>`), gây warning hydration của React. Fix: đổi thẻ
+  cha từ `<p>` sang `<div>`, bọc text trong `<span>`. Đây là lý do luôn phải verify bằng
+  browser thật thay vì chỉ tin `tsc`/`vite build` — lỗi HTML semantics loại này không
+  bị bắt bởi type checker.
+- **Không sửa** (audit xếp mức Trung bình/Thấp, ngoài phạm vi "không thêm tính năng"):
+  ô tìm kiếm bên trong Select dài (Bệnh nhân), debounce ô filter Patients, dialog xem
+  đầy đủ lỗi CSV import (hiện chỉ hiện 3 dòng đầu + "..."), card-view thay bảng trên
+  mobile (bảng đã có `overflow-x-auto` sẵn nên chấp nhận được), badge số lượng lịch sử
+  răng trước khi bấm xem.
+- **Verify UI thật bằng Playwright** (không chỉ đọc code): AlertDialog mở/đóng đúng khi
+  xoá bệnh nhân (xác nhận không còn dùng `window.confirm` gốc); sidebar desktop ẩn +
+  hamburger hiện đúng ở viewport 390px; mobile nav drawer mở và điều hướng đúng; LabWork
+  status Select hoạt động (tạo ca mới, thấy dropdown đổi trạng thái trên card); ToothChart
+  đếm đúng 32 phần tử `role="button"` có `aria-label`, focus + Enter mở đúng dialog răng.
+  `Console/page errors: []` sau khi fix bug `<Skeleton>` trong `<p>`.
+
+### 2026-07-07 (1) — Giai đoạn 4 (hoàn tất): Import/Export CSV + Backup/Restore + Settings
 
 Xác nhận phạm vi với user trước khi làm (2 vòng AskUserQuestion): (1) CSV chỉ áp dụng cho
 Patient + Expense (không làm Appointment); (2) Backup/Restore dùng script
@@ -543,3 +639,15 @@ thêm nếu dùng đúng `docker-compose.yml` mặc định của dự án.
   trong app — tin cậy hơn, không phải tự xử lý file lớn/transaction/downtime. Script tự
   nhận diện container Postgres qua `docker ps`, fallback gọi thẳng nếu chạy Postgres
   local không qua Docker.
+- **`window.confirm()` bị cấm dùng cho xoá dữ liệu** — luôn dùng `AlertDialog` (Radix,
+  qua wrapper `ConfirmDialog`) để có thể custom message, đồng bộ theme, và có state
+  loading/disable khi đang xử lý xoá. Mọi trang mới thêm sau này khi cần confirm-xoá
+  phải tái dùng `ConfirmDialog`, không tự viết `confirm()` mới.
+- **Kéo-thả (drag & drop) trên Kanban luôn phải có phương án thay thế không cần chuột**
+  (vd Select đổi trạng thái ngay trên card) — HTML5 `draggable` không hoạt động trên
+  thiết bị cảm ứng, và nhân viên phòng khám có thể dùng tablet. Áp dụng cho LabWorks,
+  và bất kỳ Kanban nào làm thêm sau này.
+- **Mọi phần tử tương tác được (click để mở dialog/đổi trạng thái) phải có `role`,
+  `tabIndex`, `aria-label`, và xử lý phím Enter/Space** nếu không phải là `<button>`
+  gốc — áp dụng sau khi phát hiện `ToothChartSvg` hoàn toàn không dùng được bằng bàn
+  phím (xem nhật ký 2026-07-07 (2)).

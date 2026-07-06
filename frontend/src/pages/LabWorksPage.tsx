@@ -1,13 +1,15 @@
 import { useEffect, useState } from "react"
 import type { DragEvent, FormEvent } from "react"
-import { Pencil, Plus, Trash2 } from "lucide-react"
+import { FlaskConical, Pencil, Plus, Trash2 } from "lucide-react"
 import { toast } from "sonner"
 import { Button } from "@/components/ui/button"
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
 import { Input } from "@/components/ui/input"
 import { Label } from "@/components/ui/label"
+import { Skeleton } from "@/components/ui/skeleton"
 import { Textarea } from "@/components/ui/textarea"
 import { Badge } from "@/components/ui/badge"
+import { ConfirmDialog } from "@/components/ConfirmDialog"
 import {
   Dialog,
   DialogContent,
@@ -25,6 +27,7 @@ import {
 import { labWorksApi } from "@/lib/lab-works-api"
 import { patientsApi } from "@/lib/patients-api"
 import { ApiError } from "@/lib/api"
+import { formatCurrency } from "@/lib/utils"
 import type { CreateUpdateLabWorkDto, LabWorkDto, LabWorkStatusName } from "@/types/labWork"
 import {
   LAB_WORK_BOARD_COLUMNS,
@@ -58,6 +61,9 @@ export function LabWorksPage() {
   const [isSaving, setIsSaving] = useState(false)
 
   const [draggingId, setDraggingId] = useState<string | null>(null)
+
+  const [deletingLabWork, setDeletingLabWork] = useState<LabWorkDto | null>(null)
+  const [isDeleting, setIsDeleting] = useState(false)
 
   const loadData = async () => {
     setIsLoading(true)
@@ -142,23 +148,22 @@ export function LabWorksPage() {
     }
   }
 
-  const handleDelete = async (labWork: LabWorkDto) => {
-    if (!confirm(`Xoá ca labo "${labWork.labName} — ${labWork.workType}"?`)) return
+  const handleDelete = async () => {
+    if (!deletingLabWork) return
+    setIsDeleting(true)
     try {
-      await labWorksApi.delete(labWork.id)
+      await labWorksApi.delete(deletingLabWork.id)
       toast.success("Đã xoá ca labo")
+      setDeletingLabWork(null)
       await loadData()
     } catch (err) {
       toast.error(err instanceof ApiError ? err.message : "Xoá thất bại")
+    } finally {
+      setIsDeleting(false)
     }
   }
 
-  const handleDrop = async (e: DragEvent, status: LabWorkStatusName) => {
-    e.preventDefault()
-    const id = draggingId
-    setDraggingId(null)
-    if (!id) return
-
+  const changeStatus = async (id: string, status: LabWorkStatusName) => {
     const labWork = labWorks.find((x) => x.id === id)
     if (!labWork || LabWorkStatus[status] === labWork.status) return
 
@@ -175,13 +180,21 @@ export function LabWorksPage() {
     }
   }
 
+  const handleDrop = async (e: DragEvent, status: LabWorkStatusName) => {
+    e.preventDefault()
+    const id = draggingId
+    setDraggingId(null)
+    if (!id) return
+    await changeStatus(id, status)
+  }
+
   return (
     <div className="flex flex-col gap-4">
       <div className="flex items-center justify-between">
         <div>
           <h1 className="text-2xl font-semibold">Labo</h1>
           <p className="text-sm text-muted-foreground">
-            {labWorks.length} ca đang theo dõi — kéo thả thẻ để đổi trạng thái
+            {labWorks.length} ca đang theo dõi — kéo thả thẻ hoặc dùng ô trạng thái để cập nhật
           </p>
         </div>
         <Button onClick={openCreateDialog} disabled={patients.length === 0}>
@@ -190,7 +203,17 @@ export function LabWorksPage() {
         </Button>
       </div>
 
-      {isLoading && <p className="text-sm text-muted-foreground">Đang tải...</p>}
+      {isLoading && (
+        <div className="grid grid-cols-1 gap-4 md:grid-cols-4">
+          {Array.from({ length: 4 }).map((_, i) => (
+            <div key={i} className="flex flex-col gap-2 rounded-lg bg-muted/40 p-2">
+              <Skeleton className="h-5 w-24" />
+              <Skeleton className="h-24 w-full" />
+              <Skeleton className="h-24 w-full" />
+            </div>
+          ))}
+        </div>
+      )}
 
       {!isLoading && (
         <div className="grid grid-cols-1 gap-4 md:grid-cols-4">
@@ -208,6 +231,13 @@ export function LabWorksPage() {
                   <Badge variant="outline">{cards.length}</Badge>
                 </div>
 
+                {cards.length === 0 && (
+                  <div className="flex flex-col items-center gap-1 rounded-md border border-dashed p-4 text-xs text-muted-foreground">
+                    <FlaskConical className="size-5" />
+                    Chưa có ca nào
+                  </div>
+                )}
+
                 {cards.map((card) => (
                   <Card
                     key={card.id}
@@ -219,17 +249,36 @@ export function LabWorksPage() {
                     <CardHeader className="gap-1 px-3 py-0">
                       <CardTitle className="text-sm">{card.patientFullName}</CardTitle>
                     </CardHeader>
-                    <CardContent className="flex flex-col gap-1 px-3 py-0 text-xs text-muted-foreground">
+                    <CardContent className="flex flex-col gap-2 px-3 py-0 text-xs text-muted-foreground">
                       <span>{card.labName} — {card.workType}</span>
                       {card.toothNumberList.length > 0 && (
                         <span>Răng: {card.toothNumberList.join(", ")}</span>
                       )}
-                      <span>{card.cost.toLocaleString("vi-VN")}</span>
+                      <span>{formatCurrency(card.cost)}</span>
+
+                      <Select
+                        value={LAB_WORK_BOARD_COLUMNS.find((c) => LabWorkStatus[c] === card.status)}
+                        onValueChange={(value: LabWorkStatusName) => void changeStatus(card.id, value)}
+                      >
+                        <SelectTrigger aria-label={`Đổi trạng thái ca labo của ${card.patientFullName}`} className="h-8 text-xs">
+                          <SelectValue />
+                        </SelectTrigger>
+                        <SelectContent>
+                          {LAB_WORK_BOARD_COLUMNS.map((column) => (
+                            <SelectItem key={column} value={column}>
+                              {LAB_WORK_STATUS_LABELS_VI[LabWorkStatus[column]]}
+                            </SelectItem>
+                          ))}
+                        </SelectContent>
+                      </Select>
+
                       <div className="mt-1 flex justify-end gap-1">
                         <Button
                           variant="ghost"
                           size="icon"
-                          className="size-6"
+                          className="size-8"
+                          title="Sửa"
+                          aria-label={`Sửa ca labo của ${card.patientFullName}`}
                           onClick={() => openEditDialog(card)}
                         >
                           <Pencil className="size-3.5" />
@@ -237,8 +286,10 @@ export function LabWorksPage() {
                         <Button
                           variant="ghost"
                           size="icon"
-                          className="size-6"
-                          onClick={() => void handleDelete(card)}
+                          className="size-8"
+                          title="Xoá"
+                          aria-label={`Xoá ca labo của ${card.patientFullName}`}
+                          onClick={() => setDeletingLabWork(card)}
                         >
                           <Trash2 className="size-3.5" />
                         </Button>
@@ -260,12 +311,12 @@ export function LabWorksPage() {
             </DialogHeader>
 
             <div className="grid gap-2">
-              <Label>Bệnh nhân</Label>
+              <Label htmlFor="labWorkPatientId">Bệnh nhân</Label>
               <Select
                 value={form.patientId}
                 onValueChange={(value: string) => setForm({ ...form, patientId: value })}
               >
-                <SelectTrigger>
+                <SelectTrigger id="labWorkPatientId">
                   <SelectValue placeholder="Chọn bệnh nhân" />
                 </SelectTrigger>
                 <SelectContent>
@@ -360,6 +411,15 @@ export function LabWorksPage() {
           </form>
         </DialogContent>
       </Dialog>
+
+      <ConfirmDialog
+        open={deletingLabWork !== null}
+        onOpenChange={(open) => !open && setDeletingLabWork(null)}
+        title="Xoá ca labo"
+        description={`Bạn có chắc muốn xoá ca labo "${deletingLabWork?.labName} — ${deletingLabWork?.workType}"? Hành động này không thể hoàn tác.`}
+        isConfirming={isDeleting}
+        onConfirm={() => void handleDelete()}
+      />
     </div>
   )
 }
