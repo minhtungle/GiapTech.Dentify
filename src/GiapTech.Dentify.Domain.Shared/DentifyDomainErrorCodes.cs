@@ -9,4 +9,7 @@ public static class DentifyDomainErrorCodes
     public const string PaidAmountCannotExceedPrice = "Dentify:00003";
     public const string InvalidToothNumber = "Dentify:00004";
     public const string ToothRecordNotFound = "Dentify:00005";
+    public const string UnsupportedPhotoContentType = "Dentify:00006";
+    public const string PhotoSizeTooLarge = "Dentify:00007";
+    public const string AppointmentPhotoNotFound = "Dentify:00008";
 }

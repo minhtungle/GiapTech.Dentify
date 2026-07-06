@@ -20,6 +20,9 @@
     "Permission:Appointments.ManagePayment": "Manage payment",
     "Permission:ToothChart": "Tooth Chart",
     "Permission:ToothChart.Update": "Edit",
+    "Permission:AppointmentPhotos": "Appointment Photos",
+    "Permission:AppointmentPhotos.Upload": "Upload",
+    "Permission:AppointmentPhotos.Delete": "Delete",
 
     "Patient": "Patient",
     "Patients": "Patients",
@@ -86,10 +89,19 @@
     "ToothStatus:Extracted": "Extracted",
     "ToothStatus:Implant": "Implant",
 
+    "AppointmentPhoto": "Appointment Photo",
+    "AppointmentPhoto:Upload": "Upload photo",
+    "AppointmentPhoto:Caption": "Caption",
+    "AppointmentPhoto:NoPhotos": "No photos yet.",
+    "AppointmentPhoto:DeletionConfirmationMessage": "Are you sure you want to delete this photo?",
+
     "Dentify:00001": "Patient not found.",
     "Dentify:00002": "Appointment not found.",
     "Dentify:00003": "Paid amount cannot exceed the appointment price.",
     "Dentify:00004": "Invalid tooth number.",
-    "Dentify:00005": "Tooth record not found."
+    "Dentify:00005": "Tooth record not found.",
+    "Dentify:00006": "Unsupported photo format (only JPEG, PNG, WEBP are allowed).",
+    "Dentify:00007": "Photo size exceeds the allowed limit (max 10MB).",
+    "Dentify:00008": "Appointment photo not found."
   }
 }

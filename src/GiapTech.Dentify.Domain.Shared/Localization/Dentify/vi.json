@@ -20,6 +20,9 @@
     "Permission:Appointments.ManagePayment": "Quản lý thanh toán",
     "Permission:ToothChart": "Sơ đồ răng",
     "Permission:ToothChart.Update": "Sửa",
+    "Permission:AppointmentPhotos": "Ảnh lịch hẹn",
+    "Permission:AppointmentPhotos.Upload": "Tải lên",
+    "Permission:AppointmentPhotos.Delete": "Xoá",
 
     "Patient": "Bệnh nhân",
     "Patients": "Bệnh nhân",
@@ -86,10 +89,19 @@
     "ToothStatus:Extracted": "Đã nhổ",
     "ToothStatus:Implant": "Cấy ghép Implant",
 
+    "AppointmentPhoto": "Ảnh lịch hẹn",
+    "AppointmentPhoto:Upload": "Tải ảnh lên",
+    "AppointmentPhoto:Caption": "Chú thích",
+    "AppointmentPhoto:NoPhotos": "Chưa có ảnh nào.",
+    "AppointmentPhoto:DeletionConfirmationMessage": "Bạn có chắc muốn xoá ảnh này?",
+
     "Dentify:00001": "Không tìm thấy bệnh nhân.",
     "Dentify:00002": "Không tìm thấy lịch hẹn.",
     "Dentify:00003": "Số tiền đã thanh toán không được vượt quá giá dịch vụ.",
     "Dentify:00004": "Số răng không hợp lệ.",
-    "Dentify:00005": "Không tìm thấy thông tin răng."
+    "Dentify:00005": "Không tìm thấy thông tin răng.",
+    "Dentify:00006": "Định dạng ảnh không được hỗ trợ (chỉ chấp nhận JPEG, PNG, WEBP).",
+    "Dentify:00007": "Kích thước ảnh vượt quá giới hạn cho phép (tối đa 10MB).",
+    "Dentify:00008": "Không tìm thấy ảnh."
   }
 }

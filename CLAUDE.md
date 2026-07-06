@@ -6,9 +6,9 @@
 
 **GiapTech.Dentify** — ứng dụng quản lý nha khoa, backend xây trên **ABP Framework**, **.NET 10**, kiến trúc **layered monolith + DDD**; frontend là **React (Vite + TypeScript + shadcn/ui)** riêng biệt, gọi backend qua REST API + OAuth2 PKCE.
 
-> Trạng thái hiện tại: xong Giai đoạn 1 (Patient + Appointment) và Tooth Chart (một phần
-> của Giai đoạn 2 — còn thiếu Photo upload + Prescription chi tiết). Xem `docs/PROGRESS.md`
-> để biết đang làm tới đâu.
+> Trạng thái hiện tại: xong Giai đoạn 1 (Patient + Appointment); Giai đoạn 2 gần xong
+> (Tooth Chart + Photo upload cho Appointment đã xong — còn thiếu Prescription chi tiết).
+> Xem `docs/PROGRESS.md` để biết đang làm tới đâu.
 
 ## Kiến trúc tổng quan
 

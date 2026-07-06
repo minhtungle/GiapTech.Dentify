@@ -11,15 +11,83 @@
 - [x] Đổi kiến trúc: DB → PostgreSQL, frontend nghiệp vụ tách riêng (React + shadcn/ui,
       OAuth2 PKCE), backend chỉ còn AuthServer + API + admin Razor, toàn bộ triển khai
       qua Docker Compose
-- [x] Giai đoạn 2 (một phần): Tooth Chart module (SVG interactive) — xong. Photo upload +
-      Prescription chi tiết (PrescriptionItem) — CHƯA làm, để dành việc kế tiếp.
+- [x] Giai đoạn 2 (gần xong): Tooth Chart module (SVG interactive) — xong. Photo upload
+      cho Appointment (IBlobContainer, lưu DB) — xong. Prescription chi tiết
+      (PrescriptionItem) — CHƯA làm, để dành việc kế tiếp.
 - [ ] Giai đoạn 3: LabWork + Expense + Kanban
 - [ ] Giai đoạn 4: Import/Export CSV + Backup/Restore + Settings đầy đủ
 - [ ] Giai đoạn 5 (tuỳ chọn): AI voice-to-note, AI scan hoá đơn, Patient Portal
 
 ## Nhật ký
 
-### 2026-07-06 — Giai đoạn 2 (một phần): Tooth Chart module
+### 2026-07-06 (2) — Giai đoạn 2 (tiếp): Photo upload cho Appointment
+
+Cùng máy/phiên làm việc với Tooth Chart (mục dưới). Trước khi làm, phát hiện màn hình
+đăng nhập bị treo ("đang xác thực") khi mở lại dự án trên máy này — nguyên nhân:
+`frontend/.env` đặt `VITE_API_URL`/`VITE_AUTHORITY=http://localhost:44348` (HTTP) trong
+khi backend chỉ lắng nghe **HTTPS** (`https://localhost:44348`, xem
+`launchSettings.json`), và chứng chỉ dev-cert của .NET chưa được máy tin cậy. Sửa: đổi
+`.env` sang `https://`, chạy `dotnet dev-certs https --trust` (yêu cầu và đã được cấp
+quyền ghi Keychain), restart frontend để Vite nạp lại `.env`. Bài học: `.env` không
+nằm trong `.gitignore` theo ý đồ ban đầu (SPA cần biết authority lúc build) nên **khi đổi
+máy vẫn phải tự kiểm tra scheme HTTP/HTTPS khớp với cách backend đang chạy**, `.env`
+không tự đồng bộ qua git theo hạ tầng máy.
+
+- **Domain**: `AppointmentPhoto` — cố ý làm **aggregate root độc lập** (như
+  `ToothRecordHistory`), không phải child collection của `Appointment`, để không phải
+  sửa `IAppointmentRepository` thành custom repo chỉ vì cần `.Include()`; AppService ảnh
+  chỉ cần query theo `AppointmentId`, không cần luôn load kèm Appointment.
+  `AppointmentPhotoContainer` — class marker rỗng gắn `[BlobContainerName(...)]`, dùng
+  làm generic tham số cho `IBlobContainer<AppointmentPhotoContainer>` (pattern chuẩn của
+  ABP BlobStoring để tách các container blob khác nhau theo type-safe key thay vì string).
+- **Lưu trữ blob**: dùng **Database provider** có sẵn
+  (`Volo.Abp.BlobStoring.Database`, đã có trong Domain/EFCore csproj từ đầu scaffold,
+  không cần thêm package) — cấu hình qua
+  `AbpBlobStoringOptions.Containers.Configure<AppointmentPhotoContainer>(c => c.UseDatabase())`
+  trong `DentifyDomainModule`. Lưu blob thẳng vào bảng `AbpBlobs`/`AbpBlobContainers` của
+  Postgres thay vì filesystem — đơn giản hoá backup (1 DB duy nhất) và tương thích tốt
+  hơn với triển khai Docker nhiều container/replica (không cần shared volume). Có thể đổi
+  sang FileSystem/S3 provider sau chỉ bằng sửa 1 dòng cấu hình, không đụng code nghiệp vụ.
+  Giới hạn: JPEG/PNG/WEBP, tối đa 10MB (`AppointmentPhotoConsts`).
+- **API dùng `IRemoteStreamContent`** (kiểu chuẩn của ABP cho nội dung nhị phân qua
+  AppService) thay vì viết controller MVC tay — `UploadAsync(Guid, IRemoteStreamContent)`
+  tự động sinh route nhận `multipart/form-data`; `DownloadAsync(Guid): Task<IRemoteStreamContent>`
+  tự động trả file stream. **Lưu ý hành vi ABP**: route download sinh ra là
+  `POST /api/app/appointment-photo/{id}/download` (không phải `GET`) — vì mọi action
+  không phải đúng tên `Get`/`GetList` mặc định bị coi là "command" nên map sang POST dù
+  ngữ nghĩa là đọc. Ảnh hưởng: **không thể** gán thẳng URL này vào `<img src>` (thẻ img
+  chỉ tự động gửi GET) — frontend phải tự `fetch(..., {method:'POST'})`, lấy `blob()`,
+  tạo `URL.createObjectURL()` rồi gán vào `<img>`, và nhớ `URL.revokeObjectURL()` khi
+  đổi/đóng dialog để tránh leak memory.
+- **Permissions**: `Dentify.AppointmentPhotos.{Default,Upload,Delete}` (không có
+  `Update` vì ảnh không sửa metadata, chỉ upload/xoá).
+- **Frontend**: `appointment-photo-api.ts` viết **riêng**, không tái dùng `lib/api.ts`
+  — vì `api.ts` luôn set `Content-Type: application/json` và `JSON.stringify(body)`,
+  không phù hợp cho `FormData` (upload) hay đọc `blob()` (download). Tự quản lý
+  `Authorization` header bằng `userManager.getUser()`. Component
+  `AppointmentPhotosDialog` mở từ icon 🖼️ trong bảng Appointments, tự tải trước toàn bộ
+  blob URL của ảnh khi mở dialog (danh sách ảnh 1 lịch hẹn thường nhỏ, chấp nhận N request
+  song song qua `Promise.all` thay vì lazy-load từng ảnh).
+- **Test**: `AppointmentPhotoAppServiceTests` (5 test: upload + list, download đúng nội
+  dung, xoá, từ chối content-type không hỗ trợ → `BusinessException`, download ảnh không
+  tồn tại → `BusinessException`). Tổng test: 23 → 28, tất cả pass.
+  **Đã verify UI thật bằng Playwright**: login PKCE → tạo bệnh nhân + lịch hẹn (vì DB
+  đang trống trên máy mới) → mở dialog "Ảnh lịch hẹn" → upload 1 file ảnh giả → toast
+  thành công → thumbnail hiển thị đúng (xác nhận luồng blob URL qua POST hoạt động) →
+  không có lỗi console.
+- **Gotcha môi trường**: `dotnet run --project src/GiapTech.Dentify.DbMigrator` chạy từ
+  repo root đôi khi báo lỗi runtime `The ConnectionString property has not been
+  initialized` dù `appsettings.json` đúng và design-time (`dotnet ef migrations add`)
+  chạy bình thường — nguyên nhân chưa xác định rõ (nghi ngờ liên quan CWD khi
+  `dotnet run --project` build+run trong cùng lời gọi trên máy này). **Cách né chắc
+  chắn**: build trước (`dotnet build`) rồi chạy thẳng
+  `dotnet src/GiapTech.Dentify.DbMigrator/bin/Debug/net10.0/GiapTech.Dentify.DbMigrator.dll`
+  từ đúng thư mục đó — luôn chạy đúng.
+- Chưa làm (để lại): Prescription chi tiết (`PrescriptionItem`) — phần còn lại cuối cùng
+  của Giai đoạn 2. Chưa có UI xoá/thay caption cho ảnh trong bộ ảnh (model đã có field
+  `Caption` nhưng chưa có form nhập).
+
+### 2026-07-06 (1) — Giai đoạn 2 (một phần): Tooth Chart module
 
 Làm trên máy mới (clone từ git, VS Code extension) — môi trường chưa có gì, đã tự cài
 .NET 10 SDK (`dotnet-install.sh`), Docker Desktop, `Volo.Abp.Studio.Cli` (`abp install-libs`),
@@ -205,8 +273,9 @@ Management), chỉ bỏ phần UI nghiệp vụ (Patient/Appointment) sang React
 
 ## TODO / việc đang dở
 
-- Giai đoạn 2 (phần còn lại): Photo upload cho Appointment (IBlobContainer), Prescription
-  chi tiết (bảng `PrescriptionItem` thay vì text tự do như hiện tại).
+- Giai đoạn 2 (phần còn lại): Prescription chi tiết (bảng `PrescriptionItem` thay vì
+  text tự do như hiện tại). UI xoá/sửa `Caption` cho ảnh appointment (field đã có ở
+  domain, chưa có form nhập).
 - Tooth Chart: hiển thị theo Palmer/Universal notation ở frontend (Setting
   `Clinic.ToothNotationSystem` — hiện chưa có UI Settings, chỉ mới có ISO 3950), cho chọn
   `appointmentId` liên quan khi cập nhật tình trạng răng.
@@ -240,3 +309,11 @@ Management), chỉ bỏ phần UI nghiệp vụ (Patient/Appointment) sang React
 - Số răng dùng **duy nhất chuẩn ISO 3950** trong toàn bộ backend/API; Palmer/Universal (nếu
   làm) chỉ là convert hiển thị ở frontend, không lưu thêm cột nào — tránh phải đồng bộ 3
   hệ ký hiệu mỗi khi đổi trạng thái răng.
+- `AppointmentPhoto` là aggregate root độc lập (không phải child collection của
+  `Appointment`), lưu blob qua ABP `BlobStoring.Database` provider (blob nằm trong
+  Postgres, không phải filesystem) — đơn giản hoá backup/Docker, đổi provider sau chỉ
+  cần sửa cấu hình (xem nhật ký 2026-07-06 (2)).
+- Upload/download file dùng `IRemoteStreamContent` của ABP qua AppService thay vì viết
+  Controller MVC tay — nhất quán với cách các AppService khác tự sinh route, dù cái giá
+  là route download bị sinh ra dạng `POST` thay vì `GET` (frontend phải tự fetch bằng
+  POST rồi tạo blob URL, không gán thẳng vào `<img src>`).

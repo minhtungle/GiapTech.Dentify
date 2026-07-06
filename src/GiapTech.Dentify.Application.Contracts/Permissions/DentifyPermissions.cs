@@ -26,4 +26,11 @@ public static class DentifyPermissions
         public const string Default = GroupName + ".ToothChart";
         public const string Update = Default + ".Update";
     }
+
+    public static class AppointmentPhotos
+    {
+        public const string Default = GroupName + ".AppointmentPhotos";
+        public const string Upload = Default + ".Upload";
+        public const string Delete = Default + ".Delete";
+    }
 }

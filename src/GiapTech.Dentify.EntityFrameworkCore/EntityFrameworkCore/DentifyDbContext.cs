@@ -39,6 +39,7 @@ public class DentifyDbContext :
     public DbSet<Appointment> Appointments { get; set; }
     public DbSet<ToothChart> ToothCharts { get; set; }
     public DbSet<ToothRecordHistory> ToothRecordHistories { get; set; }
+    public DbSet<AppointmentPhoto> AppointmentPhotos { get; set; }
 
 
     #region Entities from the modules
@@ -170,6 +171,20 @@ public class DentifyDbContext :
             b.HasOne<Appointment>().WithMany().HasForeignKey(x => x.AppointmentId).IsRequired(false);
 
             b.HasIndex(x => new { x.PatientId, x.ToothNumber });
+        });
+
+        builder.Entity<AppointmentPhoto>(b =>
+        {
+            b.ToTable(DentifyConsts.DbTablePrefix + "AppointmentPhotos", DentifyConsts.DbSchema);
+            b.ConfigureByConvention();
+
+            b.Property(x => x.BlobName).IsRequired();
+            b.Property(x => x.FileName).IsRequired().HasMaxLength(AppointmentPhotoConsts.MaxFileNameLength);
+            b.Property(x => x.ContentType).IsRequired().HasMaxLength(AppointmentPhotoConsts.MaxContentTypeLength);
+
+            b.HasOne<Appointment>().WithMany().HasForeignKey(x => x.AppointmentId).IsRequired();
+
+            b.HasIndex(x => x.AppointmentId);
         });
     }
 }

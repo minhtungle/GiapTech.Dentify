@@ -1,6 +1,6 @@
 import { useEffect, useState } from "react"
 import type { FormEvent } from "react"
-import { Pencil, Plus, Trash2, Wallet } from "lucide-react"
+import { Image, Pencil, Plus, Trash2, Wallet } from "lucide-react"
 import { toast } from "sonner"
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
@@ -29,6 +29,7 @@ import {
   TableHeader,
   TableRow,
 } from "@/components/ui/table"
+import { AppointmentPhotosDialog } from "@/components/appointments/AppointmentPhotosDialog"
 import { appointmentsApi } from "@/lib/appointments-api"
 import { patientsApi } from "@/lib/patients-api"
 import { ApiError } from "@/lib/api"
@@ -85,6 +86,9 @@ export function AppointmentsPage() {
     useState<AppointmentDto | null>(null)
   const [paidAmountInput, setPaidAmountInput] = useState("0")
   const [isSavingPayment, setIsSavingPayment] = useState(false)
+
+  const [photosDialogAppointment, setPhotosDialogAppointment] =
+    useState<AppointmentDto | null>(null)
 
   const loadData = async () => {
     setIsLoading(true)
@@ -254,6 +258,14 @@ export function AppointmentsPage() {
                   </Badge>
                 </TableCell>
                 <TableCell className="text-right">
+                  <Button
+                    variant="ghost"
+                    size="icon"
+                    title="Ảnh lịch hẹn"
+                    onClick={() => setPhotosDialogAppointment(appointment)}
+                  >
+                    <Image className="size-4" />
+                  </Button>
                   <Button variant="ghost" size="icon" onClick={() => openPaymentDialog(appointment)}>
                     <Wallet className="size-4" />
                   </Button>
@@ -407,6 +419,12 @@ export function AppointmentsPage() {
           </form>
         </DialogContent>
       </Dialog>
+
+      <AppointmentPhotosDialog
+        appointmentId={photosDialogAppointment?.id ?? null}
+        patientName={photosDialogAppointment?.patientFullName}
+        onOpenChange={(open) => !open && setPhotosDialogAppointment(null)}
+      />
     </div>
   )
 }

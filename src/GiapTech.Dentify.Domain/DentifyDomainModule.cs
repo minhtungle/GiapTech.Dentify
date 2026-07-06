@@ -8,8 +8,10 @@ using Volo.Abp.Modularity;
 using Volo.Abp.MultiTenancy;
 using Volo.Abp.PermissionManagement.Identity;
 using Volo.Abp.SettingManagement;
+using Volo.Abp.BlobStoring;
 using Volo.Abp.BlobStoring.Database;
 using Volo.Abp.Caching;
+using GiapTech.Dentify.Appointments;
 using Volo.Abp.OpenIddict;
 using Volo.Abp.PermissionManagement.OpenIddict;
 using Volo.Abp.AuditLogging;
@@ -45,6 +47,13 @@ public class DentifyDomainModule : AbpModule
             options.IsEnabled = MultiTenancyConsts.IsEnabled;
         });
 
+        Configure<AbpBlobStoringOptions>(options =>
+        {
+            options.Containers.Configure<AppointmentPhotoContainer>(container =>
+            {
+                container.UseDatabase();
+            });
+        });
 
 #if DEBUG
         context.Services.Replace(ServiceDescriptor.Singleton<IEmailSender, NullEmailSender>());
