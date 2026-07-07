@@ -1,7 +1,7 @@
 import { useEffect, useRef, useState } from "react"
 import type { ChangeEvent, FormEvent } from "react"
 import { useNavigate } from "react-router-dom"
-import { Download, Pencil, Plus, Smile, Trash2, Upload, UserPlus } from "lucide-react"
+import { Download, Eye, Pencil, Plus, Trash2, Upload, UserPlus } from "lucide-react"
 import { toast } from "sonner"
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
@@ -365,11 +365,11 @@ export function PatientsPage() {
                   <Button
                     variant="ghost"
                     size="icon"
-                    title="Sơ đồ răng"
-                    aria-label={`Xem sơ đồ răng của ${patient.fullName}`}
-                    onClick={() => navigate(`/patients/${patient.id}/tooth-chart`)}
+                    title="Xem chi tiết"
+                    aria-label={`Xem chi tiết ${patient.fullName}`}
+                    onClick={() => navigate(`/patients/${patient.id}`)}
                   >
-                    <Smile className="size-4" />
+                    <Eye className="size-4" />
                   </Button>
                   <Button
                     variant="ghost"

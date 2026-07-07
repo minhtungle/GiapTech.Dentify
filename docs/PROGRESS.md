@@ -31,9 +31,104 @@
 - [x] Thanh toán nhiều lần + In hoá đơn + Thống kê (xong): entity `Payment` (lịch sử thu
       tiền), `TreatmentType` trên Appointment, trang in hoá đơn HTML, trang Thống kê
       (doanh thu theo thời gian + tăng trưởng, xếp hạng loại hình khám, theo bác sĩ).
+- [x] Rà soát quy trình + Giai đoạn A (xong): đối chiếu với chuẩn ngành PMS nha khoa
+      (Dentrix/Open Dental/Curve/tab32), sau đó triển khai bộ lọc nhất quán cho 4 trang,
+      trang chi tiết bệnh nhân (liên kết chéo Lịch hẹn/Thanh toán/Ca labo/Sơ đồ răng),
+      Dashboard bổ sung doanh thu + cảnh báo vận hành — không cần entity mới.
 - [ ] Giai đoạn 5 (tuỳ chọn): AI voice-to-note, AI scan hoá đơn, Patient Portal
 
 ## Nhật ký
+
+### 2026-07-07 (6) — Rà soát quy trình + Giai đoạn A: bộ lọc, liên kết chéo, Dashboard cảnh báo
+
+User yêu cầu rà soát tổng thể hệ thống, tham khảo chuẩn ngành PMS nha khoa (Dentrix/Open
+Dental/Curve Dental/tab32) và xem lại thiết kế giao diện có cần bổ sung/chỉnh sửa để
+thuận tiện + đưa nhiều thông tin hơn không. Chạy 3 agent Explore/research song song
+(khảo sát backend hiện có, khảo sát frontend hiện có, tổng hợp kiến thức chuẩn ngành),
+tổng hợp thành 1 báo cáo Artifact (bảng module hiện có/không tồn tại, đối chiếu ưu tiên
+cao/trung/thấp, phát hiện UX theo từng trang, roadmap 4 giai đoạn A/B/C/D). User chọn bắt
+đầu triển khai Giai đoạn A ngay — không cần entity mới, chỉ khai thác dữ liệu/API đã có
+sẵn ở frontend.
+
+- **Bộ lọc nhất quán cho 4 trang** — theo đúng pattern đã có ở `PatientsPage` (state filter
+  + `Input` + nút "Lọc"/"Tìm", không tự động filter khi gõ để tránh spam API):
+  - `AppointmentsPage`: filter theo tên bệnh nhân + loại hình khám làm **client-side** (áp
+    lên kết quả trả về, vì backend `GetAppointmentListDto`/`ApplyFilters` không có 2 field
+    này); filter theo trạng thái + khoảng ngày gửi thẳng lên backend (đã hỗ trợ sẵn từ
+    trước, chỉ frontend chưa khai thác).
+  - `ExpensesPage`: filter theo danh mục + khoảng ngày gửi thẳng lên backend — backend đã
+    hỗ trợ đủ 3 field từ Giai đoạn 3, chỉ là chưa có UI nào gọi tới trước đợt này.
+  - `LabWorksPage`: giữ nguyên `getBoard()` (không đổi sang `getList` có phân trang, vì
+    Kanban cần thấy toàn bộ trạng thái cùng lúc) — thêm 1 ô tìm kiếm lọc **client-side**
+    theo tên bệnh nhân/tên labo trên dữ liệu đã tải.
+  - `TasksPage`: filter theo độ ưu tiên gửi backend (đã hỗ trợ sẵn); thêm checkbox "Chỉ
+    hiện việc quá hạn" lọc client bằng hàm `isTaskOverdue` — **tách hàm này từ logic cục
+    bộ trong `TasksPage.tsx` sang `lib/utils.ts`** để Dashboard dùng lại được (tránh viết
+    lại đúng 1 điều kiện ngày ở 2 nơi, dễ lệch nếu sửa 1 chỗ quên chỗ kia).
+- **Trang chi tiết bệnh nhân — `/patients/:patientId`** (route mới, KHÔNG xoá route
+  `/patients/:patientId/tooth-chart` cũ để không breaking gì đang trỏ tới đó): tabs Lịch
+  hẹn/Thanh toán/Ca labo/Sơ đồ răng, tất cả gọi API lọc theo `patientId` đã có sẵn từ
+  trước (`appointmentsApi.getList`, `labWorksApi.getList` đều support `patientId` filter
+  — chỉ chưa từng có UI nào dùng tới). Header hiện tuổi (tính từ `dateOfBirth`), SĐT,
+  badge công nợ đỏ nếu `totalDebt > 0` (từ `patientsApi.getDetail` đã có sẵn), ngày khám
+  gần nhất.
+  - Tab **Thanh toán** tái dùng nguyên `PaymentHistoryDialog` đã có (component nhận
+    `AppointmentDto` đầy đủ, tự xử lý add/remove payment) — copy đúng pattern
+    `paymentDialogAppointment`/`handlePaymentChanged` đã dùng trong `AppointmentsPage`,
+    không viết lại logic thanh toán lần 2.
+  - Tab **Sơ đồ răng** — thay vì link ra route cũ hoặc viết lại từ đầu: **tách phần thân**
+    của `ToothChartPage.tsx` (chú giải màu + `ToothChartSvg` + dialog cập nhật/lịch sử)
+    thành component dùng chung `components/tooth-chart/PatientToothChartPanel.tsx`, nhận
+    `patientId` làm prop (không tự fetch lại `patientsApi.get` vì trang cha đã có patient
+    rồi). `ToothChartPage.tsx` (route cũ, vẫn giữ) và tab mới trong trang chi tiết đều
+    dùng chung component này — tránh 2 nơi giữ cùng 1 logic cập nhật tình trạng răng.
+  - `PatientsPage.tsx`: đổi nút "Sơ đồ răng" (icon `Smile`) thành nút "Xem chi tiết"
+    (icon `Eye`) điều hướng sang trang mới — route tooth-chart cũ giờ chỉ truy cập được
+    qua gõ URL trực tiếp hoặc từ trong tab, không còn entry point riêng trên bảng danh
+    sách (cân nhắc dọn route cũ ở đợt sau khi trang mới đã ổn định, chưa xoá ngay).
+- **Dashboard — doanh thu + cảnh báo vận hành**: mở rộng theo đúng pattern
+  `Promise.allSettled` + `DashboardData | null` đã có (1 API lỗi không kéo sập cả trang).
+  - Doanh thu hôm nay/tháng: gọi `statisticsApi.getRevenueOverview` (đã có sẵn từ đợt
+    Thống kê) 2 lần với khoảng ngày khác nhau — tính đúng "tiền thực nhận" (dựa trên
+    `Payment.Amount`, không phải giá dịch vụ).
+  - Cảnh báo công nợ: gọi thêm 1 lần `appointmentsApi.getList({toDate: now - 7 ngày})` rồi
+    lọc client `paymentStatus !== Paid` — chưa có filter `PaymentStatus` ở backend nên
+    tạm chấp nhận tải về rồi lọc tay (đủ nhanh ở quy mô 1 phòng khám).
+  - Cảnh báo ca labo trễ hạn + công việc quá hạn: **không gọi API mới** — lọc lại chính
+    dữ liệu `labWorksApi.getBoard()`/`tasksApi.getOverview()` Dashboard đã tải sẵn từ
+    trước, dùng lại `isTaskOverdue` vừa tách ra ở trên.
+  - UI: 1 `Card` "Cảnh báo cần chú ý" duy nhất gộp cả 3 loại, đặt sau lưới KPI — **tự ẩn
+    hoàn toàn nếu không có cảnh báo nào** (không hiện card rỗng gây nhiễu mắt khi mọi thứ
+    đều ổn).
+- **Gotcha môi trường gặp lại giữa đợt làm việc này**: Postgres container
+  (`giaptechdentify-postgres-1`) từ session trước **biến mất hoàn toàn** (không phải chỉ
+  dừng — `docker ps -a` không thấy cả container đã exit), backend liên tục lỗi
+  `Npgsql.NpgsqlException: Failed to connect ... Connection refused` và route
+  `/.well-known/openid-configuration` trả 500 khiến toàn bộ SPA kẹt mãi ở "Đang xác
+  thực...". Fix: `docker compose up -d postgres` tạo lại container mới, chạy lại
+  `DbMigrator` (build rồi chạy trực tiếp `.dll` theo đúng bài học đã ghi từ trước, không
+  dùng `dotnet run --project` cho migrator), rồi **restart backend Web** (không tự phục
+  hồi kết nối cũ, phải kill process cũ và chạy lại `dotnet run --project ... --no-build`
+  với `ASPNETCORE_ENVIRONMENT=Development` để nạp đúng dev-cert OpenIddict).
+- **Test**: không có test .NET mới (Giai đoạn A không đổi backend/Domain, chỉ thêm tham
+  số filter còn thiếu ở lời gọi API frontend và khai thác dữ liệu đã có). Frontend:
+  `tsc -b` sạch, `oxlint` chỉ còn 3 warning cũ không liên quan (fast-refresh), `npm run
+  build` production thành công.
+  **Verify UI thật bằng Playwright** toàn bộ luồng: tạo 1 bệnh nhân + 1 lịch hẹn + 1 ca
+  labo mới qua chính UI (vì DB vừa reset) → xác nhận bộ lọc tên trên `AppointmentsPage`
+  lọc đúng từ 2 xuống 1 kết quả và số đếm cập nhật khớp → xác nhận thanh filter hiển thị
+  đúng trên cả 4 trang (Lịch hẹn/Chi phí/Labo/Công việc) → mở trang chi tiết bệnh nhân,
+  xác nhận cả 4 tab hoạt động đúng (Lịch hẹn hiện đúng số lượng trong tên tab, Thanh toán
+  hiện đúng cột "Còn nợ" tô đỏ, Ca labo hiện đúng dữ liệu, Sơ đồ răng render SVG đúng ngay
+  trong tab không cần chuyển route) → Dashboard hiện đúng doanh thu hôm nay/tháng khớp số
+  liệu thật, badge tăng trưởng đúng dấu, "Công nợ cần chú ý" đúng 0đ vì lịch hẹn mới tạo
+  chưa quá 7 ngày (xác nhận đúng logic ngưỡng, không phải bug). Không lỗi console trong
+  toàn bộ luồng.
+- Chưa làm (thuộc Giai đoạn B/C/D theo roadmap đã đề xuất, không nằm trong phạm vi Giai
+  đoạn A): cảnh báo dị ứng/bệnh sử có cấu trúc, nhắc tái khám định kỳ, entity Bác sĩ +
+  lịch làm việc, danh mục dịch vụ có giá tham chiếu, kế hoạch điều trị nhiều bước, dọn
+  route `/patients/:patientId/tooth-chart` cũ, sửa lịch hẹn ngay trong tab (hiện chỉ xem,
+  chưa có nút sửa tại chỗ trong trang chi tiết).
 
 ### 2026-07-07 (5) — Thanh toán nhiều lần + In hoá đơn + Thống kê
 

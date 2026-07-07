@@ -138,15 +138,34 @@ export function AppointmentsPage() {
 
   const [calendarAppointments, setCalendarAppointments] = useState<AppointmentDto[]>([])
 
+  const [nameFilter, setNameFilter] = useState("")
+  const [statusFilter, setStatusFilter] = useState<AppointmentStatusName | "">("")
+  const [treatmentTypeFilter, setTreatmentTypeFilter] = useState<TreatmentTypeName | "">("")
+  const [fromDateFilter, setFromDateFilter] = useState("")
+  const [toDateFilter, setToDateFilter] = useState("")
+
   const loadData = async () => {
     setIsLoading(true)
     try {
       const [appointmentsResult, patientsResult] = await Promise.all([
-        appointmentsApi.getList({ maxResultCount: 100, sorting: "scheduledDateTime desc" }),
+        appointmentsApi.getList({
+          maxResultCount: 100,
+          sorting: "scheduledDateTime desc",
+          status: statusFilter || undefined,
+          fromDate: fromDateFilter ? new Date(fromDateFilter).toISOString() : undefined,
+          toDate: toDateFilter ? new Date(toDateFilter).toISOString() : undefined,
+        }),
         patientsApi.getList({ maxResultCount: 1000 }),
       ])
-      setAppointments(appointmentsResult.items)
-      setTotalCount(appointmentsResult.totalCount)
+      const filtered = appointmentsResult.items.filter((a) => {
+        const matchesName =
+          !nameFilter || a.patientFullName.toLowerCase().includes(nameFilter.toLowerCase())
+        const matchesTreatmentType =
+          !treatmentTypeFilter || a.treatmentType === TreatmentType[treatmentTypeFilter]
+        return matchesName && matchesTreatmentType
+      })
+      setAppointments(filtered)
+      setTotalCount(nameFilter || treatmentTypeFilter ? filtered.length : appointmentsResult.totalCount)
       setPatients(patientsResult.items)
     } catch (err) {
       toast.error(err instanceof ApiError ? err.message : "Không tải được danh sách lịch hẹn")
@@ -157,6 +176,7 @@ export function AppointmentsPage() {
 
   useEffect(() => {
     void loadData()
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [])
 
   const loadCalendarRange = async (fromDate: string, toDate: string) => {
@@ -358,6 +378,69 @@ export function AppointmentsPage() {
             Thêm lịch hẹn
           </Button>
         )}
+      </div>
+
+      <div className="flex flex-wrap items-end gap-2">
+        <Input
+          placeholder="Tìm theo tên bệnh nhân..."
+          value={nameFilter}
+          onChange={(e) => setNameFilter(e.target.value)}
+          onKeyDown={(e) => e.key === "Enter" && void loadData()}
+          className="max-w-56"
+        />
+        <Select
+          value={statusFilter || "all"}
+          onValueChange={(value: string) =>
+            setStatusFilter(value === "all" ? "" : (value as AppointmentStatusName))
+          }
+        >
+          <SelectTrigger className="w-40">
+            <SelectValue placeholder="Trạng thái" />
+          </SelectTrigger>
+          <SelectContent>
+            <SelectItem value="all">Mọi trạng thái</SelectItem>
+            {STATUS_OPTIONS.map((status) => (
+              <SelectItem key={status} value={status}>
+                {APPOINTMENT_STATUS_LABELS_VI[AppointmentStatus[status]]}
+              </SelectItem>
+            ))}
+          </SelectContent>
+        </Select>
+        <Select
+          value={treatmentTypeFilter || "all"}
+          onValueChange={(value: string) =>
+            setTreatmentTypeFilter(value === "all" ? "" : (value as TreatmentTypeName))
+          }
+        >
+          <SelectTrigger className="w-44">
+            <SelectValue placeholder="Loại hình khám" />
+          </SelectTrigger>
+          <SelectContent>
+            <SelectItem value="all">Mọi loại hình khám</SelectItem>
+            {TREATMENT_TYPE_OPTIONS.map((type) => (
+              <SelectItem key={type} value={type}>
+                {TREATMENT_TYPE_LABELS_VI[TreatmentType[type]]}
+              </SelectItem>
+            ))}
+          </SelectContent>
+        </Select>
+        <Input
+          type="date"
+          aria-label="Từ ngày"
+          value={fromDateFilter}
+          onChange={(e) => setFromDateFilter(e.target.value)}
+          className="w-40"
+        />
+        <Input
+          type="date"
+          aria-label="Đến ngày"
+          value={toDateFilter}
+          onChange={(e) => setToDateFilter(e.target.value)}
+          className="w-40"
+        />
+        <Button variant="outline" onClick={() => void loadData()}>
+          Lọc
+        </Button>
       </div>
 
       <Tabs defaultValue="table">

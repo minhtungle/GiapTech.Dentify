@@ -25,7 +25,7 @@ import {
 } from "@/components/ui/select"
 import { tasksApi } from "@/lib/tasks-api"
 import { ApiError } from "@/lib/api"
-import { cn } from "@/lib/utils"
+import { cn, isTaskOverdue } from "@/lib/utils"
 import type { CreateUpdateTaskItemDto, TaskItemDto, TaskPriorityName } from "@/types/task"
 import { TASK_PRIORITY_LABELS_VI, TASK_PRIORITY_NAMES, TaskPriority } from "@/types/task"
 
@@ -37,11 +37,6 @@ const PRIORITY_BADGE_VARIANT: Record<TaskPriority, "outline" | "warning" | "dest
   [TaskPriority.Low]: "outline",
   [TaskPriority.Medium]: "warning",
   [TaskPriority.High]: "destructive",
-}
-
-function isOverdue(task: TaskItemDto): boolean {
-  if (!task.dueDate || task.isDone) return false
-  return new Date(task.dueDate) < new Date(new Date().toDateString())
 }
 
 export function TasksPage() {
@@ -57,10 +52,16 @@ export function TasksPage() {
   const [isDeleting, setIsDeleting] = useState(false)
   const [togglingId, setTogglingId] = useState<string | null>(null)
 
+  const [priorityFilter, setPriorityFilter] = useState<TaskPriorityName | "">("")
+  const [showOverdueOnly, setShowOverdueOnly] = useState(false)
+
   const loadData = async () => {
     setIsLoading(true)
     try {
-      const result = await tasksApi.getList({ maxResultCount: 200 })
+      const result = await tasksApi.getList({
+        maxResultCount: 200,
+        priority: priorityFilter || undefined,
+      })
       setTasks(result.items)
     } catch (err) {
       toast.error(err instanceof ApiError ? err.message : "Không tải được danh sách công việc")
@@ -71,6 +72,7 @@ export function TasksPage() {
 
   useEffect(() => {
     void loadData()
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [])
 
   const openCreateDialog = () => {
@@ -144,7 +146,9 @@ export function TasksPage() {
     }
   }
 
-  const pendingTasks = tasks.filter((t) => !t.isDone)
+  const pendingTasks = tasks.filter(
+    (t) => !t.isDone && (!showOverdueOnly || isTaskOverdue(t)),
+  )
   const doneTasks = tasks.filter((t) => t.isDone)
 
   const renderTaskRow = (task: TaskItemDto) => (
@@ -177,7 +181,7 @@ export function TasksPage() {
             {TASK_PRIORITY_LABELS_VI[task.priority]}
           </Badge>
           {task.dueDate && (
-            <span className={cn("text-xs text-muted-foreground", isOverdue(task) && "text-destructive")}>
+            <span className={cn("text-xs text-muted-foreground", isTaskOverdue(task) && "text-destructive")}>
               {new Date(task.dueDate).toLocaleDateString("vi-VN")}
             </span>
           )}
@@ -225,6 +229,39 @@ export function TasksPage() {
           <Plus />
           Thêm công việc
         </Button>
+      </div>
+
+      <div className="flex flex-wrap items-center gap-2">
+        <Select
+          value={priorityFilter || "all"}
+          onValueChange={(value: string) => {
+            setPriorityFilter(value === "all" ? "" : (value as TaskPriorityName))
+          }}
+        >
+          <SelectTrigger className="w-44">
+            <SelectValue placeholder="Độ ưu tiên" />
+          </SelectTrigger>
+          <SelectContent>
+            <SelectItem value="all">Mọi độ ưu tiên</SelectItem>
+            {TASK_PRIORITY_NAMES.map((priority) => (
+              <SelectItem key={priority} value={priority}>
+                {TASK_PRIORITY_LABELS_VI[TaskPriority[priority]]}
+              </SelectItem>
+            ))}
+          </SelectContent>
+        </Select>
+        <Button variant="outline" onClick={() => void loadData()}>
+          Lọc
+        </Button>
+        <label className="flex items-center gap-1.5 text-sm text-muted-foreground">
+          <input
+            type="checkbox"
+            checked={showOverdueOnly}
+            onChange={(e) => setShowOverdueOnly(e.target.checked)}
+            className="size-4"
+          />
+          Chỉ hiện việc quá hạn
+        </label>
       </div>
 
       <div className="rounded-lg border bg-card p-2">

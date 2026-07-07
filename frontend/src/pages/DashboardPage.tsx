@@ -2,11 +2,15 @@ import { useEffect, useState } from "react"
 import { Link } from "react-router-dom"
 import {
   AlertCircle,
+  AlertTriangle,
   CalendarDays,
   CheckCircle2,
   FlaskConical,
   Receipt,
+  TrendingDown,
+  TrendingUp,
   Users,
+  Wallet,
 } from "lucide-react"
 import { toast } from "sonner"
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
@@ -18,13 +22,17 @@ import { patientsApi } from "@/lib/patients-api"
 import { labWorksApi } from "@/lib/lab-works-api"
 import { expensesApi } from "@/lib/expenses-api"
 import { tasksApi } from "@/lib/tasks-api"
-import { formatCurrency } from "@/lib/utils"
-import { APPOINTMENT_STATUS_LABELS_VI } from "@/types/appointment"
+import { statisticsApi } from "@/lib/statistics-api"
+import { formatCurrency, isTaskOverdue } from "@/lib/utils"
+import { APPOINTMENT_STATUS_LABELS_VI, PaymentStatus } from "@/types/appointment"
 import type { AppointmentDto } from "@/types/appointment"
 import { LAB_WORK_STATUS_LABELS_VI, LabWorkStatus } from "@/types/labWork"
 import type { LabWorkDto } from "@/types/labWork"
 import { TASK_PRIORITY_LABELS_VI } from "@/types/task"
 import type { TaskItemDto } from "@/types/task"
+import type { RevenueOverviewDto } from "@/types/statistics"
+
+const UNPAID_ALERT_DAYS = 7
 
 interface DashboardData {
   totalPatients: number | null
@@ -32,6 +40,9 @@ interface DashboardData {
   activeLabWorks: LabWorkDto[] | null
   monthExpenseTotal: number | null
   upcomingTasks: TaskItemDto[] | null
+  todayRevenue: RevenueOverviewDto | null
+  monthRevenue: RevenueOverviewDto | null
+  unpaidAppointments: AppointmentDto[] | null
 }
 
 function startOfDay(date: Date): Date {
@@ -61,29 +72,57 @@ export function DashboardPage() {
       const monthStart = new Date(now.getFullYear(), now.getMonth(), 1)
       const monthEnd = new Date(now.getFullYear(), now.getMonth() + 1, 0)
 
-      const [patients, todayAppointments, labWorkBoard, expenseSummary, upcomingTasks] =
-        await Promise.allSettled([
-          patientsApi.getList({ maxResultCount: 1 }),
-          appointmentsApi.getCalendarView(
-            startOfDay(now).toISOString(),
-            endOfDay(now).toISOString(),
-          ),
-          labWorksApi.getBoard(),
-          expensesApi.getSummary(monthStart.toISOString(), monthEnd.toISOString()),
-          tasksApi.getOverview(),
-        ])
+      const unpaidCutoff = new Date(now)
+      unpaidCutoff.setDate(unpaidCutoff.getDate() - UNPAID_ALERT_DAYS)
 
-      const failedCount = [patients, todayAppointments, labWorkBoard, expenseSummary, upcomingTasks]
-        .filter((r) => r.status === "rejected").length
+      const [
+        patients,
+        todayAppointments,
+        labWorkBoard,
+        expenseSummary,
+        upcomingTasks,
+        todayRevenue,
+        monthRevenue,
+        pastAppointments,
+      ] = await Promise.allSettled([
+        patientsApi.getList({ maxResultCount: 1 }),
+        appointmentsApi.getCalendarView(
+          startOfDay(now).toISOString(),
+          endOfDay(now).toISOString(),
+        ),
+        labWorksApi.getBoard(),
+        expensesApi.getSummary(monthStart.toISOString(), monthEnd.toISOString()),
+        tasksApi.getOverview(),
+        statisticsApi.getRevenueOverview(startOfDay(now).toISOString(), endOfDay(now).toISOString()),
+        statisticsApi.getRevenueOverview(monthStart.toISOString(), monthEnd.toISOString()),
+        appointmentsApi.getList({
+          toDate: unpaidCutoff.toISOString(),
+          maxResultCount: 200,
+          sorting: "scheduledDateTime desc",
+        }),
+      ])
+
+      const results = [
+        patients,
+        todayAppointments,
+        labWorkBoard,
+        expenseSummary,
+        upcomingTasks,
+        todayRevenue,
+        monthRevenue,
+        pastAppointments,
+      ]
+      const failedCount = results.filter((r) => r.status === "rejected").length
       if (failedCount > 0) {
         toast.error(
-          failedCount === 5
+          failedCount === results.length
             ? "Không tải được tổng quan"
             : `Không tải được ${failedCount} phần của trang tổng quan`,
         )
       }
 
       const appointmentsResult = settledValue(todayAppointments)
+      const pastAppointmentsResult = settledValue(pastAppointments)
 
       setData({
         totalPatients: settledValue(patients)?.totalCount ?? null,
@@ -93,6 +132,10 @@ export function DashboardPage() {
           settledValue(labWorkBoard)?.filter((x) => x.status !== LabWorkStatus.Attached) ?? null,
         monthExpenseTotal: settledValue(expenseSummary)?.totalAmount ?? null,
         upcomingTasks: settledValue(upcomingTasks),
+        todayRevenue: settledValue(todayRevenue),
+        monthRevenue: settledValue(monthRevenue),
+        unpaidAppointments:
+          pastAppointmentsResult?.items.filter((a) => a.paymentStatus !== PaymentStatus.Paid) ?? null,
       })
     } finally {
       setIsLoading(false)
@@ -132,11 +175,90 @@ export function DashboardPage() {
     )
   }
 
+  const overdueLabWorks =
+    data.activeLabWorks?.filter(
+      (lw) => lw.expectedReceiveDate && new Date(lw.expectedReceiveDate) < new Date(),
+    ) ?? []
+  const overdueTasks = data.upcomingTasks?.filter(isTaskOverdue) ?? []
+  const hasAnyAlert =
+    (data.unpaidAppointments?.length ?? 0) > 0 ||
+    overdueLabWorks.length > 0 ||
+    overdueTasks.length > 0
+
   return (
     <div className="flex flex-col gap-4">
       <div>
         <h1 className="text-2xl font-semibold">Trang chủ</h1>
         <p className="text-sm text-muted-foreground">Tổng quan phòng khám hôm nay</p>
+      </div>
+
+      <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-3">
+        <Card>
+          <CardContent className="flex items-center justify-between p-4">
+            <div>
+              <p className="text-sm text-muted-foreground">Doanh thu hôm nay</p>
+              <p className="text-2xl font-semibold">
+                {data.todayRevenue ? (
+                  formatCurrency(data.todayRevenue.currentPeriodTotal)
+                ) : (
+                  <span className="text-base text-muted-foreground">—</span>
+                )}
+              </p>
+            </div>
+            <Wallet className="size-8 text-muted-foreground" />
+          </CardContent>
+        </Card>
+
+        <Card>
+          <CardContent className="flex items-center justify-between p-4">
+            <div>
+              <p className="text-sm text-muted-foreground">Doanh thu tháng này</p>
+              <p className="text-2xl font-semibold">
+                {data.monthRevenue ? (
+                  formatCurrency(data.monthRevenue.currentPeriodTotal)
+                ) : (
+                  <span className="text-base text-muted-foreground">—</span>
+                )}
+              </p>
+              {data.monthRevenue && (
+                <Badge
+                  variant={data.monthRevenue.growthPercentage >= 0 ? "success" : "destructive"}
+                  className="mt-1 flex w-fit items-center gap-1 text-[11px]"
+                >
+                  {data.monthRevenue.growthPercentage >= 0 ? (
+                    <TrendingUp className="size-3" />
+                  ) : (
+                    <TrendingDown className="size-3" />
+                  )}
+                  {Math.abs(data.monthRevenue.growthPercentage)}% so với tháng trước
+                </Badge>
+              )}
+            </div>
+          </CardContent>
+        </Card>
+
+        <Link to="/appointments">
+          <Card className="h-full transition-colors hover:bg-accent/50">
+            <CardContent className="flex items-center justify-between p-4">
+              <div>
+                <p className="text-sm text-muted-foreground">Công nợ cần chú ý</p>
+                <p className="text-2xl font-semibold">
+                  {data.unpaidAppointments ? (
+                    formatCurrency(
+                      data.unpaidAppointments.reduce((sum, a) => sum + (a.price - a.paidAmount), 0),
+                    )
+                  ) : (
+                    <span className="text-base text-muted-foreground">—</span>
+                  )}
+                </p>
+                <p className="text-xs text-muted-foreground">
+                  {data.unpaidAppointments?.length ?? 0} lịch hẹn quá {UNPAID_ALERT_DAYS} ngày
+                </p>
+              </div>
+              <AlertTriangle className="size-8 text-muted-foreground" />
+            </CardContent>
+          </Card>
+        </Link>
       </div>
 
       <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-4">
@@ -200,6 +322,48 @@ export function DashboardPage() {
           </Card>
         </Link>
       </div>
+
+      {hasAnyAlert && (
+        <Card className="border-destructive/30">
+          <CardHeader>
+            <CardTitle className="flex items-center gap-2 text-base text-destructive">
+              <AlertTriangle className="size-4" />
+              Cảnh báo cần chú ý
+            </CardTitle>
+          </CardHeader>
+          <CardContent className="flex flex-col gap-2">
+            {(data.unpaidAppointments?.length ?? 0) > 0 && (
+              <Link
+                to="/appointments"
+                className="flex items-center justify-between border-b pb-2 text-sm last:border-0 hover:underline"
+              >
+                <span>
+                  {data.unpaidAppointments!.length} lịch hẹn chưa thu đủ quá {UNPAID_ALERT_DAYS} ngày
+                </span>
+                <Badge variant="destructive">Công nợ</Badge>
+              </Link>
+            )}
+            {overdueLabWorks.map((lw) => (
+              <Link
+                key={lw.id}
+                to="/lab-works"
+                className="flex items-center justify-between border-b pb-2 text-sm last:border-0 hover:underline"
+              >
+                <span>
+                  Ca labo của {lw.patientFullName} ({lw.labName}) quá hạn nhận dự kiến
+                </span>
+                <Badge variant="destructive">Labo</Badge>
+              </Link>
+            ))}
+            {overdueTasks.map((t) => (
+              <div key={t.id} className="flex items-center justify-between border-b pb-2 text-sm last:border-0">
+                <span>Công việc "{t.title}" đã quá hạn</span>
+                <Badge variant="destructive">Công việc</Badge>
+              </div>
+            ))}
+          </CardContent>
+        </Card>
+      )}
 
       <div className="grid grid-cols-1 gap-4 md:grid-cols-2">
         <Card>

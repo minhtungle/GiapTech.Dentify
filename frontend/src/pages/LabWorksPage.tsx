@@ -65,6 +65,8 @@ export function LabWorksPage() {
   const [deletingLabWork, setDeletingLabWork] = useState<LabWorkDto | null>(null)
   const [isDeleting, setIsDeleting] = useState(false)
 
+  const [searchTerm, setSearchTerm] = useState("")
+
   const loadData = async () => {
     setIsLoading(true)
     try {
@@ -188,6 +190,14 @@ export function LabWorksPage() {
     await changeStatus(id, status)
   }
 
+  const visibleLabWorks = labWorks.filter((x) => {
+    const term = searchTerm.trim().toLowerCase()
+    if (!term) return true
+    return (
+      x.patientFullName.toLowerCase().includes(term) || x.labName.toLowerCase().includes(term)
+    )
+  })
+
   return (
     <div className="flex flex-col gap-4">
       <div className="flex items-center justify-between">
@@ -202,6 +212,13 @@ export function LabWorksPage() {
           Thêm ca labo
         </Button>
       </div>
+
+      <Input
+        placeholder="Tìm theo tên bệnh nhân hoặc labo..."
+        value={searchTerm}
+        onChange={(e) => setSearchTerm(e.target.value)}
+        className="max-w-sm"
+      />
 
       {isLoading && (
         <div className="grid grid-cols-1 gap-4 md:grid-cols-4">
@@ -218,7 +235,7 @@ export function LabWorksPage() {
       {!isLoading && (
         <div className="grid grid-cols-1 gap-4 md:grid-cols-4">
           {LAB_WORK_BOARD_COLUMNS.map((column) => {
-            const cards = labWorks.filter((x) => x.status === LabWorkStatus[column])
+            const cards = visibleLabWorks.filter((x) => x.status === LabWorkStatus[column])
             return (
               <div
                 key={column}

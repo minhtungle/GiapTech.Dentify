@@ -68,12 +68,19 @@ export function ExpensesPage() {
   const [deletingExpense, setDeletingExpense] = useState<ExpenseDto | null>(null)
   const [isDeleting, setIsDeleting] = useState(false)
 
+  const [categoryFilter, setCategoryFilter] = useState<ExpenseCategoryName | "">("")
+  const [fromDateFilter, setFromDateFilter] = useState("")
+  const [toDateFilter, setToDateFilter] = useState("")
+
   const loadData = async () => {
     setIsLoading(true)
     try {
       const result = await expensesApi.getList({
         maxResultCount: 100,
         sorting: "expenseDate desc",
+        category: categoryFilter || undefined,
+        fromDate: fromDateFilter ? new Date(fromDateFilter).toISOString() : undefined,
+        toDate: toDateFilter ? new Date(toDateFilter).toISOString() : undefined,
       })
       setExpenses(result.items)
       setTotalCount(result.totalCount)
@@ -87,6 +94,7 @@ export function ExpensesPage() {
 
   useEffect(() => {
     void loadData()
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [])
 
   const openCreateDialog = () => {
@@ -261,6 +269,44 @@ export function ExpensesPage() {
             Thêm chi phí
           </Button>
         </div>
+      </div>
+
+      <div className="flex flex-wrap items-end gap-2">
+        <Select
+          value={categoryFilter || "all"}
+          onValueChange={(value: string) =>
+            setCategoryFilter(value === "all" ? "" : (value as ExpenseCategoryName))
+          }
+        >
+          <SelectTrigger className="w-44">
+            <SelectValue placeholder="Danh mục" />
+          </SelectTrigger>
+          <SelectContent>
+            <SelectItem value="all">Mọi danh mục</SelectItem>
+            {EXPENSE_CATEGORY_NAMES.map((category) => (
+              <SelectItem key={category} value={category}>
+                {EXPENSE_CATEGORY_LABELS_VI[ExpenseCategory[category]]}
+              </SelectItem>
+            ))}
+          </SelectContent>
+        </Select>
+        <Input
+          type="date"
+          aria-label="Từ ngày"
+          value={fromDateFilter}
+          onChange={(e) => setFromDateFilter(e.target.value)}
+          className="w-40"
+        />
+        <Input
+          type="date"
+          aria-label="Đến ngày"
+          value={toDateFilter}
+          onChange={(e) => setToDateFilter(e.target.value)}
+          className="w-40"
+        />
+        <Button variant="outline" onClick={() => void loadData()}>
+          Lọc
+        </Button>
       </div>
 
       <div className="rounded-lg border">
