@@ -144,6 +144,28 @@ export function AppointmentsPage() {
   const [fromDateFilter, setFromDateFilter] = useState("")
   const [toDateFilter, setToDateFilter] = useState("")
 
+  const [selectedPatientNoShowCount, setSelectedPatientNoShowCount] = useState<number | null>(null)
+  const selectedPatient = patients.find((p) => p.id === form.patientId) ?? null
+
+  useEffect(() => {
+    if (!dialogOpen || !form.patientId) {
+      setSelectedPatientNoShowCount(null)
+      return
+    }
+    let cancelled = false
+    patientsApi
+      .getDetail(form.patientId)
+      .then((detail) => {
+        if (!cancelled) setSelectedPatientNoShowCount(detail.noShowCount)
+      })
+      .catch(() => {
+        if (!cancelled) setSelectedPatientNoShowCount(null)
+      })
+    return () => {
+      cancelled = true
+    }
+  }, [dialogOpen, form.patientId])
+
   const loadData = async () => {
     setIsLoading(true)
     try {
@@ -596,6 +618,25 @@ export function AppointmentsPage() {
                   ))}
                 </SelectContent>
               </Select>
+              {selectedPatient && (selectedPatient.allergies.length > 0 || selectedPatient.medicalConditions.length > 0) && (
+                <div className="flex flex-wrap gap-1">
+                  {selectedPatient.allergies.map((allergy) => (
+                    <Badge key={allergy} variant="destructive">
+                      Dị ứng: {allergy}
+                    </Badge>
+                  ))}
+                  {selectedPatient.medicalConditions.map((condition) => (
+                    <Badge key={condition} variant="warning">
+                      {condition}
+                    </Badge>
+                  ))}
+                </div>
+              )}
+              {selectedPatientNoShowCount !== null && selectedPatientNoShowCount > 0 && (
+                <p className="text-sm text-destructive">
+                  Bệnh nhân này đã không đến {selectedPatientNoShowCount} lần trước đó.
+                </p>
+              )}
             </div>
 
             <div className="grid grid-cols-2 gap-4">

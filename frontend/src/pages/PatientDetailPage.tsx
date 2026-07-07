@@ -117,12 +117,25 @@ export function PatientDetailPage() {
           <Skeleton className="h-8 w-64" />
         ) : detail ? (
           <div>
-            <div className="flex items-center gap-2">
+            <div className="flex flex-wrap items-center gap-2">
               <h1 className="text-2xl font-semibold">{detail.patient.fullName}</h1>
               {detail.patient.isChildPatient && <Badge variant="secondary">Trẻ em</Badge>}
               {detail.totalDebt > 0 && (
                 <Badge variant="destructive">Còn nợ {formatCurrency(detail.totalDebt)}</Badge>
               )}
+              {detail.noShowCount > 0 && (
+                <Badge variant="warning">Không đến {detail.noShowCount} lần</Badge>
+              )}
+              {detail.patient.allergies.map((allergy) => (
+                <Badge key={allergy} variant="destructive">
+                  Dị ứng: {allergy}
+                </Badge>
+              ))}
+              {detail.patient.medicalConditions.map((condition) => (
+                <Badge key={condition} variant="warning">
+                  {condition}
+                </Badge>
+              ))}
             </div>
             <p className="text-sm text-muted-foreground">
               {calculateAge(detail.patient.dateOfBirth)} tuổi

@@ -77,6 +77,8 @@ public class PatientAppService : ApplicationService, IPatientAppService
         patient.SetContactInfo(input.PhoneNumber, input.Email, input.Address);
         patient.SetNotes(input.Notes);
         patient.SetTags(input.Tags);
+        patient.SetAllergies(input.Allergies);
+        patient.SetMedicalConditions(input.MedicalConditions);
 
         await _patientRepository.InsertAsync(patient);
 
@@ -94,6 +96,8 @@ public class PatientAppService : ApplicationService, IPatientAppService
         patient.SetContactInfo(input.PhoneNumber, input.Email, input.Address);
         patient.SetNotes(input.Notes);
         patient.SetTags(input.Tags);
+        patient.SetAllergies(input.Allergies);
+        patient.SetMedicalConditions(input.MedicalConditions);
 
         await _patientRepository.UpdateAsync(patient);
 
@@ -120,13 +124,59 @@ public class PatientAppService : ApplicationService, IPatientAppService
             .FirstOrDefault();
 
         var totalDebt = patientAppointments.Sum(a => a.Price - a.PaidAmount);
+        var noShowCount = patientAppointments.Count(a => a.Status == AppointmentStatus.NoShow);
 
         return new PatientDetailDto
         {
             Patient = _patientMapper.MapToDto(patient),
             LastAppointmentDate = lastAppointmentDate,
-            TotalDebt = totalDebt
+            TotalDebt = totalDebt,
+            NoShowCount = noShowCount
         };
+    }
+
+    public virtual async Task<List<RecallPatientDto>> GetRecallListAsync(int monthsThreshold)
+    {
+        var now = Clock.Now;
+        var cutoff = now.AddMonths(-monthsThreshold);
+
+        var appointmentQueryable = await _appointmentRepository.GetQueryableAsync();
+        var appointments = await AsyncExecuter.ToListAsync(appointmentQueryable);
+
+        var hasUpcomingAppointment = appointments
+            .Where(a => a.Status == AppointmentStatus.Scheduled && a.ScheduledDateTime > now)
+            .Select(a => a.PatientId)
+            .ToHashSet();
+
+        var lastCompletedByPatient = appointments
+            .Where(a => a.Status == AppointmentStatus.Completed)
+            .GroupBy(a => a.PatientId)
+            .Select(g => new { PatientId = g.Key, LastCompletedDate = g.Max(a => a.ScheduledDateTime) })
+            .Where(x => x.LastCompletedDate < cutoff && !hasUpcomingAppointment.Contains(x.PatientId))
+            .ToList();
+
+        if (lastCompletedByPatient.Count == 0)
+        {
+            return new List<RecallPatientDto>();
+        }
+
+        var patientIds = lastCompletedByPatient.Select(x => x.PatientId).ToList();
+        var patientQueryable = await _patientRepository.GetQueryableAsync();
+        var patients = await AsyncExecuter.ToListAsync(
+            patientQueryable.Where(p => patientIds.Contains(p.Id)));
+        var patientMap = patients.ToDictionary(p => p.Id, p => p);
+
+        return lastCompletedByPatient
+            .Where(x => patientMap.ContainsKey(x.PatientId))
+            .Select(x => new RecallPatientDto
+            {
+                PatientId = x.PatientId,
+                FullName = patientMap[x.PatientId].FullName,
+                PhoneNumber = patientMap[x.PatientId].PhoneNumber,
+                LastCompletedDate = x.LastCompletedDate
+            })
+            .OrderBy(x => x.LastCompletedDate)
+            .ToList();
     }
 
     private async Task<Patient> GetPatientOrThrowAsync(Guid id)

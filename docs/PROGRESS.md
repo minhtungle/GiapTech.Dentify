@@ -2,6 +2,12 @@
 
 > Ghi lại **đang làm gì, tới đâu, quyết định gì**. Cập nhật & commit file này trước khi chuyển máy
 > để máy khác `git pull` là nắm được ngay. Mục mới nhất để trên cùng.
+>
+> File này là **nhật ký theo thời gian**. Để biết **trạng thái hiện tại** của hệ thống
+> (kiến trúc, chức năng từng module, luồng nghiệp vụ, cách triển khai) mà không phải đọc
+> lại toàn bộ lịch sử, xem bộ tài liệu **`docs/architecture/*.md`** (6 file, cập nhật lại
+> mỗi khi kiến trúc/chức năng thay đổi đáng kể — không phải nhật ký, là ảnh chụp trạng
+> thái mới nhất).
 
 ## Trạng thái tổng quát
 
@@ -35,9 +41,202 @@
       (Dentrix/Open Dental/Curve/tab32), sau đó triển khai bộ lọc nhất quán cho 4 trang,
       trang chi tiết bệnh nhân (liên kết chéo Lịch hẹn/Thanh toán/Ca labo/Sơ đồ răng),
       Dashboard bổ sung doanh thu + cảnh báo vận hành — không cần entity mới.
-- [ ] Giai đoạn 5 (tuỳ chọn): AI voice-to-note, AI scan hoá đơn, Patient Portal
+- [x] Giai đoạn B (xong): cảnh báo dị ứng/bệnh nền có cấu trúc trên Patient, nhắc tái
+      khám định kỳ (recall), theo dõi no-show theo bệnh nhân — cảnh báo hiện ở hồ sơ
+      bệnh nhân, dialog tạo lịch hẹn, và Dashboard.
+- [ ] Roadmap 13 mục còn thiếu (đã lên kế hoạch, CHƯA triển khai) — xem mục nhật ký
+      "Roadmap 5 đợt" dưới đây. Đợt 1 (Doctor entity + Role phân quyền + Duration) là
+      điểm bắt đầu theo đúng thứ tự phụ thuộc đã chốt, chưa có đợt nào được code.
+- [x] Bộ tài liệu kiến trúc `docs/architecture/*.md` (xong): 6 file tổng hợp toàn bộ
+      chức năng/luồng nghiệp vụ/kiến trúc kỹ thuật/vận hành/quy ước hiện có, thay cho việc
+      phải đọc lại toàn bộ nhật ký này để nắm trạng thái hệ thống.
+- [ ] Giai đoạn 5 (tuỳ chọn): AI voice-to-note, AI scan hoá đơn
 
 ## Nhật ký
+
+### 2026-07-07 (9) — Bộ tài liệu kiến trúc `docs/architecture/*.md` (6 file)
+
+User yêu cầu tổng hợp toàn bộ kiến trúc hệ thống (chức năng, luồng nghiệp vụ, thiết kế
+công nghệ, triển khai/cài đặt) thành bộ tài liệu lưu trong `docs/` để nắm bắt chắc chắn
+thông tin hệ thống — khác với `docs/PROGRESS.md` (nhật ký theo thời gian), đây cần là
+tài liệu theo cấu trúc chủ đề, phản ánh trạng thái mới nhất. Xác nhận qua
+AskUserQuestion: chia 6 file theo chủ đề (không dồn 1 file dài).
+
+- **Cấu trúc 6 file trong `docs/architecture/`**: `01-tong-quan-he-thong.md` (kiến trúc
+  tổng thể, sơ đồ ASCII, trạng thái hiện tại, roadmap), `02-dac-ta-chuc-nang.md` (từng
+  module: entity/field/business rule/API/UI — dài nhất, ~340 dòng), `03-luong-nghiep-vu.md`
+  (luồng thao tác người dùng dạng code block step-by-step, bao gồm cả các bug/gotcha đã
+  từng xảy ra trong đúng luồng đó), `04-kien-truc-ky-thuat.md` (stack, quy tắc entity lặp
+  lại toàn hệ thống, database schema, multi-tenancy, auth chi tiết, testing), `05-trien-
+  khai-van-hanh.md` (yêu cầu môi trường, 2 cách chạy, Dockerfile, backup/restore, CI/CD),
+  `06-quy-uoc-phat-trien.md` (quy trình thêm entity mới, quy tắc frontend bắt buộc, cách
+  verify, gotcha môi trường).
+- **Khảo sát nguồn**: chạy 3 agent Explore song song đọc code thật (không suy diễn) —
+  toàn bộ Domain/Application.Contracts/Application/EntityFrameworkCore/Permissions cho
+  backend; toàn bộ routes/pages/components/lib/types cho frontend; toàn bộ
+  docker-compose.yml, Dockerfile, appsettings, scripts backup/restore, CI/CD, cấu hình
+  test cho hạ tầng. Một trong các agent (do gọi nhầm loại agent lúc kiểm tra tiến độ)
+  tình cờ xác nhận lại: **Giai đoạn B đã build/test pass (49/49 EfCoreTests) nhưng tại
+  thời điểm viết tài liệu này vẫn CHƯA được `git commit`** — bộ tài liệu mới phản ánh
+  đúng code trên đĩa (bao gồm phần chưa commit), đã ghi rõ điều này ngay trong
+  `01-tong-quan-he-thong.md` để không ai nhầm là đã đồng bộ git.
+- **Phát hiện đáng chú ý qua khảo sát, đưa vào tài liệu làm cảnh báo lâu dài** (không
+  phải bug mới, nhưng lần đầu được viết thành quy tắc rõ ràng thay vì chỉ nằm rải rác
+  trong các mục nhật ký cũ):
+  - `AbpMultiTenancyOptions.IsEnabled = true` nhưng **không entity nghiệp vụ nào
+    implement `IMultiTenant`** — hạ tầng multi-tenant có sẵn từ ABP template nhưng chưa
+    thực sự cách ly dữ liệu theo tenant, hệ thống đang vận hành như 1 tenant duy nhất.
+  - `Appointment.DoctorId` chỉ là `Guid?` rời, không FK — xác nhận lại đúng như đã ghi
+    trong roadmap Đợt 1, nay được ghi thành quy tắc "đọc trước khi thêm entity mới" ở
+    `04-kien-truc-ky-thuat.md`.
+  - Node.js: README ghi "v18 or 20" nhưng `frontend/Dockerfile` build bằng
+    `node:22-alpine` — có mâu thuẫn giữa tài liệu cũ và thực tế, đã ghi rõ trong
+    `05-trien-khai-van-hanh.md` để ưu tiên theo Dockerfile khi có xung đột.
+  - Test backend chạy **hoàn toàn in-memory qua SQLite** (không Testcontainers, không
+    Postgres thật) — trước đây không có nơi nào ghi rõ điều này, nay là mục riêng trong
+    `04-kien-truc-ky-thuat.md` để biết `dotnet test` không cần Docker.
+  - Chưa có CI/CD (`.github/workflows/` không tồn tại) — ghi rõ để không giả định nhầm.
+- **`CLAUDE.md` được viết lại, rút ngắn đáng kể**: thay toàn bộ phần chi tiết (cấu trúc
+  layer, cấu hình chính, quy trình thêm tính năng) bằng bảng trỏ sang 6 file
+  `docs/architecture/*.md` tương ứng — tránh 2 nơi cùng giữ 1 thông tin rồi lệch nhau
+  theo thời gian. Giữ lại phần thiết yếu nhất cho AI agent mở dự án lần đầu: lệnh chạy
+  nhanh, build/test, và lưu ý đồng bộ git.
+- Chưa làm: chưa có cơ chế tự động phát hiện khi `docs/architecture/*.md` bị lỗi thời so
+  với code (không có test/lint kiểm tra đồng bộ tài liệu-code) — việc cập nhật lại các
+  file này khi đổi kiến trúc vẫn hoàn toàn dựa vào việc chủ động nhớ làm, đã ghi thành
+  quy tắc ở `06-quy-uoc-phat-trien.md` nhưng không có gì cưỡng ép.
+
+### 2026-07-07 (8) — Roadmap 5 đợt cho 13 mục còn thiếu (chỉ lên kế hoạch, chưa code)
+
+User yêu cầu lên kế hoạch triển khai toàn bộ 13 mục còn lại từ báo cáo rà soát ban đầu
+(sau khi Giai đoạn A/B đã giải quyết 3/16 mục: recall, no-show, dị ứng/bệnh nền). Đây là
+roadmap thuần — **không có dòng code nào được viết trong mục này**, chỉ khảo sát kiến
+trúc hiện tại để xếp đúng thứ tự phụ thuộc, tránh làm mục sau trước mục nó phụ thuộc vào.
+
+- **Khảo sát xác nhận trước khi xếp thứ tự** (agent Explore đọc code thật, không suy
+  diễn): `Appointment.DoctorId` là `Guid?` rời không FK — thêm entity Doctor không cần
+  migrate đổi kiểu dữ liệu, chỉ thêm constraint; `Appointment` không có field thời lượng
+  — điều kiện tiên quyết chung cho Waitlist và Multi-chair (cả 2 cần biết khung giờ chiếm
+  dụng để tính slot trống/xung đột); `TreatmentType` là enum tĩnh không liên kết gì với
+  `Price` (giá luôn nhập tay 100%) — muốn có "danh mục dịch vụ có giá" đúng nghĩa phải
+  chuyển hẳn thành entity `Service`, vá bằng bảng map theo enum không giải quyết được vấn
+  đề gốc (mỗi dịch vụ mới vẫn phải sửa code); ABP Identity Role có sẵn hạ tầng nhưng chưa
+  được khai thác cho phân quyền lâm sàng — không cần dựng khái niệm mới; hạ tầng
+  background job/email đã đăng ký qua ABP module nhưng đang no-op (`NullEmailSender`) —
+  nhắc hẹn SMS/email phải viết từ đầu hoàn toàn, không có gì tái dùng; Patient Portal đụng
+  trực tiếp kiến trúc auth hiện tại (1 client OIDC PKCE giả định toàn bộ user đăng nhập là
+  nhân viên phòng khám, `ProtectedRoute` không đọc role/claim nào) — phức tạp nhất trong
+  toàn bộ 13 mục.
+- **Roadmap 5 đợt theo thứ tự phụ thuộc** (không phải lịch theo ngày — mỗi đợt là 1 phiên
+  plan/duyệt riêng khi tới lượt, giống cách Giai đoạn A/B đã làm, quyết định của đợt trước
+  ảnh hưởng trực tiếp cách thiết kế đợt sau nên không lên chi tiết trước):
+  - **Đợt 1 (nền tảng, độc lập)**: entity `Doctor` (FK không breaking vào `Appointment.
+    DoctorId` có sẵn, chặn double-booking theo bác sĩ); phân quyền theo vai trò lâm sàng
+    (dùng ABP Role có sẵn, seed role Doctor/Receptionist/Accountant); thêm
+    `Appointment.DurationMinutes` (điều kiện tiên quyết ngầm cho Đợt 3, không phải 1
+    trong 13 mục gốc nhưng bắt buộc phải có trước).
+  - **Đợt 2 (danh mục dịch vụ, nền cho Đợt 4)**: chuyển `TreatmentType` enum → entity
+    `Service` có giá tham chiếu (migration tốn công nhất trong roadmap vì đụng trực tiếp
+    dữ liệu Appointment hiện có, không chỉ đổi schema); danh mục thuốc chuẩn `Drug` (giữ
+    song song với `DrugName` text tự do trên PrescriptionItem, không bắt buộc, không
+    breaking đơn thuốc cũ).
+  - **Đợt 3 (vận hành lịch, cần Đợt 1)**: Multi-chair (`Chair` entity + FullCalendar
+    resource view, đã dùng FullCalendar từ trước); Waitlist (`WaitlistEntry`, gợi ý khi
+    có lịch huỷ/dời); Referral tracking (nhẹ nhất, chỉ thêm field trên Patient).
+  - **Đợt 4 (hồ sơ & tài chính mở rộng, cần Đợt 2)**: Treatment plan nhiều bước
+    (`TreatmentPlan`/`TreatmentPlanItem` tham chiếu `ServiceId`); Consent form điện tử
+    (tái dùng `IBlobContainer` đã có từ AppointmentPhoto); Bảo hiểm y tế (`InsurancePolicy`,
+    chỉ ghi nhận đã áp dụng, không làm claim workflow tự động vì cần tích hợp ngoài);
+    Quản lý vật tư/tồn kho (`Supply`/`SupplyUsage`, nhập tay giống cách Expense đang làm).
+  - **Đợt 5 (mở rộng ra ngoài, phức tạp nhất, làm sau cùng)**: Nhắc hẹn SMS/email (viết
+    `IEmailSender` thật thay no-op, thêm abstraction SMS, background job quét Appointment
+    24-48h tới); Patient Portal (cần Đợt 1 làm nền — role Patient, liên kết
+    `IdentityUser ↔ Patient` chưa tồn tại, tách API riêng chỉ trả dữ liệu của chính bệnh
+    nhân, frontend route nhóm riêng không tái dùng `ProtectedRoute` hiện tại).
+- **Cố tình không chốt trong roadmap này**: provider SMS/email thật, hãng bảo hiểm tích
+  hợp, thiết kế UI chi tiết patient portal — đây là quyết định nghiệp vụ cần hỏi lại user
+  riêng khi tới đúng đợt, không đoán trước.
+- Chưa làm gì cả — đây là roadmap thuần, không có migration/entity/UI nào được tạo trong
+  mục này. Bước tiếp theo khi được yêu cầu tiếp tục: hỏi user muốn bắt đầu từ Đợt nào
+  (mặc định Đợt 1 theo đúng thứ tự phụ thuộc đã chốt), rồi mới vào `EnterPlanMode` chi
+  tiết riêng cho đợt đó.
+
+### 2026-07-07 (7) — Giai đoạn B: cảnh báo y tế, nhắc tái khám, theo dõi no-show
+
+Tiếp nối Giai đoạn A. Báo cáo rà soát ban đầu xếp 3 việc này vào nhóm ưu tiên cao (an
+toàn lâm sàng + giữ khách quay lại). Khác Giai đoạn A (chỉ khai thác dữ liệu có sẵn), lần
+này cần thêm field mới trên `Patient` và 1 AppService method mới thực hiện truy vấn tổng
+hợp toàn hệ thống. Xác nhận qua AskUserQuestion: tách riêng 2 field `Allergies` (dị ứng)
+và `MedicalConditions` (bệnh nền) — đúng bản chất lâm sàng hơn 1 danh sách chung.
+
+- **Domain — `Patient`**: thêm `List<string> Allergies`, `List<string>
+  MedicalConditions`, theo đúng convention đã có cho `Tags` (`SetAllergies`/
+  `SetMedicalConditions` — trim, loại trùng không phân biệt hoa/thường, giới hạn số
+  lượng/độ dài qua `PatientConsts`). EF Core lưu dạng JSON string (`HasConversion` +
+  `ValueComparer`), giống hệt cách `Tags` đã lưu.
+  **Bug thật phát hiện lúc verify (không phải lỗi code logic, lỗi migration)**: migration
+  ban đầu set `defaultValue: ""` cho 2 cột mới — nhưng converter đọc lại bằng
+  `JsonSerializer.Deserialize<List<string>>(json)`, và `""` không phải JSON hợp lệ (JSON
+  hợp lệ cho list rỗng là `"[]"`). Hậu quả: **mọi** request đọc lại các Patient đã tồn tại
+  trước migration (kể cả `GetListAsync` bình thường) bị lỗi 500
+  (`System.Text.Json.JsonException: The input does not contain any JSON tokens`) — phát
+  hiện qua Playwright thật (`GET /api/app/patient` trả lỗi ngay khi mở trang Bệnh nhân),
+  không phải qua test tự động (test luôn tạo Patient mới sau khi đã fix, không đi qua
+  đường dữ liệu cũ). Fix 2 phần: sửa `defaultValue` trong file migration thành `"[]"`
+  (đúng cho các lần deploy mới), và chạy `UPDATE` tay 1 lần trên DB hiện tại để sửa các
+  dòng Patient cũ đã bị ghi `""` từ trước khi phát hiện bug — vì sửa file migration không
+  tự động sửa lại dữ liệu đã insert.
+- **Nhắc tái khám (recall)** — không thể ghép từ API list hiện có mà không tải toàn bộ
+  Appointment về client, nên đây là ngoại lệ hợp lý duy nhất đi ngược nguyên tắc "không
+  entity/API mới" của Giai đoạn A: `PatientAppService.GetRecallListAsync(int
+  monthsThreshold)` mới — group toàn bộ Appointment theo `PatientId`, lấy
+  `MAX(ScheduledDateTime)` trong các Appointment `Completed`, lọc bệnh nhân có lần khám
+  gần nhất quá `monthsThreshold` tháng **và** chưa có Appointment `Scheduled` nào trong
+  tương lai. Ngưỡng hardcode 6 tháng (`PatientConsts.RecallMonthsThreshold`), giống cách
+  `UNPAID_ALERT_DAYS` đã hardcode ở Dashboard Giai đoạn A — không cấu hình qua Settings ở
+  giai đoạn này.
+- **No-show theo bệnh nhân** — tính suy ra (derived), không lưu counter riêng để tránh
+  out-of-sync. `PatientAppService.GetPatientDetailAsync` đã load toàn bộ Appointment theo
+  `PatientId` để tính `totalDebt`/`lastAppointmentDate` từ trước — chỉ thêm 1 dòng
+  `Count(a => a.Status == AppointmentStatus.NoShow)` trên cùng danh sách đã có, không
+  thêm query.
+- **Frontend**:
+  - `PatientsPage.tsx`: dialog thêm/sửa — 2 `Input` mới (Dị ứng/Bệnh nền, phân tách bằng
+    dấu phẩy, cùng pattern ô "Tags" đã có). Bảng danh sách thêm badge đỏ "Dị ứng" cạnh tên
+    nếu bệnh nhân có ít nhất 1 dị ứng — cảnh báo nổi bật ngay từ danh sách, không phải
+    chờ mở chi tiết mới thấy.
+  - `PatientDetailPage.tsx`: header thêm badge riêng cho từng allergy (đỏ) và từng medical
+    condition (vàng), cộng badge "Không đến N lần" (vàng) nếu `noShowCount > 0` — đặt cạnh
+    badge "Còn nợ" đã có từ Giai đoạn A.
+  - `AppointmentsPage.tsx` (dialog tạo/sửa lịch hẹn) — đây là nơi quan trọng nhất về mặt an
+    toàn lâm sàng: ngay sau `Select` chọn bệnh nhân, hiện cảnh báo dị ứng/bệnh nền tra trực
+    tiếp trong `patients` state đã load (không gọi API riêng, vì list đã có đủ field mới).
+    No-show đếm được gọi lười qua `patientsApi.getDetail(patientId)` mỗi lần đổi bệnh nhân
+    trong dialog (không tải sẵn cho toàn bộ 1000 bệnh nhân trong list để tránh N+1 — đánh
+    đổi giữa việc chỉ tải khi cần và một round-trip nhỏ mỗi lần đổi chọn).
+  - `DashboardPage.tsx`: thêm `patientsApi.getRecallList(6)` vào `Promise.allSettled` đã
+    có, hiển thị trong khối "Cảnh báo cần chú ý" đã có từ Giai đoạn A (mỗi bệnh nhân cần
+    nhắc là 1 dòng link sang trang chi tiết, kèm ngày khám gần nhất + SĐT) — không tạo
+    trang riêng, giữ nhất quán với quyết định trước.
+- **Test**: 3 test mới trong `PatientAppServiceTests` (tạo bệnh nhân có allergies/medical
+  conditions, đếm đúng no-show trong `GetPatientDetailAsync`, và test quan trọng nhất —
+  `GetRecallListAsync` trả đúng bệnh nhân có lịch Completed quá 6 tháng không có lịch mới,
+  loại đúng bệnh nhân mới khám gần đây, loại đúng bệnh nhân đã có lịch mới dù lần khám
+  trước đã quá hạn). Tổng test: 49 → 52 (49 EfCoreTests bao gồm 3 test mới + 1 WebTests),
+  tất cả pass.
+  **Verify UI thật bằng Playwright**: tạo bệnh nhân với dị ứng Penicillin/Latex + bệnh nền
+  tăng huyết áp → badge đỏ "Dị ứng" hiện đúng trên bảng danh sách và badge chi tiết trên
+  trang hồ sơ → mở dialog tạo lịch hẹn cho bệnh nhân đó → cảnh báo dị ứng/bệnh nền hiện
+  ngay dưới ô chọn bệnh nhân → tạo 1 lịch hẹn NoShow → mở lại dialog tạo lịch hẹn mới cho
+  cùng bệnh nhân → cảnh báo "đã không đến 1 lần trước đó" hiện đúng → trang chi tiết hiện
+  đúng badge "Không đến 1 lần" + "Còn nợ 600.000đ" → tạo 1 lịch hẹn Completed cách đây 8
+  tháng (không có lịch mới) → Dashboard hiện đúng dòng nhắc tái khám cho bệnh nhân này
+  trong khối Cảnh báo, cùng với cảnh báo công nợ đã có từ Giai đoạn A. Không lỗi console
+  trong toàn bộ luồng (sau khi fix bug migration nêu trên).
+- Chưa làm (ngoài phạm vi đã chốt): cấu hình ngưỡng tháng nhắc tái khám qua Settings UI
+  (đang hardcode); gửi SMS/email nhắc thật (chỉ hiển thị danh sách, nhân viên tự gọi/gửi
+  tay); chính sách chặn/tính phí đặt cọc cho bệnh nhân no-show nhiều lần (chỉ cảnh báo,
+  không chặn hành động đặt lịch).
 
 ### 2026-07-07 (6) — Rà soát quy trình + Giai đoạn A: bộ lọc, liên kết chéo, Dashboard cảnh báo
 

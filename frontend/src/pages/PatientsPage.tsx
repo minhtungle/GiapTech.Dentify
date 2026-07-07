@@ -47,19 +47,32 @@ const EMPTY_FORM: CreateUpdatePatientDto = {
   address: "",
   notes: "",
   tags: [],
+  allergies: [],
+  medicalConditions: [],
 }
 
-function toDto(form: CreateUpdatePatientDto, tagsInput: string): CreateUpdatePatientDto {
+function splitCommaList(input: string): string[] {
+  return input
+    .split(",")
+    .map((t) => t.trim())
+    .filter(Boolean)
+}
+
+function toDto(
+  form: CreateUpdatePatientDto,
+  tagsInput: string,
+  allergiesInput: string,
+  medicalConditionsInput: string,
+): CreateUpdatePatientDto {
   return {
     ...form,
     phoneNumber: form.phoneNumber?.trim() || undefined,
     email: form.email?.trim() || undefined,
     address: form.address?.trim() || undefined,
     notes: form.notes?.trim() || undefined,
-    tags: tagsInput
-      .split(",")
-      .map((t) => t.trim())
-      .filter(Boolean),
+    tags: splitCommaList(tagsInput),
+    allergies: splitCommaList(allergiesInput),
+    medicalConditions: splitCommaList(medicalConditionsInput),
   }
 }
 
@@ -74,6 +87,8 @@ export function PatientsPage() {
   const [editingId, setEditingId] = useState<string | null>(null)
   const [form, setForm] = useState<CreateUpdatePatientDto>(EMPTY_FORM)
   const [tagsInput, setTagsInput] = useState("")
+  const [allergiesInput, setAllergiesInput] = useState("")
+  const [medicalConditionsInput, setMedicalConditionsInput] = useState("")
   const [isSaving, setIsSaving] = useState(false)
 
   const [isImporting, setIsImporting] = useState(false)
@@ -107,6 +122,8 @@ export function PatientsPage() {
     setEditingId(null)
     setForm(EMPTY_FORM)
     setTagsInput("")
+    setAllergiesInput("")
+    setMedicalConditionsInput("")
     setDialogOpen(true)
   }
 
@@ -123,8 +140,12 @@ export function PatientsPage() {
       address: patient.address ?? "",
       notes: patient.notes ?? "",
       tags: patient.tags,
+      allergies: patient.allergies,
+      medicalConditions: patient.medicalConditions,
     })
     setTagsInput(patient.tags.join(", "))
+    setAllergiesInput(patient.allergies.join(", "))
+    setMedicalConditionsInput(patient.medicalConditions.join(", "))
     setDialogOpen(true)
   }
 
@@ -132,7 +153,7 @@ export function PatientsPage() {
     e.preventDefault()
     setIsSaving(true)
     try {
-      const dto = toDto(form, tagsInput)
+      const dto = toDto(form, tagsInput, allergiesInput, medicalConditionsInput)
       if (editingId) {
         await patientsApi.update(editingId, dto)
         toast.success("Đã cập nhật bệnh nhân")
@@ -234,6 +255,8 @@ export function PatientsPage() {
             .split(";")
             .map((t) => t.trim())
             .filter(Boolean),
+          allergies: [],
+          medicalConditions: [],
         })
         successCount++
       } catch (err) {
@@ -344,6 +367,11 @@ export function PatientsPage() {
                   {patient.isChildPatient && (
                     <Badge variant="secondary" className="ml-2">
                       Trẻ em
+                    </Badge>
+                  )}
+                  {patient.allergies.length > 0 && (
+                    <Badge variant="destructive" className="ml-2">
+                      Dị ứng
                     </Badge>
                   )}
                 </TableCell>
@@ -471,13 +499,34 @@ export function PatientsPage() {
               />
             </div>
 
+            <div className="grid grid-cols-2 gap-4">
+              <div className="grid gap-2">
+                <Label htmlFor="allergies">Dị ứng (phân tách bằng dấu phẩy)</Label>
+                <Input
+                  id="allergies"
+                  value={allergiesInput}
+                  onChange={(e) => setAllergiesInput(e.target.value)}
+                  placeholder="Penicillin, Latex"
+                />
+              </div>
+              <div className="grid gap-2">
+                <Label htmlFor="medicalConditions">Bệnh nền (phân tách bằng dấu phẩy)</Label>
+                <Input
+                  id="medicalConditions"
+                  value={medicalConditionsInput}
+                  onChange={(e) => setMedicalConditionsInput(e.target.value)}
+                  placeholder="Tăng huyết áp, Tiểu đường"
+                />
+              </div>
+            </div>
+
             <div className="grid gap-2">
               <Label htmlFor="tags">Tags (phân tách bằng dấu phẩy)</Label>
               <Input
                 id="tags"
                 value={tagsInput}
                 onChange={(e) => setTagsInput(e.target.value)}
-                placeholder="vip, dị ứng thuốc"
+                placeholder="vip"
               />
             </div>
 

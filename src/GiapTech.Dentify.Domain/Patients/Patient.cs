@@ -16,6 +16,8 @@ public class Patient : FullAuditedAggregateRoot<Guid>
     public string? Address { get; private set; }
     public string? Notes { get; private set; }
     public List<string> Tags { get; private set; } = new();
+    public List<string> Allergies { get; private set; } = new();
+    public List<string> MedicalConditions { get; private set; } = new();
 
     public bool IsChildPatient => DateOfBirth.Date > DateTime.Today.AddYears(-PatientConsts.ChildPatientMaxAge);
 
@@ -74,5 +76,39 @@ public class Patient : FullAuditedAggregateRoot<Guid>
         }
 
         Tags = normalizedTags;
+    }
+
+    public void SetAllergies(IEnumerable<string> allergies)
+    {
+        var normalized = allergies
+            .Where(a => !string.IsNullOrWhiteSpace(a))
+            .Select(a => a.Trim())
+            .Distinct(StringComparer.OrdinalIgnoreCase)
+            .Take(PatientConsts.MaxAllergyCount)
+            .ToList();
+
+        foreach (var allergy in normalized)
+        {
+            Check.Length(allergy, nameof(allergy), PatientConsts.MaxAllergyLength);
+        }
+
+        Allergies = normalized;
+    }
+
+    public void SetMedicalConditions(IEnumerable<string> medicalConditions)
+    {
+        var normalized = medicalConditions
+            .Where(c => !string.IsNullOrWhiteSpace(c))
+            .Select(c => c.Trim())
+            .Distinct(StringComparer.OrdinalIgnoreCase)
+            .Take(PatientConsts.MaxMedicalConditionCount)
+            .ToList();
+
+        foreach (var condition in normalized)
+        {
+            Check.Length(condition, nameof(condition), PatientConsts.MaxMedicalConditionLength);
+        }
+
+        MedicalConditions = normalized;
     }
 }

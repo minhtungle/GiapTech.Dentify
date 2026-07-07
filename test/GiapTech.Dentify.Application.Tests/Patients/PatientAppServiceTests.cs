@@ -3,6 +3,7 @@ using System.Linq;
 using System.Threading.Tasks;
 using GiapTech.Dentify.Application.Contracts.Appointments;
 using GiapTech.Dentify.Application.Contracts.Patients;
+using GiapTech.Dentify.Appointments;
 using GiapTech.Dentify.Patients;
 using Shouldly;
 using Volo.Abp.Modularity;
@@ -155,5 +156,98 @@ public abstract class PatientAppServiceTests<TStartupModule> : DentifyApplicatio
         detail.Patient.Id.ShouldBe(patient.Id);
         detail.LastAppointmentDate!.Value.Date.ShouldBe(latest.ScheduledDateTime.Date);
         detail.TotalDebt.ShouldBe(250); // (100-100) + (300-50)
+    }
+
+    [Fact]
+    public async Task Should_Create_Patient_With_Allergies_And_Medical_Conditions()
+    {
+        var result = await _patientAppService.CreateAsync(new CreateUpdatePatientDto
+        {
+            FullName = "Allergic Patient",
+            DateOfBirth = new DateTime(1990, 1, 1),
+            Allergies = new() { "Penicillin", "Latex" },
+            MedicalConditions = new() { "Hypertension" }
+        });
+
+        result.Allergies.ShouldBe(new[] { "Penicillin", "Latex" }, ignoreOrder: true);
+        result.MedicalConditions.ShouldBe(new[] { "Hypertension" });
+    }
+
+    [Fact]
+    public async Task Should_Count_NoShow_Appointments_In_Patient_Detail()
+    {
+        var patient = await _patientAppService.CreateAsync(new CreateUpdatePatientDto
+        {
+            FullName = "NoShow Patient",
+            DateOfBirth = new DateTime(1990, 1, 1)
+        });
+
+        var appointment = await _appointmentAppService.CreateAsync(new CreateUpdateAppointmentDto
+        {
+            PatientId = patient.Id,
+            ScheduledDateTime = DateTime.Now.AddDays(-5),
+            Price = 100,
+            Status = AppointmentStatus.NoShow
+        });
+
+        var detail = await _patientAppService.GetPatientDetailAsync(patient.Id);
+
+        detail.NoShowCount.ShouldBe(1);
+    }
+
+    [Fact]
+    public async Task Should_Include_Patient_In_Recall_List_When_Completed_Long_Ago_Without_Upcoming_Appointment()
+    {
+        var recallPatient = await _patientAppService.CreateAsync(new CreateUpdatePatientDto
+        {
+            FullName = "Recall Due Patient",
+            DateOfBirth = new DateTime(1990, 1, 1)
+        });
+        await _appointmentAppService.CreateAsync(new CreateUpdateAppointmentDto
+        {
+            PatientId = recallPatient.Id,
+            ScheduledDateTime = DateTime.Now.AddMonths(-8),
+            Price = 100,
+            Status = AppointmentStatus.Completed
+        });
+
+        var recentPatient = await _patientAppService.CreateAsync(new CreateUpdatePatientDto
+        {
+            FullName = "Recently Seen Patient",
+            DateOfBirth = new DateTime(1990, 1, 1)
+        });
+        await _appointmentAppService.CreateAsync(new CreateUpdateAppointmentDto
+        {
+            PatientId = recentPatient.Id,
+            ScheduledDateTime = DateTime.Now.AddMonths(-1),
+            Price = 100,
+            Status = AppointmentStatus.Completed
+        });
+
+        var upcomingPatient = await _patientAppService.CreateAsync(new CreateUpdatePatientDto
+        {
+            FullName = "Already Booked Patient",
+            DateOfBirth = new DateTime(1990, 1, 1)
+        });
+        await _appointmentAppService.CreateAsync(new CreateUpdateAppointmentDto
+        {
+            PatientId = upcomingPatient.Id,
+            ScheduledDateTime = DateTime.Now.AddMonths(-8),
+            Price = 100,
+            Status = AppointmentStatus.Completed
+        });
+        await _appointmentAppService.CreateAsync(new CreateUpdateAppointmentDto
+        {
+            PatientId = upcomingPatient.Id,
+            ScheduledDateTime = DateTime.Now.AddDays(5),
+            Price = 100,
+            Status = AppointmentStatus.Scheduled
+        });
+
+        var recallList = await _patientAppService.GetRecallListAsync(6);
+
+        recallList.ShouldContain(x => x.PatientId == recallPatient.Id);
+        recallList.ShouldNotContain(x => x.PatientId == recentPatient.Id);
+        recallList.ShouldNotContain(x => x.PatientId == upcomingPatient.Id);
     }
 }

@@ -31,8 +31,10 @@ import type { LabWorkDto } from "@/types/labWork"
 import { TASK_PRIORITY_LABELS_VI } from "@/types/task"
 import type { TaskItemDto } from "@/types/task"
 import type { RevenueOverviewDto } from "@/types/statistics"
+import type { RecallPatientDto } from "@/types/patient"
 
 const UNPAID_ALERT_DAYS = 7
+const RECALL_MONTHS_THRESHOLD = 6
 
 interface DashboardData {
   totalPatients: number | null
@@ -43,6 +45,7 @@ interface DashboardData {
   todayRevenue: RevenueOverviewDto | null
   monthRevenue: RevenueOverviewDto | null
   unpaidAppointments: AppointmentDto[] | null
+  recallPatients: RecallPatientDto[] | null
 }
 
 function startOfDay(date: Date): Date {
@@ -84,6 +87,7 @@ export function DashboardPage() {
         todayRevenue,
         monthRevenue,
         pastAppointments,
+        recallPatients,
       ] = await Promise.allSettled([
         patientsApi.getList({ maxResultCount: 1 }),
         appointmentsApi.getCalendarView(
@@ -100,6 +104,7 @@ export function DashboardPage() {
           maxResultCount: 200,
           sorting: "scheduledDateTime desc",
         }),
+        patientsApi.getRecallList(RECALL_MONTHS_THRESHOLD),
       ])
 
       const results = [
@@ -111,6 +116,7 @@ export function DashboardPage() {
         todayRevenue,
         monthRevenue,
         pastAppointments,
+        recallPatients,
       ]
       const failedCount = results.filter((r) => r.status === "rejected").length
       if (failedCount > 0) {
@@ -136,6 +142,7 @@ export function DashboardPage() {
         monthRevenue: settledValue(monthRevenue),
         unpaidAppointments:
           pastAppointmentsResult?.items.filter((a) => a.paymentStatus !== PaymentStatus.Paid) ?? null,
+        recallPatients: settledValue(recallPatients),
       })
     } finally {
       setIsLoading(false)
@@ -183,7 +190,8 @@ export function DashboardPage() {
   const hasAnyAlert =
     (data.unpaidAppointments?.length ?? 0) > 0 ||
     overdueLabWorks.length > 0 ||
-    overdueTasks.length > 0
+    overdueTasks.length > 0 ||
+    (data.recallPatients?.length ?? 0) > 0
 
   return (
     <div className="flex flex-col gap-4">
@@ -360,6 +368,19 @@ export function DashboardPage() {
                 <span>Công việc "{t.title}" đã quá hạn</span>
                 <Badge variant="destructive">Công việc</Badge>
               </div>
+            ))}
+            {data.recallPatients?.map((p) => (
+              <Link
+                key={p.patientId}
+                to={`/patients/${p.patientId}`}
+                className="flex items-center justify-between border-b pb-2 text-sm last:border-0 hover:underline"
+              >
+                <span>
+                  {p.fullName} chưa tái khám từ {new Date(p.lastCompletedDate).toLocaleDateString("vi-VN")}
+                  {p.phoneNumber ? ` · ${p.phoneNumber}` : ""}
+                </span>
+                <Badge variant="warning">Nhắc tái khám</Badge>
+              </Link>
             ))}
           </CardContent>
         </Card>

@@ -15,5 +15,7 @@ public class PatientDto : FullAuditedEntityDto<Guid>
     public string? Address { get; set; }
     public string? Notes { get; set; }
     public List<string> Tags { get; set; } = new();
+    public List<string> Allergies { get; set; } = new();
+    public List<string> MedicalConditions { get; set; } = new();
     public bool IsChildPatient { get; set; }
 }

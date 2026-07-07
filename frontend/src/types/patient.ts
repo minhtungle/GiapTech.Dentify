@@ -27,6 +27,8 @@ export interface PatientDto {
   address?: string | null
   notes?: string | null
   tags: string[]
+  allergies: string[]
+  medicalConditions: string[]
   isChildPatient: boolean
   creationTime: string
 }
@@ -35,6 +37,14 @@ export interface PatientDetailDto {
   patient: PatientDto
   lastAppointmentDate?: string | null
   totalDebt: number
+  noShowCount: number
+}
+
+export interface RecallPatientDto {
+  patientId: string
+  fullName: string
+  phoneNumber?: string | null
+  lastCompletedDate: string
 }
 
 export interface CreateUpdatePatientDto {
@@ -46,6 +56,8 @@ export interface CreateUpdatePatientDto {
   address?: string | null
   notes?: string | null
   tags: string[]
+  allergies: string[]
+  medicalConditions: string[]
 }
 
 export interface GetPatientListRequest extends PagedAndSortedRequest {

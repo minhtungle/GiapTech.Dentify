@@ -30,4 +30,6 @@ public class CreateUpdatePatientDto
     public string? Notes { get; set; }
 
     public List<string> Tags { get; set; } = new();
+    public List<string> Allergies { get; set; } = new();
+    public List<string> MedicalConditions { get; set; } = new();
 }

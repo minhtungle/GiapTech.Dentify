@@ -122,6 +122,24 @@ public class DentifyDbContext :
                     a => a.Aggregate(0, (hash, item) => HashCode.Combine(hash, item.GetHashCode())),
                     a => a.ToList()));
 
+            b.Property(x => x.Allergies)
+                .HasConversion(
+                    allergies => JsonSerializer.Serialize(allergies, (JsonSerializerOptions?)null),
+                    json => JsonSerializer.Deserialize<List<string>>(json, (JsonSerializerOptions?)null) ?? new List<string>())
+                .Metadata.SetValueComparer(new ValueComparer<List<string>>(
+                    (a, b2) => (a ?? new List<string>()).SequenceEqual(b2 ?? new List<string>()),
+                    a => a.Aggregate(0, (hash, item) => HashCode.Combine(hash, item.GetHashCode())),
+                    a => a.ToList()));
+
+            b.Property(x => x.MedicalConditions)
+                .HasConversion(
+                    conditions => JsonSerializer.Serialize(conditions, (JsonSerializerOptions?)null),
+                    json => JsonSerializer.Deserialize<List<string>>(json, (JsonSerializerOptions?)null) ?? new List<string>())
+                .Metadata.SetValueComparer(new ValueComparer<List<string>>(
+                    (a, b2) => (a ?? new List<string>()).SequenceEqual(b2 ?? new List<string>()),
+                    a => a.Aggregate(0, (hash, item) => HashCode.Combine(hash, item.GetHashCode())),
+                    a => a.ToList()));
+
             b.Ignore(x => x.IsChildPatient);
 
             b.HasIndex(x => x.FullName);
