@@ -12,6 +12,7 @@ public class Appointment : FullAuditedAggregateRoot<Guid>
     public Guid? DoctorId { get; private set; }
     public DateTime ScheduledDateTime { get; private set; }
     public AppointmentStatus Status { get; private set; }
+    public TreatmentType TreatmentType { get; private set; }
     public string? PreOpNotes { get; private set; }
     public string? PostOpNotes { get; private set; }
     public decimal Price { get; private set; }
@@ -21,17 +22,21 @@ public class Appointment : FullAuditedAggregateRoot<Guid>
     private readonly List<PrescriptionItem> _prescriptionItems = new();
     public IReadOnlyList<PrescriptionItem> PrescriptionItems => _prescriptionItems;
 
+    private readonly List<Payment> _payments = new();
+    public IReadOnlyList<Payment> Payments => _payments;
+
     protected Appointment()
     {
     }
 
-    public Appointment(Guid id, Guid patientId, DateTime scheduledDateTime, decimal price, Guid? doctorId = null)
+    public Appointment(Guid id, Guid patientId, DateTime scheduledDateTime, decimal price, Guid? doctorId = null, TreatmentType treatmentType = TreatmentType.GeneralCheckup)
         : base(id)
     {
         PatientId = patientId;
         Reschedule(scheduledDateTime);
         DoctorId = doctorId;
         Status = AppointmentStatus.Scheduled;
+        TreatmentType = treatmentType;
         PaymentStatus = PaymentStatus.Unpaid;
         SetPrice(price);
     }
@@ -55,6 +60,11 @@ public class Appointment : FullAuditedAggregateRoot<Guid>
     public void ChangeStatus(AppointmentStatus status)
     {
         Status = status;
+    }
+
+    public void SetTreatmentType(TreatmentType treatmentType)
+    {
+        TreatmentType = treatmentType;
     }
 
     public void SetClinicalNotes(string? preOpNotes, string? postOpNotes)
@@ -104,21 +114,32 @@ public class Appointment : FullAuditedAggregateRoot<Guid>
         RecalculatePaymentStatus();
     }
 
-    public void RecordPayment(decimal paidAmount)
+    public Payment AddPayment(Guid id, decimal amount, DateTime paymentDate, PaymentMethod method, string? notes)
     {
-        Check.Range(paidAmount, nameof(paidAmount), 0, decimal.MaxValue);
-
-        if (paidAmount > Price)
+        if (PaidAmount + amount > Price)
         {
             throw new BusinessException(DentifyDomainErrorCodes.PaidAmountCannotExceedPrice);
         }
 
-        PaidAmount = paidAmount;
+        var payment = new Payment(id, Id, amount, paymentDate, method, notes);
+        _payments.Add(payment);
+        RecalculatePaymentStatus();
+        return payment;
+    }
+
+    public void RemovePayment(Guid paymentId)
+    {
+        var payment = _payments.SingleOrDefault(x => x.Id == paymentId)
+            ?? throw new BusinessException(DentifyDomainErrorCodes.PaymentNotFound);
+
+        _payments.Remove(payment);
         RecalculatePaymentStatus();
     }
 
     private void RecalculatePaymentStatus()
     {
+        PaidAmount = _payments.Sum(x => x.Amount);
+
         if (PaidAmount <= 0)
         {
             PaymentStatus = PaymentStatus.Unpaid;

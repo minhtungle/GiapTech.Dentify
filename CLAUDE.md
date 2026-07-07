@@ -11,9 +11,12 @@
 > + Settings phòng khám), 1 đợt hoàn thiện UI/UX toàn diện (responsive mobile,
 > accessibility, error/empty/loading state, AlertDialog thay window.confirm), bổ sung
 > Calendar view cho Lịch hẹn (FullCalendar) + trang chủ Dashboard tổng quan + module
-> Công việc (Task độc lập, phong cách tối giản kiểu Notion), và 1 đợt polish riêng cho
-> 3 tính năng đó (fix bug locale tiếng Việt FullCalendar, Dashboard chịu lỗi từng phần,
-> Task sửa touch-device + accessibility). Giai đoạn 5 (tuỳ chọn: AI voice-to-note, AI
+> Công việc (Task độc lập, phong cách tối giản kiểu Notion), 1 đợt polish riêng cho
+> 3 tính năng đó, và mới nhất là **Thanh toán nhiều lần** (entity `Payment` — lịch sử thu
+> tiền, thay hẳn field `PaidAmount` set thẳng cũ) + **`TreatmentType`** trên Appointment +
+> **trang in hoá đơn** (`/appointments/:id/invoice`, HTML + `window.print()`) + **trang
+> Thống kê** (`/statistics` — doanh thu theo thời gian/tăng trưởng, xếp hạng loại hình
+> khám, theo bác sĩ; dùng `recharts`). Giai đoạn 5 (tuỳ chọn: AI voice-to-note, AI
 > scan hoá đơn, Patient Portal) chưa bắt đầu. Xem `docs/PROGRESS.md`
 > để biết đang làm tới đâu.
 

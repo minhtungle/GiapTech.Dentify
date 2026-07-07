@@ -140,7 +140,7 @@ public abstract class PatientAppServiceTests<TStartupModule> : DentifyApplicatio
             ScheduledDateTime = DateTime.Now.AddDays(-10),
             Price = 100
         });
-        await _appointmentAppService.UpdatePaymentAsync(earlier.Id, new UpdatePaymentDto { PaidAmount = 100 });
+        await _appointmentAppService.AddPaymentAsync(earlier.Id, new CreatePaymentDto { Amount = 100, PaymentDate = DateTime.Now });
 
         var latest = await _appointmentAppService.CreateAsync(new CreateUpdateAppointmentDto
         {
@@ -148,7 +148,7 @@ public abstract class PatientAppServiceTests<TStartupModule> : DentifyApplicatio
             ScheduledDateTime = DateTime.Now.AddDays(-1),
             Price = 300
         });
-        await _appointmentAppService.UpdatePaymentAsync(latest.Id, new UpdatePaymentDto { PaidAmount = 50 });
+        await _appointmentAppService.AddPaymentAsync(latest.Id, new CreatePaymentDto { Amount = 50, PaymentDate = DateTime.Now });
 
         var detail = await _patientAppService.GetPatientDetailAsync(patient.Id);
 

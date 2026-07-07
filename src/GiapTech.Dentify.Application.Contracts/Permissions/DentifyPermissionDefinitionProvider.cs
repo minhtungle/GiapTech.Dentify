@@ -46,6 +46,8 @@ public class DentifyPermissionDefinitionProvider : PermissionDefinitionProvider
         tasks.AddChild(DentifyPermissions.Tasks.Create, L("Permission:Tasks.Create"));
         tasks.AddChild(DentifyPermissions.Tasks.Update, L("Permission:Tasks.Update"));
         tasks.AddChild(DentifyPermissions.Tasks.Delete, L("Permission:Tasks.Delete"));
+
+        myGroup.AddPermission(DentifyPermissions.Statistics.Default, L("Permission:Statistics"));
     }
 
     private static LocalizableString L(string name)

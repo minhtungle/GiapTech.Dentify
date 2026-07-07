@@ -14,4 +14,7 @@ public partial class AppointmentMapper
     public partial AppointmentDto MapToDto(Appointment appointment);
 
     public partial PrescriptionItemDto MapToDto(PrescriptionItem prescriptionItem);
+
+    [MapperIgnoreSource(nameof(Payment.CreatorId))]
+    public partial PaymentDto MapToDto(Payment payment);
 }

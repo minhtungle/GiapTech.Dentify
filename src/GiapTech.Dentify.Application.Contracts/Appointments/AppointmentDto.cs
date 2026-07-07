@@ -13,10 +13,12 @@ public class AppointmentDto : FullAuditedEntityDto<Guid>
     public string? DoctorName { get; set; }
     public DateTime ScheduledDateTime { get; set; }
     public AppointmentStatus Status { get; set; }
+    public TreatmentType TreatmentType { get; set; }
     public string? PreOpNotes { get; set; }
     public string? PostOpNotes { get; set; }
     public decimal Price { get; set; }
     public decimal PaidAmount { get; set; }
     public PaymentStatus PaymentStatus { get; set; }
     public List<PrescriptionItemDto> PrescriptionItems { get; set; } = new();
+    public List<PaymentDto> Payments { get; set; } = new();
 }

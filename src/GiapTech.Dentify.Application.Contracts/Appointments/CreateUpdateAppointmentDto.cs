@@ -17,6 +17,8 @@ public class CreateUpdateAppointmentDto
 
     public AppointmentStatus Status { get; set; } = AppointmentStatus.Scheduled;
 
+    public TreatmentType TreatmentType { get; set; } = TreatmentType.GeneralCheckup;
+
     [StringLength(AppointmentConsts.MaxNotesLength)]
     public string? PreOpNotes { get; set; }
 

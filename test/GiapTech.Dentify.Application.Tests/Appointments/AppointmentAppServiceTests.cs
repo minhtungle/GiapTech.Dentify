@@ -77,11 +77,35 @@ public abstract class AppointmentAppServiceTests<TStartupModule> : DentifyApplic
             Price = 1000
         });
 
-        var partiallyPaid = await _appointmentAppService.UpdatePaymentAsync(appointment.Id, new UpdatePaymentDto { PaidAmount = 400 });
+        var partiallyPaid = await _appointmentAppService.AddPaymentAsync(appointment.Id, new CreatePaymentDto { Amount = 400, PaymentDate = DateTime.Now });
         partiallyPaid.PaymentStatus.ShouldBe(PaymentStatus.PartiallyPaid);
+        partiallyPaid.PaidAmount.ShouldBe(400);
 
-        var fullyPaid = await _appointmentAppService.UpdatePaymentAsync(appointment.Id, new UpdatePaymentDto { PaidAmount = 1000 });
+        var fullyPaid = await _appointmentAppService.AddPaymentAsync(appointment.Id, new CreatePaymentDto { Amount = 600, PaymentDate = DateTime.Now });
         fullyPaid.PaymentStatus.ShouldBe(PaymentStatus.Paid);
+        fullyPaid.PaidAmount.ShouldBe(1000);
+        fullyPaid.Payments.Count.ShouldBe(2);
+    }
+
+    [Fact]
+    public async Task Should_Remove_Payment_And_Recalculate_Payment_Status()
+    {
+        var patientId = await CreateTestPatientAsync();
+        var appointment = await _appointmentAppService.CreateAsync(new CreateUpdateAppointmentDto
+        {
+            PatientId = patientId,
+            ScheduledDateTime = DateTime.Now,
+            Price = 1000
+        });
+
+        var afterAdd = await _appointmentAppService.AddPaymentAsync(appointment.Id, new CreatePaymentDto { Amount = 400, PaymentDate = DateTime.Now });
+        var paymentId = afterAdd.Payments.Single().Id;
+
+        var afterRemove = await _appointmentAppService.RemovePaymentAsync(appointment.Id, paymentId);
+
+        afterRemove.PaidAmount.ShouldBe(0);
+        afterRemove.PaymentStatus.ShouldBe(PaymentStatus.Unpaid);
+        afterRemove.Payments.ShouldBeEmpty();
     }
 
     [Fact]
@@ -97,7 +121,7 @@ public abstract class AppointmentAppServiceTests<TStartupModule> : DentifyApplic
 
         await Should.ThrowAsync<BusinessException>(async () =>
         {
-            await _appointmentAppService.UpdatePaymentAsync(appointment.Id, new UpdatePaymentDto { PaidAmount = 200 });
+            await _appointmentAppService.AddPaymentAsync(appointment.Id, new CreatePaymentDto { Amount = 200, PaymentDate = DateTime.Now });
         });
     }
 

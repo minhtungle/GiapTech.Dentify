@@ -37,6 +37,7 @@
     "Permission:Tasks.Create": "Create",
     "Permission:Tasks.Update": "Edit",
     "Permission:Tasks.Delete": "Delete",
+    "Permission:Statistics": "Statistics",
 
     "Patient": "Patient",
     "Patients": "Patients",

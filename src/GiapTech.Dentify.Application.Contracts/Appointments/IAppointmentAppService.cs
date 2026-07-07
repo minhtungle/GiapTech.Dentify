@@ -20,5 +20,7 @@ public interface IAppointmentAppService : IApplicationService
 
     Task DeleteAsync(Guid id);
 
-    Task<AppointmentDto> UpdatePaymentAsync(Guid id, UpdatePaymentDto input);
+    Task<AppointmentDto> AddPaymentAsync(Guid id, CreatePaymentDto input);
+
+    Task<AppointmentDto> RemovePaymentAsync(Guid id, Guid paymentId);
 }

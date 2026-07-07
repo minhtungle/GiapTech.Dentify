@@ -35,6 +35,7 @@ import { Tabs, TabsList, TabsTrigger, TabsContent } from "@/components/ui/tabs"
 import { Tooltip, TooltipContent, TooltipTrigger } from "@/components/ui/tooltip"
 import { AppointmentPhotosDialog } from "@/components/appointments/AppointmentPhotosDialog"
 import { AppointmentCalendar } from "@/components/appointments/AppointmentCalendar"
+import { PaymentHistoryDialog } from "@/components/appointments/PaymentHistoryDialog"
 import { appointmentsApi } from "@/lib/appointments-api"
 import { patientsApi } from "@/lib/patients-api"
 import { ApiError } from "@/lib/api"
@@ -44,11 +45,14 @@ import type {
   AppointmentStatusName,
   CreateUpdateAppointmentDto,
   CreateUpdatePrescriptionItemDto,
+  TreatmentTypeName,
 } from "@/types/appointment"
 import {
   APPOINTMENT_STATUS_LABELS_VI,
   AppointmentStatus,
   PAYMENT_STATUS_LABELS_VI,
+  TREATMENT_TYPE_LABELS_VI,
+  TreatmentType,
 } from "@/types/appointment"
 import type { PatientDto } from "@/types/patient"
 
@@ -60,11 +64,25 @@ const STATUS_OPTIONS: AppointmentStatusName[] = [
   "NoShow",
 ]
 
+const TREATMENT_TYPE_OPTIONS: TreatmentTypeName[] = [
+  "GeneralCheckup",
+  "Filling",
+  "Extraction",
+  "Whitening",
+  "RootCanal",
+  "Orthodontics",
+  "Implant",
+  "Cleaning",
+  "Crown",
+  "Other",
+]
+
 function emptyForm(patientId = ""): CreateUpdateAppointmentDto {
   return {
     patientId,
     scheduledDateTime: "",
     status: "Scheduled",
+    treatmentType: "GeneralCheckup",
     preOpNotes: "",
     postOpNotes: "",
     price: 0,
@@ -111,8 +129,6 @@ export function AppointmentsPage() {
 
   const [paymentDialogAppointment, setPaymentDialogAppointment] =
     useState<AppointmentDto | null>(null)
-  const [paidAmountInput, setPaidAmountInput] = useState("0")
-  const [isSavingPayment, setIsSavingPayment] = useState(false)
 
   const [photosDialogAppointment, setPhotosDialogAppointment] =
     useState<AppointmentDto | null>(null)
@@ -164,6 +180,9 @@ export function AppointmentsPage() {
         status: (Object.keys(AppointmentStatus) as AppointmentStatusName[]).find(
           (key) => AppointmentStatus[key] === appointment.status,
         ) ?? "Scheduled",
+        treatmentType: (Object.keys(TreatmentType) as TreatmentTypeName[]).find(
+          (key) => TreatmentType[key] === appointment.treatmentType,
+        ) ?? "GeneralCheckup",
         preOpNotes: appointment.preOpNotes,
         postOpNotes: appointment.postOpNotes,
         price: appointment.price,
@@ -222,6 +241,9 @@ export function AppointmentsPage() {
       status: (Object.keys(AppointmentStatus) as AppointmentStatusName[]).find(
         (key) => AppointmentStatus[key] === appointment.status,
       ) ?? "Scheduled",
+      treatmentType: (Object.keys(TreatmentType) as TreatmentTypeName[]).find(
+        (key) => TreatmentType[key] === appointment.treatmentType,
+      ) ?? "GeneralCheckup",
       preOpNotes: appointment.preOpNotes ?? "",
       postOpNotes: appointment.postOpNotes ?? "",
       price: appointment.price,
@@ -297,27 +319,18 @@ export function AppointmentsPage() {
     }
   }
 
-  const openPaymentDialog = (appointment: AppointmentDto) => {
-    setPaymentDialogAppointment(appointment)
-    setPaidAmountInput(String(appointment.paidAmount))
+  const openPaymentDialog = async (summary: AppointmentDto) => {
+    try {
+      const appointment = await appointmentsApi.get(summary.id)
+      setPaymentDialogAppointment(appointment)
+    } catch (err) {
+      toast.error(err instanceof ApiError ? err.message : "Không tải được chi tiết thanh toán")
+    }
   }
 
-  const handleSavePayment = async (e: FormEvent) => {
-    e.preventDefault()
-    if (!paymentDialogAppointment) return
-    setIsSavingPayment(true)
-    try {
-      await appointmentsApi.updatePayment(paymentDialogAppointment.id, {
-        paidAmount: Number(paidAmountInput),
-      })
-      toast.success("Đã cập nhật thanh toán")
-      setPaymentDialogAppointment(null)
-      await loadData()
-    } catch (err) {
-      toast.error(err instanceof ApiError ? err.message : "Cập nhật thanh toán thất bại")
-    } finally {
-      setIsSavingPayment(false)
-    }
+  const handlePaymentChanged = (updated: AppointmentDto) => {
+    setPaymentDialogAppointment(updated)
+    setAppointments((prev) => prev.map((a) => (a.id === updated.id ? updated : a)))
   }
 
   return (
@@ -360,6 +373,7 @@ export function AppointmentsPage() {
                 <TableRow>
                   <TableHead>Bệnh nhân</TableHead>
                   <TableHead>Thời gian</TableHead>
+                  <TableHead>Loại hình khám</TableHead>
                   <TableHead>Trạng thái</TableHead>
                   <TableHead>Giá</TableHead>
                   <TableHead>Thanh toán</TableHead>
@@ -370,7 +384,7 @@ export function AppointmentsPage() {
                 {isLoading &&
                   Array.from({ length: 5 }).map((_, i) => (
                     <TableRow key={i}>
-                      {Array.from({ length: 6 }).map((_, j) => (
+                      {Array.from({ length: 7 }).map((_, j) => (
                         <TableCell key={j}>
                           <Skeleton className="h-5 w-full max-w-32" />
                         </TableCell>
@@ -379,7 +393,7 @@ export function AppointmentsPage() {
                   ))}
                 {!isLoading && appointments.length === 0 && (
                   <TableRow>
-                    <TableCell colSpan={6} className="h-32 text-center">
+                    <TableCell colSpan={7} className="h-32 text-center">
                       <div className="flex flex-col items-center gap-2 text-muted-foreground">
                         <CalendarPlus className="size-8" />
                         <p>Chưa có lịch hẹn nào.</p>
@@ -399,6 +413,7 @@ export function AppointmentsPage() {
                     <TableCell>
                       {new Date(appointment.scheduledDateTime).toLocaleString("vi-VN")}
                     </TableCell>
+                    <TableCell>{TREATMENT_TYPE_LABELS_VI[appointment.treatmentType]}</TableCell>
                     <TableCell>
                       <Badge variant="outline">
                         {APPOINTMENT_STATUS_LABELS_VI[appointment.status]}
@@ -433,7 +448,7 @@ export function AppointmentsPage() {
                         size="icon"
                         title="Thanh toán"
                         aria-label={`Cập nhật thanh toán cho ${appointment.patientFullName}`}
-                        onClick={() => openPaymentDialog(appointment)}
+                        onClick={() => void openPaymentDialog(appointment)}
                       >
                         <Wallet className="size-4" />
                       </Button>
@@ -531,6 +546,27 @@ export function AppointmentsPage() {
                   </SelectContent>
                 </Select>
               </div>
+            </div>
+
+            <div className="grid gap-2">
+              <Label htmlFor="treatmentType">Loại hình khám</Label>
+              <Select
+                value={form.treatmentType}
+                onValueChange={(value: TreatmentTypeName) =>
+                  setForm({ ...form, treatmentType: value })
+                }
+              >
+                <SelectTrigger id="treatmentType">
+                  <SelectValue />
+                </SelectTrigger>
+                <SelectContent>
+                  {TREATMENT_TYPE_OPTIONS.map((type) => (
+                    <SelectItem key={type} value={type}>
+                      {TREATMENT_TYPE_LABELS_VI[TreatmentType[type]]}
+                    </SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
             </div>
 
             <div className="grid gap-2">
@@ -636,50 +672,11 @@ export function AppointmentsPage() {
         </DialogContent>
       </Dialog>
 
-      <Dialog
-        open={paymentDialogAppointment !== null}
+      <PaymentHistoryDialog
+        appointment={paymentDialogAppointment}
         onOpenChange={(open) => !open && setPaymentDialogAppointment(null)}
-      >
-        <DialogContent>
-          <form onSubmit={handleSavePayment} className="flex flex-col gap-4">
-            <DialogHeader>
-              <DialogTitle>Cập nhật thanh toán</DialogTitle>
-            </DialogHeader>
-            <p className="text-sm text-muted-foreground">
-              Giá dịch vụ: {paymentDialogAppointment && formatCurrency(paymentDialogAppointment.price)}
-            </p>
-            <div className="grid gap-2">
-              <Label htmlFor="paidAmount">Số tiền đã thanh toán</Label>
-              <Input
-                id="paidAmount"
-                type="number"
-                min={0}
-                max={paymentDialogAppointment?.price}
-                value={paidAmountInput}
-                onChange={(e) => setPaidAmountInput(e.target.value)}
-              />
-              {paymentDialogAppointment &&
-                Number(paidAmountInput) > paymentDialogAppointment.price && (
-                  <p className="text-sm text-destructive">
-                    Số tiền không được vượt quá giá dịch vụ.
-                  </p>
-                )}
-            </div>
-            <DialogFooter>
-              <Button
-                type="submit"
-                disabled={
-                  isSavingPayment ||
-                  (paymentDialogAppointment !== null &&
-                    Number(paidAmountInput) > paymentDialogAppointment.price)
-                }
-              >
-                {isSavingPayment ? "Đang lưu..." : "Lưu"}
-              </Button>
-            </DialogFooter>
-          </form>
-        </DialogContent>
-      </Dialog>
+        onChanged={handlePaymentChanged}
+      />
 
       <AppointmentPhotosDialog
         appointmentId={photosDialogAppointment?.id ?? null}

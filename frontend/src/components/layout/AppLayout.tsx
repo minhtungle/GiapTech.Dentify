@@ -2,6 +2,7 @@ import { useState } from "react"
 import type { ReactNode } from "react"
 import { NavLink } from "react-router-dom"
 import {
+  BarChart3,
   CalendarDays,
   CheckSquare,
   FlaskConical,
@@ -25,6 +26,7 @@ const navItems = [
   { to: "/lab-works", label: "Labo", icon: FlaskConical },
   { to: "/expenses", label: "Chi phí", icon: Receipt },
   { to: "/tasks", label: "Công việc", icon: CheckSquare },
+  { to: "/statistics", label: "Thống kê", icon: BarChart3 },
   { to: "/settings", label: "Cài đặt", icon: Settings },
 ]
 

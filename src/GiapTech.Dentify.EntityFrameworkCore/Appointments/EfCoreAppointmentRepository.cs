@@ -22,6 +22,7 @@ public class EfCoreAppointmentRepository : EfCoreRepository<DentifyDbContext, Ap
 
         var appointment = await dbSet
             .Include(x => x.PrescriptionItems)
+            .Include(x => x.Payments)
             .FirstOrDefaultAsync(x => x.Id == id, GetCancellationToken(cancellationToken));
 
         return appointment ?? throw new EntityNotFoundException(typeof(Appointment), id);

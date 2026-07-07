@@ -3,8 +3,8 @@ import type { PagedResultDto } from "@/types/common"
 import type {
   AppointmentDto,
   CreateUpdateAppointmentDto,
+  CreatePaymentDto,
   GetAppointmentListRequest,
-  UpdatePaymentDto,
 } from "@/types/appointment"
 
 const BASE = "/api/app/appointment"
@@ -20,6 +20,8 @@ export const appointmentsApi = {
   update: (id: string, input: CreateUpdateAppointmentDto) =>
     api.put<AppointmentDto>(`${BASE}/${id}`, input),
   delete: (id: string) => api.delete<void>(`${BASE}/${id}`),
-  updatePayment: (id: string, input: UpdatePaymentDto) =>
-    api.put<AppointmentDto>(`${BASE}/${id}/payment`, input),
+  addPayment: (id: string, input: CreatePaymentDto) =>
+    api.post<AppointmentDto>(`${BASE}/${id}/payment`, input),
+  removePayment: (id: string, paymentId: string) =>
+    api.delete<AppointmentDto>(`${BASE}/${id}/payment`, { paymentId }),
 }

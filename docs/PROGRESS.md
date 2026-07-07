@@ -28,9 +28,114 @@
 - [x] Polish Calendar/Dashboard/Task (xong): fix bug locale tiếng Việt của FullCalendar,
       Dashboard chịu lỗi từng phần (Promise.allSettled), Task sửa touch-device + a11y
       checkbox, Calendar responsive mobile.
+- [x] Thanh toán nhiều lần + In hoá đơn + Thống kê (xong): entity `Payment` (lịch sử thu
+      tiền), `TreatmentType` trên Appointment, trang in hoá đơn HTML, trang Thống kê
+      (doanh thu theo thời gian + tăng trưởng, xếp hạng loại hình khám, theo bác sĩ).
 - [ ] Giai đoạn 5 (tuỳ chọn): AI voice-to-note, AI scan hoá đơn, Patient Portal
 
 ## Nhật ký
+
+### 2026-07-07 (5) — Thanh toán nhiều lần + In hoá đơn + Thống kê
+
+User yêu cầu 3 việc lớn cùng lúc: (1) bệnh nhân thanh toán nhiều lần + xem đã/chưa thanh
+toán, (2) in hoá đơn thanh toán/thuốc, (3) thống kê doanh thu + loại hình khám + theo bác
+sĩ. Xác nhận phạm vi qua AskUserQuestion trước khi làm: Payment là bảng riêng lưu lịch sử
+từng lần thu (không phải 1 field set thẳng); in hoá đơn là trang HTML riêng dùng
+`window.print()` của trình duyệt (không thêm thư viện PDF); thống kê làm cả 3 kiểu (biểu
+đồ doanh thu theo thời gian, bảng xếp hạng loại hình khám, thống kê theo bác sĩ); thêm hẳn
+trường `TreatmentType` (danh mục cố định) vào Appointment vì trước đó không có field nào
+phân loại thủ thuật để thống kê theo.
+
+- **Domain — `Payment`**: entity con thật của `Appointment` (giống pattern
+  `PrescriptionItem`, không phải aggregate root riêng như `AppointmentPhoto`) — vì luôn
+  cần thấy trọn lịch sử thu tiền khi xem 1 lịch hẹn, số lượng bị chặn nhỏ (vài lần thu/lịch
+  hẹn), và vòng đời gắn chặt (xoá Appointment thì xoá theo cascade). Constructor + setter
+  `internal`, chỉ tạo/xoá qua `Appointment.AddPayment`/`RemovePayment`.
+  **Thay đổi phá vỡ có chủ đích**: bỏ hẳn `RecordPayment(decimal paidAmount)` cũ (nhận
+  thẳng tổng tiền, set trực tiếp `PaidAmount`) — giờ `PaidAmount` là giá trị **tính lại**
+  từ `_payments.Sum(x => x.Amount)` mỗi khi `AddPayment`/`RemovePayment`, không còn set
+  được từ bên ngoài. `AddPayment` vẫn giữ nguyên rule cũ (tổng không vượt `Price`, ném
+  `PaidAmountCannotExceedPrice`), nhưng kiểm tra trên `PaidAmount + amount` thay vì giá trị
+  set thẳng.
+- **`TreatmentType`** (enum 10 giá trị: GeneralCheckup/Filling/Extraction/Whitening/
+  RootCanal/Orthodontics/Implant/Cleaning/Crown/Other) — field mới trên `Appointment`,
+  mặc định `GeneralCheckup`, sửa được qua `SetTreatmentType` độc lập với `Status`.
+- **EF Core**: `Payment` map giống hệt pattern `PrescriptionItem` (`HasMany().WithOne()`,
+  `Navigation().HasField("_payments")`, cascade delete qua FK). Migration
+  `AddPaymentAndTreatmentType`: thêm cột `TreatmentType` (int, default 0) vào
+  `AppAppointments`, tạo bảng `AppPayments` mới. `EfCoreAppointmentRepository.
+  GetWithDetailsAsync` thêm `.Include(x => x.Payments)` bên cạnh `.Include(x =>
+  x.PrescriptionItems)` đã có.
+- **Application**: `IAppointmentAppService` bỏ `UpdatePaymentAsync`/`UpdatePaymentDto` cũ,
+  thay bằng `AddPaymentAsync(id, CreatePaymentDto)` (route `POST
+  .../appointment/{id}/payment`) và `RemovePaymentAsync(id, paymentId)` (route `DELETE
+  .../appointment/{id}/payment?paymentId=...` — theo ABP convention, "Remove" map ra
+  DELETE giống "Delete", tham số Guid thứ 2 không phải id đầu tiên nên rơi xuống query
+  string vì DELETE không nhận body). `AppointmentDto` thêm `payments: PaymentDto[]` và
+  `treatmentType`.
+- **`IStatisticsAppService` (mới hoàn toàn, permission `Dentify.Statistics` — chỉ có
+  `Default`, không có Create/Update/Delete vì đây là API chỉ-đọc)**:
+  - `GetRevenueOverviewAsync(fromDate, toDate)` — group `Payment.PaymentDate` theo ngày
+    trong khoảng chọn, cộng thêm so sánh với **kỳ liền trước có cùng độ dài** (vd chọn 30
+    ngày qua thì so với 30 ngày trước đó nữa) để tính % tăng trưởng. Cố tình dùng
+    `Payment.PaymentDate` (tiền thực nhận) chứ không phải `Appointment.Price` (giá dịch
+    vụ, có thể chưa thu đủ) — đúng bản chất "doanh thu" là tiền đã vào túi.
+  - `GetTreatmentTypeStatisticsAsync`/`GetDoctorStatisticsAsync` — cả 2 đều lọc theo
+    `Appointment.ScheduledDateTime` trong khoảng chọn (không phải theo Payment), group và
+    đếm số ca + tổng `PaidAmount`. Bác sĩ chưa phân công gộp vào 1 dòng "Chưa phân công"
+    (`DoctorId == null`) thay vì loại bỏ, để không mất số liệu.
+  - Không cần Mapperly mapper riêng — DTO build tay từ kết quả `GroupBy` nên không có gì
+    để tự sinh mapping.
+- **Frontend — `PaymentHistoryDialog`** (component mới, thay hẳn dialog "Cập nhật thanh
+  toán" cũ chỉ có 1 input số tiền): hiện đủ giá dịch vụ/đã thu/còn lại, danh sách lịch sử
+  thanh toán (mỗi dòng có nút xoá riêng), form thêm 1 lần thu mới (chỉ hiện khi còn nợ,
+  validate số tiền không vượt phần còn lại ngay trên UI trước khi gọi API), và nút "In hoá
+  đơn" mở tab mới. `AppointmentsPage` giờ load full detail (`appointmentsApi.get`) trước
+  khi mở dialog thanh toán — vì `GetListAsync` không include `Payments` (giống lý do cũ đã
+  áp dụng cho dialog Sửa/đơn thuốc).
+- **`InvoicePage`** (route `/appointments/:appointmentId/invoice`, có `ProtectedRoute`
+  nhưng KHÔNG bọc `AppLayout` — trang in riêng biệt, không có sidebar): lấy thông tin
+  phòng khám qua `clinicSettingsApi.get()` đã có sẵn từ Giai đoạn 4 (logo/tên/địa chỉ/SĐT),
+  hiện đơn thuốc + toàn bộ lịch sử thanh toán + tổng kết giá/đã thu/còn lại. Nút "In hoá
+  đơn" chỉ gọi `window.print()` — không có logic PDF nào, đúng quyết định đã chốt. CSS
+  `print:hidden`/`print:p-0` ẩn nút In khi in thật.
+- **`StatisticsPage`** (route `/statistics`, cài mới `recharts` — package biểu đồ đầu tiên
+  của dự án): chọn khoảng thời gian nhanh (7 ngày/30 ngày/tháng này), `LineChart` doanh thu
+  theo ngày + badge tăng trưởng (mũi tên lên/xuống theo dấu %), `BarChart` ngang top 6 loại
+  hình khám kèm bảng đầy đủ, bảng xếp hạng theo bác sĩ. Gọi song song 3 API qua
+  `Promise.all` (không cần `allSettled` ở đây vì cùng 1 nhóm chức năng, lỗi 1 API nghĩa là
+  lỗi chung đáng để thấy rõ, khác với Dashboard tổng hợp nhiều nhóm độc lập).
+- **Môi trường build (riêng máy này)**: máy chỉ có sẵn .NET SDK tới 8.0.203 dù project
+  target `net10.0` — khác với các lần trước trong cùng dự án (chắc chạy trên máy có sẵn
+  SDK 10). `dotnet build`/`dotnet ef` đều cần SDK 10 mới nhận diện được `.slnx` và target
+  framework. Cài .NET 10 SDK **vào thư mục riêng của user** (`~/.dotnet10` qua
+  `dotnet-install.sh --install-dir`) vì không có quyền ghi `/usr/local/share/dotnet`
+  (global location, cần sudo) — mọi lệnh `dotnet` sau đó phải export
+  `PATH="$HOME/.dotnet10:$PATH"` và `DOTNET_ROOT="$HOME/.dotnet10"` trước khi chạy trong
+  cùng phiên làm việc này.
+- **Test**: 2 test mới trong `AppointmentAppServiceTests` (`Should_Update_Payment_And_
+  Recalculate_Payment_Status` viết lại dùng `AddPaymentAsync` nhiều lần thay vì
+  `UpdatePaymentAsync` 1 lần, `Should_Remove_Payment_And_Recalculate_Payment_Status` mới)
+  + sửa 2 test cũ dùng API `UpdatePaymentAsync`/`UpdatePaymentDto` đã xoá
+  (`PatientAppServiceTests.Should_Get_Patient_Detail_With_Last_Appointment_And_Total_Debt`
+  chuyển sang `AddPaymentAsync`). Tổng test: 45 → 48 (46 EfCoreTests + 1 WebTests, xem chi
+  tiết log), tất cả pass.
+  **Verify UI thật bằng Playwright**: login → mở dialog thanh toán 1 lịch hẹn 200.003đ,
+  chưa thu gì → thêm 1 lần thu 50.000đ → trạng thái tự đổi "Thanh toán một phần", lịch sử
+  hiện đúng dòng vừa thêm → mở tab in hoá đơn mới → thấy đủ thông tin phòng khám/đơn
+  thuốc/lịch sử thanh toán/tổng kết. Trang Thống kê hiển thị đúng 0đ doanh thu (chưa có
+  payment nào trong DB test lúc đó), sau khi có payment thì cả biểu đồ doanh thu lẫn bảng
+  xếp hạng loại hình khám cập nhật đúng số liệu thật. Không lỗi console trong toàn bộ
+  luồng. **Bug UI tự phát hiện lúc verify (không có trong audit ban đầu)**: bảng đơn thuốc
+  trên trang hoá đơn thiếu khoảng cách ngang giữa cột "SL" (`text-right`) và cột "Hướng
+  dẫn" liền sau, khiến 2 giá trị dính liền nhau trong ảnh chụp thật (`15Uống 2 lần/ngày`)
+  dù code nhìn qua tưởng đúng — fix bằng thêm `pr-2` cho mọi ô trừ cột cuối ở cả 2 bảng
+  (đơn thuốc + chi tiết thanh toán) trên `InvoicePage`.
+- Chưa làm (để lại, ngoài phạm vi đã chốt): hoá đơn thuốc **riêng biệt** khỏi hoá đơn thanh
+  toán (hiện gộp chung 1 trang in, đơn thuốc là 1 mục trong đó — đủ dùng cho quy mô 1
+  phòng khám, tách riêng chỉ cần thiết nếu sau này có yêu cầu in đơn thuốc độc lập không
+  kèm thông tin tài chính); export/in danh sách thống kê ra file; lọc thống kê theo bác sĩ
+  cụ thể hoặc theo loại hình khám cụ thể (hiện luôn hiện toàn bộ danh sách xếp hạng).
 
 ### 2026-07-07 (4) — Polish Calendar/Dashboard/Task vừa làm
 

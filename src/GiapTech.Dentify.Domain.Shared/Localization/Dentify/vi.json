@@ -37,6 +37,7 @@
     "Permission:Tasks.Create": "Tạo mới",
     "Permission:Tasks.Update": "Sửa",
     "Permission:Tasks.Delete": "Xoá",
+    "Permission:Statistics": "Thống kê",
 
     "Patient": "Bệnh nhân",
     "Patients": "Bệnh nhân",

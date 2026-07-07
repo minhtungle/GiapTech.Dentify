@@ -10,6 +10,8 @@ import { LabWorksPage } from "@/pages/LabWorksPage"
 import { ExpensesPage } from "@/pages/ExpensesPage"
 import { TasksPage } from "@/pages/TasksPage"
 import { SettingsPage } from "@/pages/SettingsPage"
+import { InvoicePage } from "@/pages/InvoicePage"
+import { StatisticsPage } from "@/pages/StatisticsPage"
 
 function App() {
   return (
@@ -93,6 +95,24 @@ function App() {
               <AppLayout>
                 <SettingsPage />
               </AppLayout>
+            </ProtectedRoute>
+          }
+        />
+        <Route
+          path="/statistics"
+          element={
+            <ProtectedRoute>
+              <AppLayout>
+                <StatisticsPage />
+              </AppLayout>
+            </ProtectedRoute>
+          }
+        />
+        <Route
+          path="/appointments/:appointmentId/invoice"
+          element={
+            <ProtectedRoute>
+              <InvoicePage />
             </ProtectedRoute>
           }
         />

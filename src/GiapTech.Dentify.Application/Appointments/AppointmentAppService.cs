@@ -80,7 +80,8 @@ public class AppointmentAppService : ApplicationService, IAppointmentAppService
             input.PatientId,
             input.ScheduledDateTime,
             input.Price,
-            input.DoctorId);
+            input.DoctorId,
+            input.TreatmentType);
 
         appointment.ChangeStatus(input.Status);
         appointment.SetClinicalNotes(input.PreOpNotes, input.PostOpNotes);
@@ -102,6 +103,7 @@ public class AppointmentAppService : ApplicationService, IAppointmentAppService
         appointment.Reschedule(input.ScheduledDateTime);
         appointment.AssignDoctor(input.DoctorId);
         appointment.ChangeStatus(input.Status);
+        appointment.SetTreatmentType(input.TreatmentType);
         appointment.SetClinicalNotes(input.PreOpNotes, input.PostOpNotes);
         appointment.SetPrice(input.Price);
         ApplyPrescriptionItems(appointment, input.PrescriptionItems);
@@ -143,11 +145,23 @@ public class AppointmentAppService : ApplicationService, IAppointmentAppService
     }
 
     [Authorize(DentifyPermissions.Appointments.ManagePayment)]
-    public virtual async Task<AppointmentDto> UpdatePaymentAsync(Guid id, UpdatePaymentDto input)
+    public virtual async Task<AppointmentDto> AddPaymentAsync(Guid id, CreatePaymentDto input)
     {
         var appointment = await _appointmentRepository.GetWithDetailsAsync(id);
 
-        appointment.RecordPayment(input.PaidAmount);
+        appointment.AddPayment(GuidGenerator.Create(), input.Amount, input.PaymentDate, input.Method, input.Notes);
+
+        await _appointmentRepository.UpdateAsync(appointment);
+
+        return (await MapToDtosAsync(new List<Appointment> { appointment })).Single();
+    }
+
+    [Authorize(DentifyPermissions.Appointments.ManagePayment)]
+    public virtual async Task<AppointmentDto> RemovePaymentAsync(Guid id, Guid paymentId)
+    {
+        var appointment = await _appointmentRepository.GetWithDetailsAsync(id);
+
+        appointment.RemovePayment(paymentId);
 
         await _appointmentRepository.UpdateAsync(appointment);
 
