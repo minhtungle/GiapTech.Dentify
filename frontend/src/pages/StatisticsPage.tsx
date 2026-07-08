@@ -32,11 +32,10 @@ import {
 import { statisticsApi } from "@/lib/statistics-api"
 import { ApiError } from "@/lib/api"
 import { formatCurrency, cn } from "@/lib/utils"
-import { TREATMENT_TYPE_LABELS_VI } from "@/types/appointment"
 import type {
   DoctorStatisticDto,
   RevenueOverviewDto,
-  TreatmentTypeStatisticDto,
+  ServiceStatisticDto,
 } from "@/types/statistics"
 
 type RangeOption = "7d" | "30d" | "thisMonth"
@@ -73,7 +72,7 @@ function getRange(option: RangeOption): { fromDate: string; toDate: string } {
 export function StatisticsPage() {
   const [range, setRange] = useState<RangeOption>("30d")
   const [revenue, setRevenue] = useState<RevenueOverviewDto | null>(null)
-  const [treatmentStats, setTreatmentStats] = useState<TreatmentTypeStatisticDto[]>([])
+  const [serviceStats, setServiceStats] = useState<ServiceStatisticDto[]>([])
   const [doctorStats, setDoctorStats] = useState<DoctorStatisticDto[]>([])
   const [isLoading, setIsLoading] = useState(true)
 
@@ -82,13 +81,13 @@ export function StatisticsPage() {
     setIsLoading(true)
     void (async () => {
       try {
-        const [revenueResult, treatmentResult, doctorResult] = await Promise.all([
+        const [revenueResult, serviceResult, doctorResult] = await Promise.all([
           statisticsApi.getRevenueOverview(fromDate, toDate),
-          statisticsApi.getTreatmentTypeStatistics(fromDate, toDate),
+          statisticsApi.getServiceStatistics(fromDate, toDate),
           statisticsApi.getDoctorStatistics(fromDate, toDate),
         ])
         setRevenue(revenueResult)
-        setTreatmentStats(treatmentResult)
+        setServiceStats(serviceResult)
         setDoctorStats(doctorResult)
       } catch (err) {
         toast.error(err instanceof ApiError ? err.message : "Không tải được số liệu thống kê")
@@ -182,29 +181,25 @@ export function StatisticsPage() {
 
       <div className="grid gap-4 lg:grid-cols-2">
         <div className="rounded-lg border p-4">
-          <h2 className="mb-3 font-semibold">Loại hình khám phổ biến</h2>
+          <h2 className="mb-3 font-semibold">Dịch vụ phổ biến</h2>
           {isLoading ? (
             <Skeleton className="h-48 w-full" />
-          ) : treatmentStats.length === 0 ? (
+          ) : serviceStats.length === 0 ? (
             <p className="text-sm text-muted-foreground">Chưa có dữ liệu trong khoảng thời gian này.</p>
           ) : (
             <>
               <div className="mb-4 h-48 w-full">
                 <ResponsiveContainer width="100%" height="100%">
-                  <BarChart data={treatmentStats.slice(0, 6)} layout="vertical">
+                  <BarChart data={serviceStats.slice(0, 6)} layout="vertical">
                     <CartesianGrid strokeDasharray="3 3" className="stroke-muted" />
                     <XAxis type="number" fontSize={12} allowDecimals={false} />
                     <YAxis
                       type="category"
-                      dataKey="treatmentType"
-                      tickFormatter={(v: number) => TREATMENT_TYPE_LABELS_VI[v as never]}
+                      dataKey="serviceName"
                       width={110}
                       fontSize={12}
                     />
-                    <RechartsTooltip
-                      formatter={(value) => [value, "Số ca"]}
-                      labelFormatter={(v) => TREATMENT_TYPE_LABELS_VI[Number(v) as never]}
-                    />
+                    <RechartsTooltip formatter={(value) => [value, "Số ca"]} />
                     <Bar dataKey="appointmentCount" fill="var(--color-primary, #2563eb)" radius={4} />
                   </BarChart>
                 </ResponsiveContainer>
@@ -212,15 +207,15 @@ export function StatisticsPage() {
               <Table>
                 <TableHeader>
                   <TableRow>
-                    <TableHead>Loại hình khám</TableHead>
+                    <TableHead>Dịch vụ</TableHead>
                     <TableHead className="text-right">Số ca</TableHead>
                     <TableHead className="text-right">Doanh thu</TableHead>
                   </TableRow>
                 </TableHeader>
                 <TableBody>
-                  {treatmentStats.map((stat) => (
-                    <TableRow key={stat.treatmentType}>
-                      <TableCell>{TREATMENT_TYPE_LABELS_VI[stat.treatmentType]}</TableCell>
+                  {serviceStats.map((stat) => (
+                    <TableRow key={stat.serviceId ?? "unassigned"}>
+                      <TableCell>{stat.serviceName}</TableCell>
                       <TableCell className="text-right">{stat.appointmentCount}</TableCell>
                       <TableCell className="text-right">{formatCurrency(stat.totalRevenue)}</TableCell>
                     </TableRow>

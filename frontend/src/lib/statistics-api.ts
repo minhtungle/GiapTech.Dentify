@@ -2,7 +2,7 @@ import { api } from "./api"
 import type {
   DoctorStatisticDto,
   RevenueOverviewDto,
-  TreatmentTypeStatisticDto,
+  ServiceStatisticDto,
 } from "@/types/statistics"
 
 const BASE = "/api/app/statistics"
@@ -10,8 +10,8 @@ const BASE = "/api/app/statistics"
 export const statisticsApi = {
   getRevenueOverview: (fromDate: string, toDate: string) =>
     api.get<RevenueOverviewDto>(`${BASE}/revenue-overview`, { fromDate, toDate }),
-  getTreatmentTypeStatistics: (fromDate: string, toDate: string) =>
-    api.get<TreatmentTypeStatisticDto[]>(`${BASE}/treatment-type-statistics`, {
+  getServiceStatistics: (fromDate: string, toDate: string) =>
+    api.get<ServiceStatisticDto[]>(`${BASE}/service-statistics`, {
       fromDate,
       toDate,
     }),

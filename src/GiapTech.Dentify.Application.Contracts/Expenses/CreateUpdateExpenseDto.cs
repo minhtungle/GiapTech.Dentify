@@ -16,4 +16,6 @@ public class CreateUpdateExpenseDto
 
     [StringLength(ExpenseConsts.MaxDescriptionLength)]
     public string? Description { get; set; }
+
+    public Guid? LabWorkId { get; set; }
 }

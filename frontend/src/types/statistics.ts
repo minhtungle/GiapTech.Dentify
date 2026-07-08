@@ -1,5 +1,3 @@
-import type { TreatmentType } from "./appointment"
-
 export interface RevenuePointDto {
   date: string
   amount: number
@@ -12,8 +10,9 @@ export interface RevenueOverviewDto {
   points: RevenuePointDto[]
 }
 
-export interface TreatmentTypeStatisticDto {
-  treatmentType: TreatmentType
+export interface ServiceStatisticDto {
+  serviceId?: string | null
+  serviceName: string
   appointmentCount: number
   totalRevenue: number
 }

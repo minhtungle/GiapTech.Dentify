@@ -3,10 +3,16 @@ using System.Collections.Generic;
 using System.Linq;
 using System.Threading.Tasks;
 using GiapTech.Dentify.Application.Contracts.Appointments;
+using GiapTech.Dentify.Application.Contracts.Chairs;
+using GiapTech.Dentify.Application.Contracts.Doctors;
+using GiapTech.Dentify.Application.Contracts.Drugs;
 using GiapTech.Dentify.Application.Contracts.Patients;
+using GiapTech.Dentify.Application.Contracts.Services;
+using GiapTech.Dentify.Doctors;
 using GiapTech.Dentify.Patients;
 using Shouldly;
 using Volo.Abp;
+using Volo.Abp.Identity;
 using Volo.Abp.Modularity;
 using Xunit;
 
@@ -17,11 +23,21 @@ public abstract class AppointmentAppServiceTests<TStartupModule> : DentifyApplic
 {
     private readonly IAppointmentAppService _appointmentAppService;
     private readonly IPatientAppService _patientAppService;
+    private readonly IDoctorAppService _doctorAppService;
+    private readonly IServiceAppService _serviceAppService;
+    private readonly IDrugAppService _drugAppService;
+    private readonly IChairAppService _chairAppService;
+    private readonly IdentityUserManager _identityUserManager;
 
     protected AppointmentAppServiceTests()
     {
         _appointmentAppService = GetRequiredService<IAppointmentAppService>();
         _patientAppService = GetRequiredService<IPatientAppService>();
+        _doctorAppService = GetRequiredService<IDoctorAppService>();
+        _serviceAppService = GetRequiredService<IServiceAppService>();
+        _drugAppService = GetRequiredService<IDrugAppService>();
+        _chairAppService = GetRequiredService<IChairAppService>();
+        _identityUserManager = GetRequiredService<IdentityUserManager>();
     }
 
     private async Task<Guid> CreateTestPatientAsync()
@@ -32,6 +48,34 @@ public abstract class AppointmentAppServiceTests<TStartupModule> : DentifyApplic
             DateOfBirth = new DateTime(1990, 1, 1)
         });
         return patient.Id;
+    }
+
+    private async Task<Guid> CreateTestDoctorAsync(string userName)
+    {
+        var user = new IdentityUser(Guid.NewGuid(), userName, $"{userName}@test.com");
+        var result = await _identityUserManager.CreateAsync(user);
+        result.Succeeded.ShouldBeTrue();
+
+        var doctor = await _doctorAppService.CreateAsync(new CreateUpdateDoctorDto { IdentityUserId = user.Id });
+        return doctor.Id;
+    }
+
+    private async Task<Guid> CreateTestServiceAsync(string name)
+    {
+        var service = await _serviceAppService.CreateAsync(new CreateUpdateServiceDto { Name = name, Price = 100000 });
+        return service.Id;
+    }
+
+    private async Task<Guid> CreateTestDrugAsync(string name)
+    {
+        var drug = await _drugAppService.CreateAsync(new CreateUpdateDrugDto { Name = name });
+        return drug.Id;
+    }
+
+    private async Task<Guid> CreateTestChairAsync(string name)
+    {
+        var chair = await _chairAppService.CreateAsync(new CreateUpdateChairDto { Name = name });
+        return chair.Id;
     }
 
     [Fact]
@@ -223,5 +267,331 @@ public abstract class AppointmentAppServiceTests<TStartupModule> : DentifyApplic
         updated.PrescriptionItems.ShouldContain(x => x.Id == toKeep.Id && x.Quantity == 15 && x.Dosage == "200mg");
         updated.PrescriptionItems.ShouldContain(x => x.DrugName == "NewDrug");
         updated.PrescriptionItems.ShouldNotContain(x => x.DrugName == "ToBeRemoved");
+    }
+
+    [Fact]
+    public async Task Should_Create_Appointment_With_Duration()
+    {
+        var patientId = await CreateTestPatientAsync();
+
+        var result = await _appointmentAppService.CreateAsync(new CreateUpdateAppointmentDto
+        {
+            PatientId = patientId,
+            ScheduledDateTime = DateTime.Now.AddDays(1),
+            DurationMinutes = 45,
+            Price = 100
+        });
+
+        result.DurationMinutes.ShouldBe(45);
+    }
+
+    [Fact]
+    public async Task Should_Not_Allow_Duration_Outside_Range()
+    {
+        var patientId = await CreateTestPatientAsync();
+
+        await Should.ThrowAsync<Exception>(async () =>
+        {
+            await _appointmentAppService.CreateAsync(new CreateUpdateAppointmentDto
+            {
+                PatientId = patientId,
+                ScheduledDateTime = DateTime.Now.AddDays(1),
+                DurationMinutes = 1,
+                Price = 100
+            });
+        });
+    }
+
+    [Fact]
+    public async Task Should_Not_Allow_DoubleBooking_Same_Doctor_Overlapping_Time()
+    {
+        var patientId = await CreateTestPatientAsync();
+        var doctorId = await CreateTestDoctorAsync("doctor.doublebooking");
+        var scheduledAt = new DateTime(2030, 3, 10, 9, 0, 0);
+
+        await _appointmentAppService.CreateAsync(new CreateUpdateAppointmentDto
+        {
+            PatientId = patientId,
+            DoctorId = doctorId,
+            ScheduledDateTime = scheduledAt,
+            DurationMinutes = 30,
+            Price = 100
+        });
+
+        await Should.ThrowAsync<BusinessException>(async () =>
+        {
+            await _appointmentAppService.CreateAsync(new CreateUpdateAppointmentDto
+            {
+                PatientId = patientId,
+                DoctorId = doctorId,
+                ScheduledDateTime = scheduledAt.AddMinutes(15),
+                DurationMinutes = 30,
+                Price = 100
+            });
+        });
+    }
+
+    [Fact]
+    public async Task Should_Allow_Booking_Same_Doctor_NonOverlapping_Time()
+    {
+        var patientId = await CreateTestPatientAsync();
+        var doctorId = await CreateTestDoctorAsync("doctor.nonoverlap");
+        var scheduledAt = new DateTime(2030, 3, 11, 9, 0, 0);
+
+        await _appointmentAppService.CreateAsync(new CreateUpdateAppointmentDto
+        {
+            PatientId = patientId,
+            DoctorId = doctorId,
+            ScheduledDateTime = scheduledAt,
+            DurationMinutes = 30,
+            Price = 100
+        });
+
+        var second = await _appointmentAppService.CreateAsync(new CreateUpdateAppointmentDto
+        {
+            PatientId = patientId,
+            DoctorId = doctorId,
+            ScheduledDateTime = scheduledAt.AddMinutes(30),
+            DurationMinutes = 30,
+            Price = 100
+        });
+
+        second.Id.ShouldNotBe(Guid.Empty);
+    }
+
+    [Fact]
+    public async Task Should_Not_Allow_DoubleBooking_When_Updating_Into_Conflict()
+    {
+        var patientId = await CreateTestPatientAsync();
+        var doctorId = await CreateTestDoctorAsync("doctor.updateconflict");
+        var scheduledAt = new DateTime(2030, 3, 12, 9, 0, 0);
+
+        await _appointmentAppService.CreateAsync(new CreateUpdateAppointmentDto
+        {
+            PatientId = patientId,
+            DoctorId = doctorId,
+            ScheduledDateTime = scheduledAt,
+            DurationMinutes = 30,
+            Price = 100
+        });
+
+        var second = await _appointmentAppService.CreateAsync(new CreateUpdateAppointmentDto
+        {
+            PatientId = patientId,
+            DoctorId = doctorId,
+            ScheduledDateTime = scheduledAt.AddHours(2),
+            DurationMinutes = 30,
+            Price = 100
+        });
+
+        await Should.ThrowAsync<BusinessException>(async () =>
+        {
+            await _appointmentAppService.UpdateAsync(second.Id, new CreateUpdateAppointmentDto
+            {
+                PatientId = patientId,
+                DoctorId = doctorId,
+                ScheduledDateTime = scheduledAt,
+                DurationMinutes = 30,
+                Price = 100
+            });
+        });
+    }
+
+    [Fact]
+    public async Task Should_Ignore_Cancelled_Appointments_When_Checking_DoubleBooking()
+    {
+        var patientId = await CreateTestPatientAsync();
+        var doctorId = await CreateTestDoctorAsync("doctor.cancelled");
+        var scheduledAt = new DateTime(2030, 3, 13, 9, 0, 0);
+
+        var cancelled = await _appointmentAppService.CreateAsync(new CreateUpdateAppointmentDto
+        {
+            PatientId = patientId,
+            DoctorId = doctorId,
+            ScheduledDateTime = scheduledAt,
+            DurationMinutes = 30,
+            Price = 100
+        });
+        await _appointmentAppService.UpdateAsync(cancelled.Id, new CreateUpdateAppointmentDto
+        {
+            PatientId = patientId,
+            DoctorId = doctorId,
+            ScheduledDateTime = scheduledAt,
+            DurationMinutes = 30,
+            Status = AppointmentStatus.Cancelled,
+            Price = 100
+        });
+
+        var result = await _appointmentAppService.CreateAsync(new CreateUpdateAppointmentDto
+        {
+            PatientId = patientId,
+            DoctorId = doctorId,
+            ScheduledDateTime = scheduledAt,
+            DurationMinutes = 30,
+            Price = 100
+        });
+
+        result.Id.ShouldNotBe(Guid.Empty);
+    }
+
+    [Fact]
+    public async Task Should_Create_Appointment_With_Service()
+    {
+        var patientId = await CreateTestPatientAsync();
+        var serviceId = await CreateTestServiceAsync("Khám tổng quát test");
+
+        var result = await _appointmentAppService.CreateAsync(new CreateUpdateAppointmentDto
+        {
+            PatientId = patientId,
+            ServiceId = serviceId,
+            ScheduledDateTime = DateTime.Now.AddDays(1),
+            Price = 100
+        });
+
+        result.ServiceId.ShouldBe(serviceId);
+        result.ServiceName.ShouldBe("Khám tổng quát test");
+    }
+
+    [Fact]
+    public async Task Should_Update_Appointment_Service()
+    {
+        var patientId = await CreateTestPatientAsync();
+        var firstServiceId = await CreateTestServiceAsync("Dịch vụ ban đầu");
+        var secondServiceId = await CreateTestServiceAsync("Dịch vụ mới");
+
+        var appointment = await _appointmentAppService.CreateAsync(new CreateUpdateAppointmentDto
+        {
+            PatientId = patientId,
+            ServiceId = firstServiceId,
+            ScheduledDateTime = DateTime.Now.AddDays(1),
+            Price = 100
+        });
+
+        var updated = await _appointmentAppService.UpdateAsync(appointment.Id, new CreateUpdateAppointmentDto
+        {
+            PatientId = patientId,
+            ServiceId = secondServiceId,
+            ScheduledDateTime = appointment.ScheduledDateTime,
+            DurationMinutes = appointment.DurationMinutes,
+            Price = 100
+        });
+
+        updated.ServiceId.ShouldBe(secondServiceId);
+        updated.ServiceName.ShouldBe("Dịch vụ mới");
+    }
+
+    [Fact]
+    public async Task Should_Create_Appointment_With_Prescription_Item_Linked_To_Drug()
+    {
+        var patientId = await CreateTestPatientAsync();
+        var drugId = await CreateTestDrugAsync("Amoxicillin test");
+
+        var result = await _appointmentAppService.CreateAsync(new CreateUpdateAppointmentDto
+        {
+            PatientId = patientId,
+            ScheduledDateTime = DateTime.Now.AddDays(1),
+            Price = 100,
+            PrescriptionItems = new List<CreateUpdatePrescriptionItemDto>
+            {
+                new() { DrugId = drugId, DrugName = "Amoxicillin test", Quantity = 10 }
+            }
+        });
+
+        result.PrescriptionItems.Single().DrugId.ShouldBe(drugId);
+    }
+
+    [Fact]
+    public async Task Should_Not_Allow_DoubleBooking_Same_Chair_Overlapping_Time()
+    {
+        var patientId = await CreateTestPatientAsync();
+        var chairId = await CreateTestChairAsync("Ghế double-booking test");
+        var scheduledAt = new DateTime(2030, 4, 10, 9, 0, 0);
+
+        await _appointmentAppService.CreateAsync(new CreateUpdateAppointmentDto
+        {
+            PatientId = patientId,
+            ChairId = chairId,
+            ScheduledDateTime = scheduledAt,
+            DurationMinutes = 30,
+            Price = 100
+        });
+
+        await Should.ThrowAsync<BusinessException>(async () =>
+        {
+            await _appointmentAppService.CreateAsync(new CreateUpdateAppointmentDto
+            {
+                PatientId = patientId,
+                ChairId = chairId,
+                ScheduledDateTime = scheduledAt.AddMinutes(15),
+                DurationMinutes = 30,
+                Price = 100
+            });
+        });
+    }
+
+    [Fact]
+    public async Task Should_Allow_Same_Time_Different_Chair_And_Different_Doctor()
+    {
+        var patientId = await CreateTestPatientAsync();
+        var chairA = await CreateTestChairAsync("Ghế A");
+        var chairB = await CreateTestChairAsync("Ghế B");
+        var doctorA = await CreateTestDoctorAsync("doctor.chairA");
+        var doctorB = await CreateTestDoctorAsync("doctor.chairB");
+        var scheduledAt = new DateTime(2030, 4, 11, 9, 0, 0);
+
+        await _appointmentAppService.CreateAsync(new CreateUpdateAppointmentDto
+        {
+            PatientId = patientId,
+            ChairId = chairA,
+            DoctorId = doctorA,
+            ScheduledDateTime = scheduledAt,
+            DurationMinutes = 30,
+            Price = 100
+        });
+
+        var second = await _appointmentAppService.CreateAsync(new CreateUpdateAppointmentDto
+        {
+            PatientId = patientId,
+            ChairId = chairB,
+            DoctorId = doctorB,
+            ScheduledDateTime = scheduledAt,
+            DurationMinutes = 30,
+            Price = 100
+        });
+
+        second.Id.ShouldNotBe(Guid.Empty);
+    }
+
+    [Fact]
+    public async Task Should_Not_Allow_DoubleBooking_Same_Chair_Even_With_Different_Doctor()
+    {
+        var patientId = await CreateTestPatientAsync();
+        var chairId = await CreateTestChairAsync("Ghế chung");
+        var doctorA = await CreateTestDoctorAsync("doctor.shared.chair.a");
+        var doctorB = await CreateTestDoctorAsync("doctor.shared.chair.b");
+        var scheduledAt = new DateTime(2030, 4, 12, 9, 0, 0);
+
+        await _appointmentAppService.CreateAsync(new CreateUpdateAppointmentDto
+        {
+            PatientId = patientId,
+            ChairId = chairId,
+            DoctorId = doctorA,
+            ScheduledDateTime = scheduledAt,
+            DurationMinutes = 30,
+            Price = 100
+        });
+
+        await Should.ThrowAsync<BusinessException>(async () =>
+        {
+            await _appointmentAppService.CreateAsync(new CreateUpdateAppointmentDto
+            {
+                PatientId = patientId,
+                ChairId = chairId,
+                DoctorId = doctorB,
+                ScheduledDateTime = scheduledAt,
+                DurationMinutes = 30,
+                Price = 100
+            });
+        });
     }
 }

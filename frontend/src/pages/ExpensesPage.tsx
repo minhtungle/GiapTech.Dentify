@@ -1,6 +1,15 @@
 import { useEffect, useRef, useState } from "react"
 import type { ChangeEvent, FormEvent } from "react"
 import { Download, Pencil, Plus, Receipt, Trash2, Upload } from "lucide-react"
+import {
+  Bar,
+  BarChart,
+  CartesianGrid,
+  ResponsiveContainer,
+  Tooltip as RechartsTooltip,
+  XAxis,
+  YAxis,
+} from "recharts"
 import { toast } from "sonner"
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
@@ -9,6 +18,7 @@ import { Skeleton } from "@/components/ui/skeleton"
 import { Textarea } from "@/components/ui/textarea"
 import { Badge } from "@/components/ui/badge"
 import { ConfirmDialog } from "@/components/ConfirmDialog"
+import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
 import {
   Dialog,
   DialogContent,
@@ -32,15 +42,17 @@ import {
   TableRow,
 } from "@/components/ui/table"
 import { expensesApi } from "@/lib/expenses-api"
+import { labWorksApi } from "@/lib/lab-works-api"
 import { ApiError } from "@/lib/api"
 import { downloadCsv, parseCsvToObjects, toCsv } from "@/lib/csv"
 import { formatCurrency } from "@/lib/utils"
-import type { CreateUpdateExpenseDto, ExpenseCategoryName, ExpenseDto } from "@/types/expense"
+import type { CreateUpdateExpenseDto, ExpenseCategoryName, ExpenseDto, ExpenseSummaryDto } from "@/types/expense"
 import {
   EXPENSE_CATEGORY_LABELS_VI,
   EXPENSE_CATEGORY_NAMES,
   ExpenseCategory,
 } from "@/types/expense"
+import type { LabWorkDto } from "@/types/labWork"
 
 function emptyForm(): CreateUpdateExpenseDto {
   return {
@@ -48,6 +60,7 @@ function emptyForm(): CreateUpdateExpenseDto {
     amount: 0,
     category: "Other",
     description: "",
+    labWorkId: null,
   }
 }
 
@@ -56,6 +69,9 @@ export function ExpensesPage() {
   const [totalCount, setTotalCount] = useState(0)
   const [totalAmount, setTotalAmount] = useState(0)
   const [isLoading, setIsLoading] = useState(true)
+
+  const [labWorks, setLabWorks] = useState<LabWorkDto[]>([])
+  const [summary, setSummary] = useState<ExpenseSummaryDto | null>(null)
 
   const [dialogOpen, setDialogOpen] = useState(false)
   const [editingId, setEditingId] = useState<string | null>(null)
@@ -92,10 +108,30 @@ export function ExpensesPage() {
     }
   }
 
+  const loadSummary = async () => {
+    try {
+      const oneYearAgo = new Date()
+      oneYearAgo.setFullYear(oneYearAgo.getFullYear() - 1)
+      const result = await expensesApi.getSummary(oneYearAgo.toISOString(), new Date().toISOString())
+      setSummary(result)
+    } catch (err) {
+      toast.error(err instanceof ApiError ? err.message : "Không tải được thống kê chi phí")
+    }
+  }
+
   useEffect(() => {
     void loadData()
+    void loadSummary()
+    void labWorksApi
+      .getBoard()
+      .then(setLabWorks)
+      .catch(() => {
+        // Non-fatal — the lab work picker just stays empty.
+      })
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [])
+
+  const labWorkById = new Map(labWorks.map((lw) => [lw.id, lw]))
 
   const openCreateDialog = () => {
     setEditingId(null)
@@ -112,6 +148,7 @@ export function ExpensesPage() {
         (key) => ExpenseCategory[key] === expense.category,
       ) ?? "Other",
       description: expense.description ?? "",
+      labWorkId: expense.labWorkId ?? null,
     })
     setDialogOpen(true)
   }
@@ -133,6 +170,7 @@ export function ExpensesPage() {
       }
       setDialogOpen(false)
       await loadData()
+      await loadSummary()
     } catch (err) {
       toast.error(err instanceof ApiError ? err.message : "Lưu thất bại")
     } finally {
@@ -148,6 +186,7 @@ export function ExpensesPage() {
       toast.success("Đã xoá chi phí")
       setDeletingExpense(null)
       await loadData()
+      await loadSummary()
     } catch (err) {
       toast.error(err instanceof ApiError ? err.message : "Xoá thất bại")
     } finally {
@@ -228,6 +267,7 @@ export function ExpensesPage() {
     if (successCount > 0) {
       toast.success(`Đã nhập ${successCount}/${rows.length} khoản chi`)
       await loadData()
+      await loadSummary()
     }
     if (errors.length > 0) {
       toast.error(`${errors.length} dòng lỗi: ${errors.slice(0, 3).join("; ")}${errors.length > 3 ? "..." : ""}`)
@@ -270,6 +310,36 @@ export function ExpensesPage() {
           </Button>
         </div>
       </div>
+
+      {summary && summary.byCategory.length > 0 && (
+        <Card>
+          <CardHeader>
+            <CardTitle className="text-base">Chi phí theo danh mục (12 tháng gần nhất)</CardTitle>
+          </CardHeader>
+          <CardContent>
+            <div className="h-56 w-full">
+              <ResponsiveContainer width="100%" height="100%">
+                <BarChart data={summary.byCategory} layout="vertical">
+                  <CartesianGrid strokeDasharray="3 3" className="stroke-muted" />
+                  <XAxis type="number" fontSize={12} tickFormatter={(v: number) => v.toLocaleString("vi-VN")} />
+                  <YAxis
+                    type="category"
+                    dataKey="category"
+                    tickFormatter={(v: ExpenseCategory) => EXPENSE_CATEGORY_LABELS_VI[v]}
+                    width={110}
+                    fontSize={12}
+                  />
+                  <RechartsTooltip
+                    formatter={(value) => formatCurrency(Number(value))}
+                    labelFormatter={(v) => EXPENSE_CATEGORY_LABELS_VI[v as ExpenseCategory]}
+                  />
+                  <Bar dataKey="totalAmount" fill="var(--color-primary, #2563eb)" radius={4} />
+                </BarChart>
+              </ResponsiveContainer>
+            </div>
+          </CardContent>
+        </Card>
+      )}
 
       <div className="flex flex-wrap items-end gap-2">
         <Select
@@ -317,6 +387,7 @@ export function ExpensesPage() {
               <TableHead>Danh mục</TableHead>
               <TableHead>Số tiền</TableHead>
               <TableHead>Ghi chú</TableHead>
+              <TableHead>Labo liên quan</TableHead>
               <TableHead className="text-right">Hành động</TableHead>
             </TableRow>
           </TableHeader>
@@ -324,7 +395,7 @@ export function ExpensesPage() {
             {isLoading &&
               Array.from({ length: 5 }).map((_, i) => (
                 <TableRow key={i}>
-                  {Array.from({ length: 5 }).map((_, j) => (
+                  {Array.from({ length: 6 }).map((_, j) => (
                     <TableCell key={j}>
                       <Skeleton className="h-5 w-full max-w-32" />
                     </TableCell>
@@ -333,7 +404,7 @@ export function ExpensesPage() {
               ))}
             {!isLoading && expenses.length === 0 && (
               <TableRow>
-                <TableCell colSpan={5} className="h-32 text-center">
+                <TableCell colSpan={6} className="h-32 text-center">
                   <div className="flex flex-col items-center gap-2 text-muted-foreground">
                     <Receipt className="size-8" />
                     <p>Chưa có khoản chi nào.</p>
@@ -353,6 +424,9 @@ export function ExpensesPage() {
                 </TableCell>
                 <TableCell className="font-medium">{formatCurrency(expense.amount)}</TableCell>
                 <TableCell className="text-muted-foreground">{expense.description || "—"}</TableCell>
+                <TableCell className="text-muted-foreground">
+                  {expense.labWorkId ? labWorkById.get(expense.labWorkId)?.labName ?? "—" : "—"}
+                </TableCell>
                 <TableCell className="text-right">
                   <Button
                     variant="ghost"
@@ -437,6 +511,26 @@ export function ExpensesPage() {
                 value={form.description ?? ""}
                 onChange={(e) => setForm({ ...form, description: e.target.value })}
               />
+            </div>
+
+            <div className="grid gap-2">
+              <Label htmlFor="labWork">Ca labo liên quan</Label>
+              <Select
+                value={form.labWorkId ?? "none"}
+                onValueChange={(value) => setForm({ ...form, labWorkId: value === "none" ? null : value })}
+              >
+                <SelectTrigger id="labWork">
+                  <SelectValue />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="none">Không liên kết</SelectItem>
+                  {labWorks.map((labWork) => (
+                    <SelectItem key={labWork.id} value={labWork.id}>
+                      {labWork.labName} — {labWork.patientFullName}
+                    </SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
             </div>
 
             <DialogFooter>

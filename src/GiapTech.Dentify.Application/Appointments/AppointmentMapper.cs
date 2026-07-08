@@ -9,6 +9,8 @@ public partial class AppointmentMapper
 {
     [MapperIgnoreTarget(nameof(AppointmentDto.PatientFullName))]
     [MapperIgnoreTarget(nameof(AppointmentDto.DoctorName))]
+    [MapperIgnoreTarget(nameof(AppointmentDto.ServiceName))]
+    [MapperIgnoreTarget(nameof(AppointmentDto.ChairName))]
     [MapperIgnoreSource(nameof(Appointment.ExtraProperties))]
     [MapperIgnoreSource(nameof(Appointment.ConcurrencyStamp))]
     public partial AppointmentDto MapToDto(Appointment appointment);

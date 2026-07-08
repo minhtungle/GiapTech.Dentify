@@ -88,6 +88,30 @@ public class OpenIddictDataSeedContributor : OpenIddictDataSeedContributorBase, 
 
 
 
+        // Patient Portal SPA — separate client from the staff SPA so redirect URIs and
+        // (in future) scopes can diverge without touching the staff client's config.
+        var patientPortalClientId = configurationSection["Dentify_PatientPortal:ClientId"];
+        if (!patientPortalClientId.IsNullOrWhiteSpace())
+        {
+            var patientPortalRootUrl = configurationSection["Dentify_PatientPortal:RootUrl"]?.TrimEnd('/');
+            await CreateOrUpdateApplicationAsync(
+                applicationType: OpenIddictConstants.ApplicationTypes.Web,
+                name: patientPortalClientId!,
+                type: OpenIddictConstants.ClientTypes.Public,
+                consentType: OpenIddictConstants.ConsentTypes.Implicit,
+                displayName: "Dentify Patient Portal (React)",
+                secret: null,
+                grantTypes: new List<string> {
+                    OpenIddictConstants.GrantTypes.AuthorizationCode,
+                    OpenIddictConstants.GrantTypes.RefreshToken
+                },
+                scopes: commonScopes,
+                redirectUris: new List<string> { $"{patientPortalRootUrl}/auth-callback" },
+                postLogoutRedirectUris: new List<string> { patientPortalRootUrl },
+                clientUri: patientPortalRootUrl
+            );
+        }
+
         // Swagger Client
         var swaggerClientId = configurationSection["Dentify_Swagger:ClientId"];
         if (!swaggerClientId.IsNullOrWhiteSpace())

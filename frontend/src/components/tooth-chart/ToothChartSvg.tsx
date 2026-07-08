@@ -1,4 +1,6 @@
 import { cn } from "@/lib/utils"
+import { formatToothNumber } from "@/lib/toothNotation"
+import type { ToothNotationSystemName } from "@/lib/toothNotation"
 import type { ToothRecordDto } from "@/types/toothChart"
 import { TOOTH_STATUS_COLORS, TOOTH_STATUS_LABELS_VI, ToothStatus } from "@/types/toothChart"
 
@@ -24,6 +26,7 @@ interface ToothChartSvgProps {
   records: ToothRecordDto[]
   selectedTooth?: number | null
   onToothClick: (toothNumber: number) => void
+  notationSystem?: ToothNotationSystemName
 }
 
 export function ToothChartSvg({
@@ -31,6 +34,7 @@ export function ToothChartSvg({
   records,
   selectedTooth,
   onToothClick,
+  notationSystem = "Iso3950",
 }: ToothChartSvgProps) {
   const upperNumbers = isChildPatient ? PRIMARY_UPPER : PERMANENT_UPPER
   const lowerNumbers = isChildPatient ? PRIMARY_LOWER : PERMANENT_LOWER
@@ -83,7 +87,7 @@ export function ToothChartSvg({
             textAnchor="middle"
             className="select-none fill-foreground text-[11px] font-medium"
           >
-            {toothNumber}
+            {formatToothNumber(toothNumber, notationSystem)}
           </text>
         </g>
       )

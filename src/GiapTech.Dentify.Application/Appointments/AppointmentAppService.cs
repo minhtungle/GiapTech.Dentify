@@ -4,13 +4,17 @@ using System.Linq;
 using System.Threading.Tasks;
 using GiapTech.Dentify.Application.Contracts.Appointments;
 using GiapTech.Dentify.Appointments;
+using GiapTech.Dentify.Chairs;
+using GiapTech.Dentify.Doctors;
 using GiapTech.Dentify.Patients;
 using GiapTech.Dentify.Permissions;
 using Microsoft.AspNetCore.Authorization;
+using Volo.Abp;
 using Volo.Abp.Application.Dtos;
 using Volo.Abp.Application.Services;
 using Volo.Abp.Domain.Repositories;
 using Volo.Abp.Identity;
+using ServiceEntity = GiapTech.Dentify.Services.Service;
 
 namespace GiapTech.Dentify.Application.Appointments;
 
@@ -19,17 +23,26 @@ public class AppointmentAppService : ApplicationService, IAppointmentAppService
 {
     private readonly IAppointmentRepository _appointmentRepository;
     private readonly IRepository<Patient, Guid> _patientRepository;
+    private readonly IRepository<Doctor, Guid> _doctorRepository;
+    private readonly IRepository<ServiceEntity, Guid> _serviceRepository;
+    private readonly IRepository<Chair, Guid> _chairRepository;
     private readonly IRepository<IdentityUser, Guid> _identityUserRepository;
     private readonly AppointmentMapper _appointmentMapper;
 
     public AppointmentAppService(
         IAppointmentRepository appointmentRepository,
         IRepository<Patient, Guid> patientRepository,
+        IRepository<Doctor, Guid> doctorRepository,
+        IRepository<ServiceEntity, Guid> serviceRepository,
+        IRepository<Chair, Guid> chairRepository,
         IRepository<IdentityUser, Guid> identityUserRepository,
         AppointmentMapper appointmentMapper)
     {
         _appointmentRepository = appointmentRepository;
         _patientRepository = patientRepository;
+        _doctorRepository = doctorRepository;
+        _serviceRepository = serviceRepository;
+        _chairRepository = chairRepository;
         _identityUserRepository = identityUserRepository;
         _appointmentMapper = appointmentMapper;
     }
@@ -74,6 +87,9 @@ public class AppointmentAppService : ApplicationService, IAppointmentAppService
     public virtual async Task<AppointmentDto> CreateAsync(CreateUpdateAppointmentDto input)
     {
         await EnsurePatientExistsAsync(input.PatientId);
+        await EnsureClinicalNotesPermissionAsync(input.PreOpNotes, input.PostOpNotes, existingPreOpNotes: null, existingPostOpNotes: null);
+        await EnsureDoctorNotDoubleBookedAsync(input.DoctorId, input.ScheduledDateTime, input.DurationMinutes, excludeAppointmentId: null);
+        await EnsureChairNotDoubleBookedAsync(input.ChairId, input.ScheduledDateTime, input.DurationMinutes, excludeAppointmentId: null);
 
         var appointment = new Appointment(
             GuidGenerator.Create(),
@@ -81,7 +97,9 @@ public class AppointmentAppService : ApplicationService, IAppointmentAppService
             input.ScheduledDateTime,
             input.Price,
             input.DoctorId,
-            input.TreatmentType);
+            input.ServiceId,
+            input.DurationMinutes,
+            input.ChairId);
 
         appointment.ChangeStatus(input.Status);
         appointment.SetClinicalNotes(input.PreOpNotes, input.PostOpNotes);
@@ -98,12 +116,17 @@ public class AppointmentAppService : ApplicationService, IAppointmentAppService
         var appointment = await _appointmentRepository.GetWithDetailsAsync(id);
 
         await EnsurePatientExistsAsync(input.PatientId);
+        await EnsureClinicalNotesPermissionAsync(input.PreOpNotes, input.PostOpNotes, appointment.PreOpNotes, appointment.PostOpNotes);
+        await EnsureDoctorNotDoubleBookedAsync(input.DoctorId, input.ScheduledDateTime, input.DurationMinutes, excludeAppointmentId: id);
+        await EnsureChairNotDoubleBookedAsync(input.ChairId, input.ScheduledDateTime, input.DurationMinutes, excludeAppointmentId: id);
 
         appointment.AssignPatient(input.PatientId);
         appointment.Reschedule(input.ScheduledDateTime);
+        appointment.SetDuration(input.DurationMinutes);
         appointment.AssignDoctor(input.DoctorId);
         appointment.ChangeStatus(input.Status);
-        appointment.SetTreatmentType(input.TreatmentType);
+        appointment.AssignService(input.ServiceId);
+        appointment.AssignChair(input.ChairId);
         appointment.SetClinicalNotes(input.PreOpNotes, input.PostOpNotes);
         appointment.SetPrice(input.Price);
         ApplyPrescriptionItems(appointment, input.PrescriptionItems);
@@ -111,6 +134,77 @@ public class AppointmentAppService : ApplicationService, IAppointmentAppService
         await _appointmentRepository.UpdateAsync(appointment);
 
         return (await MapToDtosAsync(new List<Appointment> { appointment })).Single();
+    }
+
+    private async Task EnsureClinicalNotesPermissionAsync(
+        string? newPreOpNotes, string? newPostOpNotes, string? existingPreOpNotes, string? existingPostOpNotes)
+    {
+        if (newPreOpNotes == existingPreOpNotes && newPostOpNotes == existingPostOpNotes)
+        {
+            return;
+        }
+
+        await AuthorizationService.CheckAsync(DentifyPermissions.Appointments.ManageClinicalNotes);
+    }
+
+    private async Task EnsureDoctorNotDoubleBookedAsync(
+        Guid? doctorId, DateTime scheduledDateTime, int durationMinutes, Guid? excludeAppointmentId)
+    {
+        if (!doctorId.HasValue)
+        {
+            return;
+        }
+
+        var newStart = DateTime.SpecifyKind(scheduledDateTime, DateTimeKind.Utc);
+        var newEnd = newStart.AddMinutes(durationMinutes);
+
+        var queryable = await _appointmentRepository.GetQueryableAsync();
+        var candidates = await AsyncExecuter.ToListAsync(
+            queryable.Where(a =>
+                a.DoctorId == doctorId.Value &&
+                a.Status != AppointmentStatus.Cancelled &&
+                (!excludeAppointmentId.HasValue || a.Id != excludeAppointmentId.Value)));
+
+        var hasConflict = candidates.Any(a =>
+        {
+            var existingEnd = a.ScheduledDateTime.AddMinutes(a.DurationMinutes);
+            return newStart < existingEnd && a.ScheduledDateTime < newEnd;
+        });
+
+        if (hasConflict)
+        {
+            throw new BusinessException(DentifyDomainErrorCodes.DoctorDoubleBooked);
+        }
+    }
+
+    private async Task EnsureChairNotDoubleBookedAsync(
+        Guid? chairId, DateTime scheduledDateTime, int durationMinutes, Guid? excludeAppointmentId)
+    {
+        if (!chairId.HasValue)
+        {
+            return;
+        }
+
+        var newStart = DateTime.SpecifyKind(scheduledDateTime, DateTimeKind.Utc);
+        var newEnd = newStart.AddMinutes(durationMinutes);
+
+        var queryable = await _appointmentRepository.GetQueryableAsync();
+        var candidates = await AsyncExecuter.ToListAsync(
+            queryable.Where(a =>
+                a.ChairId == chairId.Value &&
+                a.Status != AppointmentStatus.Cancelled &&
+                (!excludeAppointmentId.HasValue || a.Id != excludeAppointmentId.Value)));
+
+        var hasConflict = candidates.Any(a =>
+        {
+            var existingEnd = a.ScheduledDateTime.AddMinutes(a.DurationMinutes);
+            return newStart < existingEnd && a.ScheduledDateTime < newEnd;
+        });
+
+        if (hasConflict)
+        {
+            throw new BusinessException(DentifyDomainErrorCodes.ChairDoubleBooked);
+        }
     }
 
     private void ApplyPrescriptionItems(Appointment appointment, List<CreateUpdatePrescriptionItemDto> items)
@@ -129,11 +223,11 @@ public class AppointmentAppService : ApplicationService, IAppointmentAppService
         {
             if (item.Id.HasValue)
             {
-                appointment.UpdatePrescriptionItem(item.Id.Value, item.DrugName, item.Dosage, item.Quantity, item.Instructions);
+                appointment.UpdatePrescriptionItem(item.Id.Value, item.DrugName, item.Dosage, item.Quantity, item.Instructions, item.DrugId);
             }
             else
             {
-                appointment.AddPrescriptionItem(GuidGenerator.Create(), item.DrugName, item.Dosage, item.Quantity, item.Instructions);
+                appointment.AddPrescriptionItem(GuidGenerator.Create(), item.DrugName, item.Dosage, item.Quantity, item.Instructions, item.DrugId);
             }
         }
     }
@@ -184,20 +278,48 @@ public class AppointmentAppService : ApplicationService, IAppointmentAppService
         var patientNameMap = patientNames.ToDictionary(p => p.Id, p => p.FullName);
 
         var doctorIds = appointments.Where(a => a.DoctorId.HasValue).Select(a => a.DoctorId!.Value).Distinct().ToList();
+        var doctorQueryable = await _doctorRepository.GetQueryableAsync();
+        var doctors = await AsyncExecuter.ToListAsync(
+            doctorQueryable.Where(d => doctorIds.Contains(d.Id)));
+        var doctorUserIdMap = doctors.ToDictionary(d => d.Id, d => d.IdentityUserId);
+
+        var doctorUserIds = doctors.Select(d => d.IdentityUserId).Distinct().ToList();
         var userQueryable = await _identityUserRepository.GetQueryableAsync();
-        var doctorNames = await AsyncExecuter.ToListAsync(
+        var doctorUsers = await AsyncExecuter.ToListAsync(
             userQueryable
-                .Where(u => doctorIds.Contains(u.Id))
+                .Where(u => doctorUserIds.Contains(u.Id))
                 .Select(u => new { u.Id, u.Name }));
-        var doctorNameMap = doctorNames.ToDictionary(u => u.Id, u => u.Name);
+        var doctorUserNameMap = doctorUsers.ToDictionary(u => u.Id, u => u.Name);
+
+        var serviceIds = appointments.Where(a => a.ServiceId.HasValue).Select(a => a.ServiceId!.Value).Distinct().ToList();
+        var serviceQueryable = await _serviceRepository.GetQueryableAsync();
+        var services = await AsyncExecuter.ToListAsync(
+            serviceQueryable.Where(s => serviceIds.Contains(s.Id)).Select(s => new { s.Id, s.Name }));
+        var serviceNameMap = services.ToDictionary(s => s.Id, s => s.Name);
+
+        var chairIds = appointments.Where(a => a.ChairId.HasValue).Select(a => a.ChairId!.Value).Distinct().ToList();
+        var chairQueryable = await _chairRepository.GetQueryableAsync();
+        var chairs = await AsyncExecuter.ToListAsync(
+            chairQueryable.Where(c => chairIds.Contains(c.Id)).Select(c => new { c.Id, c.Name }));
+        var chairNameMap = chairs.ToDictionary(c => c.Id, c => c.Name);
 
         return appointments.Select(appointment =>
         {
             var dto = _appointmentMapper.MapToDto(appointment);
             dto.PatientFullName = patientNameMap.TryGetValue(appointment.PatientId, out var patientName) ? patientName : string.Empty;
-            dto.DoctorName = appointment.DoctorId.HasValue && doctorNameMap.TryGetValue(appointment.DoctorId.Value, out var doctorName)
-                ? doctorName
-                : null;
+            dto.DoctorName = appointment.DoctorId.HasValue
+                && doctorUserIdMap.TryGetValue(appointment.DoctorId.Value, out var doctorUserId)
+                && doctorUserNameMap.TryGetValue(doctorUserId, out var doctorName)
+                    ? doctorName
+                    : null;
+            dto.ServiceName = appointment.ServiceId.HasValue
+                && serviceNameMap.TryGetValue(appointment.ServiceId.Value, out var serviceName)
+                    ? serviceName
+                    : null;
+            dto.ChairName = appointment.ChairId.HasValue
+                && chairNameMap.TryGetValue(appointment.ChairId.Value, out var chairName)
+                    ? chairName
+                    : null;
             return dto;
         }).ToList();
     }

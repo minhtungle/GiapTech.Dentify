@@ -2,16 +2,22 @@ import { useState } from "react"
 import type { ReactNode } from "react"
 import { NavLink } from "react-router-dom"
 import {
+  Armchair,
   BarChart3,
   CalendarDays,
   CheckSquare,
+  ClipboardList,
   FlaskConical,
   LayoutDashboard,
+  ListTree,
   LogOut,
   Menu,
+  Package,
+  PillBottle,
   Receipt,
   Settings,
   Smile,
+  Stethoscope,
   Users,
 } from "lucide-react"
 import { useAuth } from "@/auth/AuthProvider"
@@ -23,8 +29,14 @@ const navItems = [
   { to: "/", label: "Trang chủ", icon: LayoutDashboard, end: true },
   { to: "/patients", label: "Bệnh nhân", icon: Users },
   { to: "/appointments", label: "Lịch hẹn", icon: CalendarDays },
+  { to: "/waitlist", label: "Danh sách chờ", icon: ClipboardList },
+  { to: "/doctors", label: "Bác sĩ", icon: Stethoscope },
+  { to: "/services", label: "Dịch vụ", icon: ListTree },
+  { to: "/drugs", label: "Danh mục thuốc", icon: PillBottle },
+  { to: "/chairs", label: "Ghế nha khoa", icon: Armchair },
   { to: "/lab-works", label: "Labo", icon: FlaskConical },
   { to: "/expenses", label: "Chi phí", icon: Receipt },
+  { to: "/supplies", label: "Vật tư", icon: Package },
   { to: "/tasks", label: "Công việc", icon: CheckSquare },
   { to: "/statistics", label: "Thống kê", icon: BarChart3 },
   { to: "/settings", label: "Cài đặt", icon: Settings },

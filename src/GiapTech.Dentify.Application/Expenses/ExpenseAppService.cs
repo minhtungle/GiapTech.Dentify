@@ -34,7 +34,7 @@ public class ExpenseAppService : ApplicationService, IExpenseAppService
     {
         var queryable = await _expenseRepository.GetQueryableAsync();
 
-        queryable = ApplyFilters(queryable, input.Category, input.FromDate, input.ToDate);
+        queryable = ApplyFilters(queryable, input.Category, input.FromDate, input.ToDate, input.LabWorkId);
 
         var totalCount = await AsyncExecuter.CountAsync(queryable);
 
@@ -51,7 +51,7 @@ public class ExpenseAppService : ApplicationService, IExpenseAppService
         var queryable = await _expenseRepository.GetQueryableAsync();
 
         var expenses = await AsyncExecuter.ToListAsync(
-            ApplyFilters(queryable, null, fromDate, toDate));
+            ApplyFilters(queryable, null, fromDate, toDate, null));
 
         return new ExpenseSummaryDto
         {
@@ -67,7 +67,7 @@ public class ExpenseAppService : ApplicationService, IExpenseAppService
     [Authorize(DentifyPermissions.Expenses.Create)]
     public virtual async Task<ExpenseDto> CreateAsync(CreateUpdateExpenseDto input)
     {
-        var expense = new Expense(GuidGenerator.Create(), input.ExpenseDate, input.Amount, input.Category, input.Description);
+        var expense = new Expense(GuidGenerator.Create(), input.ExpenseDate, input.Amount, input.Category, input.Description, input.LabWorkId);
 
         await _expenseRepository.InsertAsync(expense);
 
@@ -83,6 +83,7 @@ public class ExpenseAppService : ApplicationService, IExpenseAppService
         expense.SetAmount(input.Amount);
         expense.SetCategory(input.Category);
         expense.SetDescription(input.Description);
+        expense.LinkToLabWork(input.LabWorkId);
 
         await _expenseRepository.UpdateAsync(expense);
 
@@ -96,7 +97,7 @@ public class ExpenseAppService : ApplicationService, IExpenseAppService
     }
 
     private static IQueryable<Expense> ApplyFilters(
-        IQueryable<Expense> queryable, ExpenseCategory? category, DateTime? fromDate, DateTime? toDate)
+        IQueryable<Expense> queryable, ExpenseCategory? category, DateTime? fromDate, DateTime? toDate, Guid? labWorkId)
     {
         if (category.HasValue)
         {
@@ -111,6 +112,11 @@ public class ExpenseAppService : ApplicationService, IExpenseAppService
         if (toDate.HasValue)
         {
             queryable = queryable.Where(x => x.ExpenseDate <= toDate.Value);
+        }
+
+        if (labWorkId.HasValue)
+        {
+            queryable = queryable.Where(x => x.LabWorkId == labWorkId.Value);
         }
 
         return queryable;

@@ -44,15 +44,668 @@
 - [x] Giai đoạn B (xong): cảnh báo dị ứng/bệnh nền có cấu trúc trên Patient, nhắc tái
       khám định kỳ (recall), theo dõi no-show theo bệnh nhân — cảnh báo hiện ở hồ sơ
       bệnh nhân, dialog tạo lịch hẹn, và Dashboard.
-- [ ] Roadmap 13 mục còn thiếu (đã lên kế hoạch, CHƯA triển khai) — xem mục nhật ký
-      "Roadmap 5 đợt" dưới đây. Đợt 1 (Doctor entity + Role phân quyền + Duration) là
-      điểm bắt đầu theo đúng thứ tự phụ thuộc đã chốt, chưa có đợt nào được code.
+- [x] Roadmap 13 mục — **Đợt 1 xong**: entity `Doctor` + FK thật `Appointment.DoctorId`,
+      `Appointment.DurationMinutes` + chặn double-booking, 3 Role phân quyền lâm sàng
+      (Doctor/Receptionist/Accountant) seed tự động qua DbMigrator, permission
+      `Appointments.ManageClinicalNotes` tách riêng.
+- [x] Roadmap 13 mục — **Đợt 2 xong**: enum `TreatmentType` → entity `Service` có giá
+      tham chiếu (migrate dữ liệu cũ qua Guid cố định, không mất dữ liệu), entity `Drug`
+      (danh mục thuốc, không breaking — `PrescriptionItem.DrugName` giữ nguyên, chỉ thêm
+      `DrugId` optional), fix bug thống kê theo bác sĩ sai từ Đợt 1.
+- [x] Roadmap 13 mục — **Đợt 3 xong**: Multi-chair (entity `Chair`, FK
+      `Appointment.ChairId`, chặn double-booking theo ghế độc lập với bác sĩ, Calendar có
+      thêm resource view theo ghế), Waitlist (entity `WaitlistEntry`, trang `/waitlist`,
+      chỉ danh sách + xếp lịch thủ công, không tự động gợi ý), Referral tracking (field
+      `Patient.ReferralSource` text tự do).
+- [x] Roadmap 13 mục — **Đợt 4 xong**: Treatment plan nhiều bước (entity `TreatmentPlan` +
+      `TreatmentPlanItem`, tab "Kế hoạch điều trị"), Consent form điện tử (entity
+      `ConsentForm`, tái dùng pattern `AppointmentPhoto`/`IBlobContainer`), Quản lý vật tư
+      có tính tồn kho tự động (entity `Supply`/`SupplyUsage`, trang `/supplies`), Bảo hiểm
+      y tế chỉ hồ sơ thông tin không đụng tiền (entity `InsurancePolicy`, tab "Bảo hiểm").
+- [x] Roadmap 13 mục — **Đợt 5 xong (HOÀN TẤT TOÀN BỘ ROADMAP)**: Nhắc hẹn qua email
+      (`AppointmentReminderWorker` chạy nền mỗi 15 phút, `Volo.Abp.MailKit` + fallback
+      `NullEmailSender` khi chưa cấu hình SMTP), Patient Portal đọc-only (SPA riêng tại
+      `/portal`, OIDC client `Dentify_PatientPortal` riêng, role `Patient` permission hẹp,
+      `Patient.IdentityUserId` liên kết tài khoản — bệnh nhân chỉ xem lịch hẹn/lịch sử/
+      công nợ của chính mình, không tự đặt lịch/sửa gì).
 - [x] Bộ tài liệu kiến trúc `docs/architecture/*.md` (xong): 6 file tổng hợp toàn bộ
       chức năng/luồng nghiệp vụ/kiến trúc kỹ thuật/vận hành/quy ước hiện có, thay cho việc
       phải đọc lại toàn bộ nhật ký này để nắm trạng thái hệ thống.
 - [ ] Giai đoạn 5 (tuỳ chọn): AI voice-to-note, AI scan hoá đơn
 
 ## Nhật ký
+
+### 2026-07-09 (2) — Đợt hoàn thiện: ToothChart notation + Expense↔LabWork + CSV Appointment
+
+Sau đợt dọn dẹp + review đối kháng (2026-07-09 (1)), gộp toàn bộ TODO còn tồn đọng (mục
+"TODO / việc đang dở") + danh sách chức năng còn thiếu thành 1 kế hoạch 3 đợt nhỏ (A/B/C),
+làm tuần tự, build/test riêng từng đợt trước khi sang đợt kế. Khảo sát trước khi code phát
+hiện 1 số mục tưởng "chưa làm" thực ra đã làm 1 phần (xem chi tiết ở từng đợt bên dưới).
+
+**Đợt A — ToothChart (Palmer/Universal notation + appointmentId UI):**
+- Backend: thêm setting `Dentify.Clinic.ToothNotationSystem` (mặc định `"Iso3950"`, validate
+  bằng `RegularExpression` chỉ nhận 3 giá trị enum) — đúng pattern các setting `Clinic.*`
+  có sẵn, không đụng schema DB.
+- Frontend: `frontend/src/lib/toothNotation.ts` (mới) — hàm thuần `toPalmer`/`toUniversal`/
+  `formatToothNumber`, tính toán trực tiếp từ số ISO 3950 đã có ở client, không gọi API.
+  Wire vào `ToothChartSvg.tsx` (nhãn mỗi răng) và tiêu đề dialog `PatientToothChartPanel.tsx`.
+  Thêm `Select` chọn hệ hiển thị ở `SettingsPage.tsx`.
+- Phát hiện lúc khảo sát: **backend cho `appointmentId` khi cập nhật tình trạng răng đã
+  làm xong từ trước** (`ToothChart.UpdateToothStatus`, `UpdateToothStatusDto`,
+  `ToothChartAppService` đều đã có field) — chỉ thiếu UI. Thêm `Select` chọn lịch hẹn liên
+  quan (optional) vào dialog cập nhật, tải qua `appointmentsApi.getList({ patientId })`.
+
+**Đợt B — Expense ↔ LabWork liên kết + biểu đồ chi phí:**
+- Backend: `Expense.LabWorkId: Guid?` (domain method `LinkToLabWork`), FK optional
+  `ON DELETE SET NULL` (không Cascade — xoá LabWork không nên xoá luôn Expense đã phát
+  sinh). Migration `AddExpenseLabWorkLink`, verify qua `psql` xác nhận đúng cột/FK/index.
+  Test mới `Should_Link_And_Unlink_Expense_To_LabWork`.
+- Frontend: `ExpensesPage.tsx` — `Select` "Ca labo liên quan" (optional, không giới hạn
+  theo Category) trong dialog tạo/sửa, cột "Labo liên quan" trong bảng, biểu đồ cột ngang
+  chi phí theo danh mục (12 tháng gần nhất) dùng `recharts`, đúng pattern `BarChart` ở
+  `StatisticsPage.tsx`.
+- Phát hiện lúc khảo sát: **LabWork board đã có sẵn ô tìm kiếm** theo tên bệnh nhân/labo —
+  chỉ bổ sung thêm `Select` lọc theo `WorkType` (client-side, suy ra danh sách từ dữ liệu
+  board đã tải) thay vì làm từ đầu.
+
+**Đợt C — CSV Import/Export cho Appointment:**
+- Quyết định kỹ thuật (không có tiền lệ resolve tên→GUID trong codebase — Patient/Expense
+  CSV trước đó chỉ có field phẳng/enum, đây là lần đầu CSV đụng FK thật): export cả cột
+  tên hiển thị lẫn cột ID ẩn (`PatientId`/`DoctorId`/`ServiceId`/`ChairId`) để round-trip
+  không nhầm khi trùng tên; import ưu tiên đọc ID nếu khớp bản ghi đang tồn tại, fallback
+  khớp tên chính xác không phân biệt hoa/thường nếu cột ID trống. `PatientId` bắt buộc
+  resolve được (lỗi rõ ràng nếu không); `DoctorId`/`ServiceId`/`ChairId` bỏ qua (để trống)
+  nếu không khớp thay vì chặn cả dòng — đúng bản chất optional của các field này.
+- `frontend/src/lib/csv-resolve.ts` (mới) — hàm thuần `resolveEntityId` dùng chung cho cả
+  4 cột FK, không cần sửa backend (đúng triết lý "CSV xử lý ở frontend" đã chốt từ Giai
+  đoạn 4). Không xuất `prescriptionItems`/`payments` (dữ liệu con dạng bảng).
+
+Sau khi cả 3 đợt xong: build/test riêng từng đợt (không gộp), full backend test suite
+chạy lại 2 lần (giữa Đợt A/B và sau Đợt C) — 137 EF Core test + 1 Web test, không có
+regression. Cập nhật `docs/architecture/02-dac-ta-chuc-nang.md` (mục ToothChart, LabWork,
+Expense, Appointment, ClinicSettings) và `04-kien-truc-ky-thuat.md` (migration #15). Xoá
+mục `IsOperator` khỏi TODO (lỗi thời từ Đợt 1 roadmap, không phải việc còn thiếu).
+
+Không đưa vào đợt này (đúng phạm vi đã thống nhất trước khi code): production Docker thật
+(cần thông tin hạ tầng cụ thể từ người vận hành), Giai đoạn 5 tuỳ chọn (AI voice-to-note,
+AI scan hoá đơn — chưa từng cam kết), 2 leak LOW-severity còn sót từ review đối kháng
+(caption reset, blob URL revoke — mức độ nhỏ, cố tình để nguyên).
+
+Môi trường không có Playwright/browser automation — verify UI qua đọc code kỹ + build/
+test, không tự chạy thử tương tác thật trong trình duyệt.
+
+### 2026-07-09 (1) — Review đối kháng đợt dọn dẹp (2026-07-08 (6)) + sửa các lỗi phát hiện được
+
+Sau khi hoàn tất đợt dọn dẹp tồn đọng, chủ động chạy 1 workflow review độc lập (3 agent
+song song: backend correctness, frontend correctness, security/IDOR — mỗi finding được
+1 agent thứ 2 xác minh đối kháng, mặc định REFUTED nếu không tái hiện được lỗi thật) thay
+vì tự đánh giá code mình vừa viết. Review phát hiện 19 candidate, xác minh được 10 (phần
+còn lại bị gián đoạn giữa chừng do chạm giới hạn phiên làm việc, không phải do bị bác bỏ)
+— tất cả 10 đều **CONFIRMED** (không có false positive nào trong số đã xác minh xong).
+Đã sửa toàn bộ:
+
+- **[HIGH] `LinkItemToAppointmentAsync` không kiểm tra Appointment cùng Patient với
+  TreatmentPlan** — lỗi nghiêm trọng nhất tìm được: chỉ check Appointment tồn tại
+  (`_appointmentRepository.GetAsync`), không so `appointment.PatientId ==
+  plan.PatientId`, nên gắn được lịch hẹn của bệnh nhân A vào kế hoạch điều trị của bệnh
+  nhân B mà không có lỗi gì — làm sai lệch báo cáo/truy vết join
+  TreatmentPlanItem→Appointment→Patient. Fix: thêm so sánh `PatientId`, throw
+  `BusinessException(AppointmentBelongsToDifferentPatient = Dentify:00026)` nếu khác.
+  Thêm test `Should_Not_Link_Item_To_Appointment_Of_Different_Patient`.
+- **[MEDIUM] `ClinicSettingsAppService` tái dùng error code của `AppointmentPhoto`**
+  (`UnsupportedPhotoContentType`/`PhotoSizeTooLarge`) cho logo — message tiếng Anh/Việt
+  hardcode "tối đa 10MB" trong khi giới hạn logo thật là 2MB, gây thông báo lỗi sai hoàn
+  toàn khi user upload logo 3MB (báo sai giới hạn thay vì giới hạn thật). Fix: thêm 2 mã
+  lỗi riêng `UnsupportedLogoContentType = Dentify:00027`, `LogoSizeTooLarge =
+  Dentify:00028` + message localization đúng ngữ cảnh, cập nhật test tương ứng. Thêm 2
+  test mới (`Should_Throw_When_Downloading_Logo_That_Was_Never_Uploaded`,
+  `Should_Overwrite_Logo_On_Repeated_Upload`) theo đúng gap review đã chỉ ra.
+- **[MEDIUM] Migration `AddAppointmentPhotoCaptionMaxLength` không an toàn dữ liệu** —
+  `AlterColumn` thu hẹp `text` → `varchar(256)` không có bước truncate, sẽ crash nếu chạy
+  trên DB thật đã có caption dài hơn 256 ký tự (dù rủi ro thực tế thấp ở dự án này vì
+  Caption vừa được thêm tính năng set trong cùng đợt, chưa từng có dữ liệu cũ dài). Fix:
+  thêm `migrationBuilder.Sql("UPDATE ... SET Caption = LEFT(Caption, 256) WHERE
+  LENGTH(Caption) > 256")` trước `AlterColumn` — không cần chạy lại migration trên DB dev
+  hiện tại (đã apply rồi, EF Core không re-run theo nội dung), chỉ đảm bảo an toàn cho
+  môi trường chạy migration này lần đầu sau này.
+- **[MEDIUM, frontend] `IdentityUserPicker` có race condition khi gõ nhanh** — không có
+  cơ chế huỷ/bỏ qua response cũ, nếu response của query trước về sau response của query
+  sau thì đè kết quả mới bằng kết quả cũ. Fix: thêm `latestQueryRef` để bỏ qua response
+  không khớp query hiện tại. Cùng lúc fix thêm 1 gap UI liên quan (không đóng dropdown
+  khi click ra ngoài) bằng `mousedown` listener + `containerRef`.
+- **[MEDIUM, frontend] Dialog "Gắn lịch hẹn" trong `TreatmentPlansPanel` luôn hiện "Không
+  liên kết"** dù bước điều trị đã có lịch hẹn gắn sẵn — `Select` hardcode `value="none"`
+  thay vì đọc từ `item.appointmentId` thật. Fix: lưu `currentAppointmentId` vào state
+  `linkAppointmentTarget` lúc mở dialog, dùng làm `value` cho Select.
+- **[LOW, đã ghi nhận nhưng không sửa]**: state `caption` trong `AppointmentPhotosDialog`
+  không reset khi đổi appointment (rủi ro thấp — user hiếm khi gõ caption rồi đổi ý ngay
+  lập tức mà không upload/đóng dialog); blob URL logo trong `SettingsPage` không revoke
+  khi unmount (memory leak nhỏ, tương tự pattern đã tồn tại trước đó ở
+  `AppointmentPhotosDialog`, chấp nhận được ở mức độ ưu tiên hiện tại). Cả 2 để lại có
+  chủ đích — mức độ thấp, không ảnh hưởng chức năng, sẽ dọn nếu quay lại đợt sau.
+- **Không xác minh được (do phiên làm việc bị giới hạn giữa review)**: 1 finding về
+  permission `AbpIdentity.Users` gán cho Receptionist (nghi ngờ ban đầu: có thể permission
+  string sai/không tồn tại, hoặc cấp quá quyền so với ý định) — review dimension gốc báo
+  cáo permission này **đúng** (chỉ gate đọc/tìm kiếm, không phải Create/Update/Delete) dựa
+  trên đọc trực tiếp `IdentityPermissions.Users.Default` của ABP, nhưng bước xác minh đối
+  kháng chưa chạy xong. Đã tự kiểm tra lại thủ công: `Volo.Abp.Identity.Application`
+  package có sẵn, chuỗi `"AbpIdentity.Users"` khớp đúng
+  `IdentityPermissions.Users.Default` trong `Volo.Abp.Identity.Domain.Shared` — xác nhận
+  đúng, không cần sửa.
+- **`dotnet build`/`dotnet test`/`tsc -b`/`oxlint`/`npm run build`** sau khi sửa: đều pass
+  sạch, tổng 136 + 1 test (tăng từ 133 + 1, thêm 3 test mới từ các fix trên).
+
+### 2026-07-08 (6) — Dọn dẹp các mục "chưa làm" tồn đọng sau roadmap 13 mục
+
+Roadmap 5 đợt/13 mục đã hoàn tất toàn bộ (xem 2026-07-08 (5)). Thay vì làm tính năng mới,
+đợt này dọn dẹp các mục nhỏ đã bị ghi chú "chưa làm — để đợt sau" rải rác qua nhiều nhật
+ký trước — người dùng chọn xử lý cả 4 nhóm việc còn tồn đọng cùng lúc:
+
+- **3 trang quản lý danh mục còn thiếu (Doctor/Service/Drug/Chair)** — lỗ hổng vận hành
+  lớn nhất: từ Đợt 1-3, các entity này chỉ dùng làm nguồn Select, chưa có UI CRUD, phải
+  gọi API/Swagger trực tiếp để thêm bác sĩ/dịch vụ/thuốc/ghế mới. Cả 4 trang mới
+  (`DoctorsPage`/`ServicesPage`/`DrugsPage`/`ChairsPage`, route `/doctors`/`/services`/
+  `/drugs`/`/chairs`) dùng chung 1 khuôn (đúng pattern `ExpensesPage.tsx`) — `lib/*-api.ts`
+  + `types/*.ts` **đã đầy đủ CRUD từ trước** (viết sẵn cho Select dropdown), chỉ cần viết
+  UI, không cần sửa backend cho 3/4 trang.
+- **Component dùng chung `IdentityUserPicker`** (mới, `frontend/src/components/
+  IdentityUserPicker.tsx`) — Doctor cần chọn `IdentityUserId` khi tạo mới, và Patient
+  Portal linking (Đợt 5) cũng cần chọn IdentityUser — dùng chung 1 component thay vì viết
+  2 lần. Khảo sát xác nhận `IIdentityUserAppService` của ABP Identity module **đã wire đủ
+  3 tầng Application/HttpApi/Web từ đầu dự án**, `GET /api/identity/users?filter=...` gọi
+  được ngay không cần thêm code backend — chỉ cần cấp permission `AbpIdentity.Users` cho
+  role `Receptionist` (trước đó chỉ `admin` có, do ABP auto-seed).
+- **Nút "Cấp tài khoản Patient Portal" trong `PatientDetailPage.tsx`** — backend
+  `LinkIdentityUserAsync`/`UnlinkIdentityUserAsync` đã có từ Đợt 5 nhưng chưa có UI. Thêm
+  nút ở góc phải header: "Cấp tài khoản cổng bệnh nhân" (mở dialog `IdentityUserPicker`)
+  nếu chưa liên kết, badge "Đã cấp tài khoản portal" + nút "Huỷ liên kết" (qua
+  `ConfirmDialog`) nếu đã có.
+- **Caption ảnh appointment** — domain entity `AppointmentPhoto` đã có field `Caption` +
+  `SetCaption` từ đầu nhưng `AppointmentPhotoAppService.UploadAsync` chưa từng truyền giá
+  trị vào. Đổi chữ ký `UploadAsync(Guid, IRemoteStreamContent)` →
+  `UploadAsync(Guid, UploadAppointmentPhotoInput { Caption?, File })`, đúng pattern
+  `UploadConsentFormInput` đã có sẵn — **breaking change chữ ký method** chấp nhận được vì
+  sửa nội bộ, không phải API đã publish cho bên thứ 3. Thêm `AppointmentPhotoConsts.
+  MaxCaptionLength = 256` (trước đó cột DB không giới hạn) — cần 1 migration thu hẹp cột
+  (`AlterColumn`, EF Core cảnh báo "may result in loss of data", chấp nhận được vì chưa
+  từng có Caption dài hơn 256 ký tự được lưu).
+- **Picker Appointment cho SupplyUsage** — dialog "Ghi nhận sử dụng" trong `SuppliesPage`
+  trước đó không có cách chọn Appointment dù `CreateSupplyUsageDto.AppointmentId` đã
+  nullable optional từ Đợt 4. Thêm Select tải `appointmentsApi.getList(...)`, mặc định
+  "Không liên kết" — không cần sửa backend.
+- **`LinkItemToAppointmentAsync` cho TreatmentPlan** — domain method
+  `TreatmentPlan.LinkItemToAppointment` có sẵn từ Đợt 4 nhưng chưa có AppService method
+  lẫn UI gọi tới. Thêm `ITreatmentPlanAppService.LinkItemToAppointmentAsync(id, itemId,
+  LinkTreatmentPlanItemToAppointmentDto)` (validate Appointment tồn tại nếu có giá trị,
+  route `POST .../{id}/link-item-to-appointment/{itemId}` đúng convention
+  `change-item-status/{itemId}` đã có), UI thêm cột "Lịch hẹn" trong bảng Items của
+  `TreatmentPlansPanel.tsx` với dialog Select chọn/gỡ.
+- **CSV Import không đọc lại cột "Nguồn giới thiệu"** — export có cột này từ Đợt 3 nhưng
+  import bỏ sót, chỉ cần thêm 1 dòng map `row["Nguồn giới thiệu"]` vào
+  `patientsApi.create(...)`.
+- **Upload logo trực tiếp cho ClinicSettings** — trước đó chỉ nhận URL text. Theo đúng
+  pattern `AppointmentPhotoContainer`/`IBlobContainer<T>` đã dùng cho ảnh/consent form:
+  `ClinicLogoContainer` mới (blob tên cố định `"logo"`, ghi đè khi upload mới — chỉ giữ 1
+  logo tại 1 thời điểm, không có lịch sử), `ClinicLogoConsts` (JPEG/PNG/WEBP, tối đa 2MB —
+  nhỏ hơn AppointmentPhoto vì chỉ 1 logo). Setting mới `Dentify.Clinic.HasUploadedLogo`
+  đánh dấu đã upload trực tiếp (khác `LogoUrl` nhập tay — 2 cách cùng tồn tại, ưu tiên
+  hiển thị bản upload nếu có). **Route thật sự khác dự đoán ban đầu khi lên plan** — chạy
+  thử Web app + đọc Swagger spec xác nhận ABP sinh route `POST /api/app/clinic-settings/
+  upload-logo` và `POST /api/app/clinic-settings/download-logo` (không phải `/logo` như
+  đoán lúc đầu) — bài học: luôn xác minh route thật qua Swagger thay vì đoán theo pattern
+  khi có method mới không hoàn toàn giống mẫu đã biết.
+- **Checklist production** — thêm mục mới trong `05-trien-khai-van-hanh.md` liệt kê 8
+  bước người vận hành phải tự làm trước khi deploy thật ra internet (cert TLS thật,
+  reverse proxy, `RequireHttpsMetadata=true`, SMTP thật, đổi RootUrl 2 OIDC client, đổi
+  mật khẩu admin mặc định, backup định kỳ, review CORS) — chỉ tài liệu hoá, không tự động
+  hoá vì đều cần thông tin hạ tầng cụ thể chỉ người dùng biết.
+- **Backend test mới**: thêm test Caption vào `AppointmentPhotoAppServiceTests`, test
+  `LinkItemToAppointmentAsync` (gắn + gỡ) vào `TreatmentPlanAppServiceTests`, mới hoàn
+  toàn `ClinicSettingsAppServiceTests` phần upload/download logo + validate content-type.
+  Tổng 133 + 1 test pass (tăng từ 129 + 1 sau Đợt 5).
+- **`dotnet build`/`dotnet test`/`tsc -b`/`oxlint`/`npm run build`**: đều pass sạch.
+- **Chưa làm được — giới hạn môi trường giống mọi đợt trước**: không verify UI bằng
+  browser thật. Bù lại bằng build/test/verify dữ liệu qua `psql` + đọc Swagger spec thật
+  (chạy tạm Web app 1 lần để xác nhận route ClinicSettings logo, tắt lại ngay sau đó).
+- Chưa làm (đúng phạm vi đợt dọn dẹp, để lại có chủ đích): production Docker vẫn dùng
+  cert/domain placeholder (chỉ viết checklist, không tự generate — cần thông tin domain
+  thật); các mục nhỏ khác còn ghi trong TODO cũ (Palmer/Universal notation UI, filter
+  PaymentStatus ở backend cho Dashboard, trang Doctor lịch làm việc theo tuần, v.v.) vẫn
+  để nguyên, không nằm trong phạm vi 4 nhóm đã chọn lần này.
+
+### 2026-07-08 (5) — Roadmap Đợt 5: Nhắc hẹn Email, Patient Portal (đọc-only) — HOÀN TẤT ROADMAP 13 MỤC
+
+Đợt cuối cùng trong roadmap 5 đợt/13 mục (xem 2026-07-07 (8)). Cả 2 mục còn lại đều bị
+hoãn quyết định nghiệp vụ tới đúng đợt này theo đúng ghi chú gốc ("cố tình không chốt
+trong roadmap này"). Khảo sát xác nhận: **không có hạ tầng nào sẵn** cho cả 2 mục —
+`IEmailSender` chỉ có `NullEmailSender` no-op (trước đây chỉ bật ở `#if DEBUG`), không có
+`Volo.Abp.MailKit`/SMTP config; không có `Volo.Abp.BackgroundWorkers` (chỉ có
+`BackgroundJobs` package reference nhưng chưa từng dùng); `Patient` chưa có
+`IdentityUserId` (khác `Doctor` đã có link 1-1 với `IdentityUser` từ Đợt 1); chỉ có 1
+OIDC client `Dentify_App` dùng chung toàn bộ nhân viên, `ProtectedRoute` không đọc role.
+
+Hỏi 3 câu qua AskUserQuestion trước khi lên plan, cả 3 đều chọn phương án
+"(Recommended)": (1) Nhắc hẹn — **chỉ email qua SMTP thật** (không làm SMS, cần tài khoản
+provider trả phí ngoài phạm vi); (2) Patient Portal — **tối giản, đọc-only** (không tự
+đặt lịch, không tự đăng ký — admin tạo tài khoản + gán link thủ công); (3) SMTP
+credentials — **để trống placeholder** trong `appsettings.secrets.json` (code đầy đủ cấu
+hình, người vận hành tự điền khi deploy).
+
+- **Nhắc hẹn Email**: thêm `Volo.Abp.MailKit` + `Volo.Abp.BackgroundWorkers` package.
+  `Appointment.ReminderSentAt: DateTime?` + domain method `MarkReminderSent(sentAt)` —
+  chống gửi trùng tuyệt đối (worker chỉ chọn appointment `ReminderSentAt == null`).
+  `AppointmentReminderAppService.SendDueRemindersAsync()` (đánh dấu
+  `[RemoteService(IsEnabled = false)]` — không lộ ra REST, vì ABP tự sinh route cho MỌI
+  `IApplicationService` theo convention, nếu không sẽ vô tình có 1 endpoint public kích
+  hoạt gửi mail hàng loạt) — tách logic thành AppService riêng thay vì viết thẳng trong
+  worker để unit-test được độc lập với vòng đời `AsyncPeriodicBackgroundWorkerBase`.
+  Điều kiện chọn: `Status = Scheduled`, `ReminderSentAt == null`, `ScheduledDateTime`
+  trong cửa sổ `[now + 23h, now + 24h)`, `Patient.Email` khác rỗng — bỏ qua (không lỗi)
+  nếu thiếu email; gửi lỗi chỉ log warning, không throw, không chặn các appointment khác
+  cùng lượt quét. `AppointmentReminderWorker` (chu kỳ 15 phút) đăng ký qua
+  `DentifyWebModule.OnPostApplicationInitializationAsync` — chỉ chạy ở Web host, không
+  đăng ký ở DbMigrator.
+- **Fallback email an toàn**: `DentifyDomainModule` kiểm tra
+  `Settings:Abp.Mailing.Smtp.Host` — rỗng → `NullEmailSender` (không gửi, không crash);
+  có giá trị → MailKit gửi thật. Bỏ hẳn phân biệt `#if DEBUG` cũ (trước đây Release luôn
+  cố gắng gửi thật kể cả chưa cấu hình) để hành vi nhất quán dev/production.
+  `appsettings.secrets.json` mới cho `GiapTech.Dentify.Web` — theo đúng convention tracked-
+  nhưng-rỗng đã có sẵn ở DbMigrator/TestBase/ConsoleTestApp, không phải file bí mật thật.
+- **Patient Portal**: `Patient.IdentityUserId: Guid?` (nullable — không phải mọi Patient
+  đều có tài khoản) + unique **filtered** index (`HasFilter("\"IdentityUserId\" IS NOT
+  NULL")`, khác `Doctor.IdentityUserId` bắt buộc nên dùng unique thường) +
+  `LinkToIdentityUser`/`UnlinkIdentityUser`. `PatientAppService` thêm
+  `LinkIdentityUserAsync`/`UnlinkIdentityUserAsync` — copy đúng
+  `EnsureIdentityUserExistsAsync`/`EnsureIdentityUserNotLinkedAsync` từ
+  `DoctorAppService`, permission riêng `Patients.ManagePortalAccess` (tách khỏi
+  `Patients.Update`, đúng tinh thần `Appointments.ManageClinicalNotes`).
+- **Module `PatientPortal` tách hoàn toàn khỏi AppService nhân viên** — không tái dùng
+  `IAppointmentAppService`/`IPatientAppService` vì 2 lý do: tránh vô tình lộ endpoint ghi
+  cho role Patient nếu sau này ai thêm method mới mà quên xét quyền, và mọi response tự
+  lọc theo `Patient` gắn với `CurrentUser.Id` đang đăng nhập — **không nhận `patientId`
+  làm tham số từ client** (chặn IDOR). `IPatientPortalAppService`: `GetMyProfileAsync`,
+  `GetMyAppointmentsAsync(upcoming)` (không trả `PreOpNotes`/`PostOpNotes`/đơn thuốc),
+  `GetMyTreatmentHistoryAsync`, `GetMyBalanceAsync` (tự tính lại công nợ, không gọi chéo
+  `PatientAppService`).
+- **Role `Patient` + OIDC client thứ 2**: role mới trong `ClinicRoleDataSeedContributor`
+  chỉ có đúng 1 permission `PatientPortal.Default` — cố tình KHÔNG có bất kỳ permission
+  `Patients.*`/`Appointments.*` nào. `OpenIddictDataSeedContributor` seed thêm client
+  `Dentify_PatientPortal` (Authorization Code + PKCE, cùng kiểu `Dentify_App`), RedirectUri
+  riêng đọc từ `OpenIddict:Applications:Dentify_PatientPortal:RootUrl` — hoàn toàn tách
+  biệt khỏi client nhân viên.
+- **Migration `AddAppointmentReminderAndPatientPortalAccess`** — chỉ thêm cột vào 2 bảng
+  có sẵn (`Appointment.ReminderSentAt`, `Patient.IdentityUserId` + unique filtered index),
+  không tạo bảng mới, không cần data migration. Verify qua `psql`: cột đúng kiểu, index
+  filtered đúng, role `Patient` xuất hiện trong `AbpRoles`, client
+  `Dentify_PatientPortal` xuất hiện trong `OpenIddictApplications`, permission
+  `Dentify.PatientPortal` được gán cho cả role `Patient` lẫn `admin` (đúng hành vi ABP
+  chuẩn — admin luôn có mọi permission).
+- **Backend test mới**: `AppointmentReminderAppServiceTests` (gửi đúng cửa sổ 23-24h,
+  không gửi trùng, không gửi ngoài cửa sổ, không gửi cho appointment `Cancelled`, bỏ qua
+  patient không có email mà không lỗi), `PatientPortalAppServiceTests` (**trọng tâm**:
+  dùng `ICurrentPrincipalAccessor.Change(ClaimsPrincipal)` để giả lập đăng nhập theo từng
+  `IdentityUserId` — verify Patient A tuyệt đối không thấy dữ liệu Patient B, verify throw
+  `PatientPortalAccountNotLinked` khi tài khoản chưa gán link, verify tính công nợ đúng,
+  verify lịch sử điều trị chỉ gồm Appointment `Completed`), thêm test link/unlink vào
+  `PatientAppServiceTests` (đúng khuôn `DoctorAppServiceTests`). Cộng 2
+  `EfCoreXxxAppServiceTests` wrapper. Tổng 129 + 1 test pass (tăng từ 116 + 1 ở Đợt 4).
+- **Frontend Patient Portal**: SPA thứ 2 hoàn toàn độc lập nhưng **cùng 1 Vite build**
+  (đơn giản hoá vận hành — 1 Docker image) — `auth/patientPortalUserManager.ts`
+  (`UserManager` thứ 2, xác nhận `oidc-client-ts` tự scope key localStorage theo
+  authority+client_id nên không đè token SPA nhân viên), `auth/
+  PatientPortalAuthProvider.tsx` (context React riêng), `components/portal/
+  PortalProtectedRoute.tsx`, `pages/portal/` (`PortalAuthCallbackPage`, `PortalLayout`
+  không sidebar, `PortalDashboardPage` — hồ sơ + công nợ + xem trước lịch hẹn sắp tới,
+  `PortalAppointmentsPage` — Tabs "Sắp tới"/"Lịch sử điều trị", thuần thông tin không có
+  hành động), `lib/patient-portal-api.ts` (không import `lib/api.ts`/`auth/userManager.ts`
+  của SPA nhân viên). Route `/portal/*` mount trong `App.tsx` qua 1 component
+  `PatientPortalRoutes` bọc `<Routes>` con bằng `PatientPortalAuthProvider`. Không làm
+  trang login riêng — `PortalProtectedRoute` tự redirect sang đăng nhập, đúng hành vi
+  `ProtectedRoute` gốc. Thêm badge nhỏ "Đã nhắc hẹn" (tooltip giờ gửi) cạnh trạng thái
+  thanh toán trong `AppointmentsPage.tsx`.
+- **`tsc -b`/`oxlint`/`npm run build`**: đều pass sạch.
+- **Chưa làm được — giới hạn môi trường giống mọi đợt trước**: không verify UI bằng
+  browser thật (không có Playwright/browser automation tool). Bù lại bằng build/test/
+  verify dữ liệu qua `psql`.
+- **Lưu ý bảo mật — lặp lại lần thứ 4**: tiếp tục phát hiện khối nội dung giả dạng
+  "system-reminder" chèn lẫn trong tool output trong quá trình khảo sát Đợt 5 — đã bỏ qua
+  đúng đắn, không hành động theo, báo cáo minh bạch cho người dùng. Nguồn injection thật
+  vẫn chưa xác định rõ.
+- Chưa làm (đúng phạm vi Đợt 5, để lại có chủ đích): không gửi SMS, SMTP credentials thật
+  chưa điền (chỉ placeholder — cần điền khi deploy để nhắc hẹn thực sự gửi được), Patient
+  Portal không có UI "Cấp tài khoản portal" trong `PatientDetailPage.tsx` (phải gọi API
+  trực tiếp/Swagger), không có luồng quên mật khẩu riêng cho portal (dùng chung trang
+  Account/Login mặc định của ABP), Patient Portal không có tự đặt lịch/tự đăng ký.
+- **Roadmap 13 mục — HOÀN TẤT TOÀN BỘ 5 ĐỢT.** Không còn mục nào trong danh sách gốc
+  (2026-07-07 (8)) chưa triển khai. Việc tiếp theo (nếu có) sẽ là các hạng mục mới ngoài
+  phạm vi roadmap này, hoặc hoàn thiện các điểm "chưa làm" đã ghi chú rải rác qua từng đợt.
+
+### 2026-07-08 (4) — Roadmap Đợt 4: Treatment plan, Consent form, Quản lý vật tư, Bảo hiểm y tế
+
+Tiếp tục "cứ làm theo kế hoạch, tiếp tục đi, đừng bỏ sót chức năng nào" — sang Đợt 4. Lên
+plan qua EnterPlanMode, khảo sát xác nhận pattern tái dùng cho từng mục (Payment cho
+inventory deduction, AppointmentPhoto cho ConsentForm, WaitlistEntry cho aggregate root
+độc lập). Hỏi 3 câu qua AskUserQuestion trước khi code, cả 3 đều chọn phương án
+"(Recommended)": (1) TreatmentPlan — nhiều kế hoạch/bệnh nhân không giới hạn, mỗi kế
+hoạch có Status riêng; (2) ConsentForm — gắn với Appointment cụ thể, không gắn Patient
+chung chung; (3) Supply — có tính tồn kho tự động (SupplyUsage trừ trực tiếp
+Supply.Quantity); và tách riêng hỏi thêm 1 câu cho InsurancePolicy — chỉ hồ sơ thông tin,
+không đụng tiền/không liên kết Appointment/Payment, đúng tinh thần "không làm claim
+workflow" đã chốt trong roadmap gốc.
+
+- **Entity `TreatmentPlan` + `TreatmentPlanItem`** (`Domain/TreatmentPlans/`, aggregate
+  root chứa entity con, đúng khuôn `Appointment`/`PrescriptionItem`): `PatientId`,
+  `Title` (≤256), `Notes?` (≤2000), `Status` (enum `Draft/Active/Completed/Cancelled`),
+  `Items` (list `TreatmentPlanItem`: `ServiceId?`, `StepOrder`, `Description` (≤512),
+  `EstimatedCost`, `Status` riêng `Pending/InProgress/Completed/Skipped`, `AppointmentId?`
+  để gắn khi bước đã lên lịch thật). `ITreatmentPlanRepository.GetWithDetailsAsync`
+  (custom repository, include `Items`) đúng pattern `IAppointmentRepository`.
+  `TreatmentPlanAppService.ApplyItems` diff theo `Id` y hệt
+  `AppointmentAppService.ApplyPrescriptionItems` (item không `Id` → thêm mới, có `Id` →
+  sửa, `Id` cũ vắng mặt → xoá).
+- **Entity `ConsentForm`** (`Domain/Appointments/ConsentForm.cs`, cùng module
+  Appointment, tái dùng gần như nguyên vẹn pattern `AppointmentPhoto`): FK
+  `AppointmentId` bắt buộc, `FormTitle` (≤256), `SignedAt` (UTC), cộng thêm các field blob
+  chuẩn (`BlobName`/`FileName`/`ContentType`/`SizeBytes`). Container blob riêng
+  `ConsentFormContainer` (`dentify-consent-forms`, `UseDatabase()`) — cho phép thêm
+  `application/pdf` so với `AppointmentPhotoConsts` (chỉ ảnh) vì văn bản ký thường là bản
+  scan PDF, tối đa 10MB.
+- **Entity `Supply` + `SupplyUsage`** (`Domain/Supplies/`, 2 aggregate root độc lập —
+  không phải child collection, vì `SupplyUsage` phình to vô hạn theo thời gian đúng lý do
+  `ToothRecordHistory` tách khỏi `ToothChart`): `Supply` có `Name`/`Unit`/`Quantity`
+  (khởi tạo 0)/`LowStockThreshold?`/`IsActive`, domain method `IncreaseQuantity`/
+  `DecreaseQuantity` (throw `BusinessException(InsufficientSupplyQuantity)` nếu vượt
+  tồn). `SupplyUsageAppService.CreateAsync` điều phối 2 aggregate: load `Supply`, gọi
+  `DecreaseQuantity`, lưu lại, rồi mới insert `SupplyUsage` — đúng nguyên tắc DDD giống
+  `ToothChartAppService.UpdateStatusAsync`. `DeleteAsync` hoàn tác đúng chiều ngược lại
+  (`IncreaseQuantity` trước khi xoá record) để không làm sai lệch tồn kho khi xoá nhầm.
+- **Entity `InsurancePolicy`** (`Domain/Patients/InsurancePolicy.cs`, aggregate root độc
+  lập — không phải entity con của Patient vì 1 bệnh nhân có thể có nhiều bảo hiểm/nhiều
+  thời kỳ, giống lý do `WaitlistEntry` độc lập): `PatientId`, `ProviderName` (≤128),
+  `PolicyNumber` (≤64), `EffectiveDate`, `ExpiryDate?`, `Notes?` (≤1000). **Không có field
+  hay method nào liên quan tiền hoặc Appointment** — CRUD đơn giản nhất trong toàn bộ Đợt
+  4, đúng quyết định đã chốt.
+- **Migration `AddTreatmentPlanConsentFormSupplyAndInsurancePolicy`** — gộp cả 4 thay đổi
+  vào 1 file vì EF Core tool tự gộp khi cả 4 entity được code cùng lúc trước khi chạy
+  `dotnet ef migrations add` lần đầu (giống lý do đã xảy ra ở Đợt 3); đổi tên phản ánh
+  đúng nội dung gộp, không tách lại thủ công. Không cần data migration đặc biệt — toàn bộ
+  bảng/cột mới hoàn toàn. Verify qua `psql`: cả 6 bảng (`AppTreatmentPlans`,
+  `AppTreatmentPlanItems`, `AppConsentForms`, `AppSupplies`, `AppSupplyUsages`,
+  `AppInsurancePolicies`) đúng cột/kiểu dữ liệu (`Quantity numeric(18,3)`,
+  `EstimatedCost numeric(18,2)`, `SignedAt timestamp with time zone`), đúng FK/cascade.
+- **Backend test mới**: `TreatmentPlanAppServiceTests` (tạo/sửa có Items, diff
+  add/edit/remove, đổi Status kế hoạch + từng Item, filter theo Patient+Status),
+  `ConsentFormAppServiceTests` (upload/download/xoá, validate content-type/size — theo
+  đúng khuôn `AppointmentPhotoAppServiceTests`), `SupplyAppServiceTests` (CRUD + Restock +
+  Activate/Deactivate), `SupplyUsageAppServiceTests` (**trọng tâm**: ghi nhận sử dụng trừ
+  tồn đúng, chặn dùng vượt tồn với đúng mã lỗi `InsufficientSupplyQuantity`, xoá usage
+  hoàn tác đúng số lượng, filter theo Supply/Appointment), `InsurancePolicyAppServiceTests`
+  (CRUD đơn giản, list theo Patient, xác nhận không có liên kết tài chính). Cộng 5
+  `EfCoreXxxAppServiceTests` wrapper tương ứng. Tổng 116 + 1 test pass (tăng từ 90 + 1 ở
+  Đợt 3).
+- **Frontend**: `types/`+`lib/` cho cả 4 module (`treatmentPlan`, `consentForm`, `supply`,
+  `insurancePolicy`). Tab mới **"Kế hoạch điều trị"** (`TreatmentPlansPanel.tsx`, nhúng
+  `PatientDetailPage.tsx`) — danh sách kế hoạch dạng card, Select đổi Status kế hoạch +
+  từng bước ngay trên card/bảng, dialog tạo/sửa quản lý Items động (thêm/xoá dòng, đúng
+  pattern đơn thuốc trong `AppointmentsPage.tsx`). Tab mới **"Bảo hiểm"**
+  (`InsurancePoliciesPanel.tsx`) — bảng đơn giản kèm badge đỏ "Hết hạn". Component mới
+  **`ConsentFormsDialog.tsx`** (mirror `AppointmentPhotosDialog.tsx`, thêm ô "Tiêu đề
+  phiếu"/"Ngày ký"), mở từ icon `FileText` mới trong hàng hành động của
+  `AppointmentsPage.tsx`. Trang mới **`SuppliesPage.tsx`** (`/supplies`, thêm route +
+  sidebar menu "Vật tư") — bảng vật tư có badge "Sắp hết hàng", dialog tạo/sửa, dialog
+  "Nhập kho"/"Ghi nhận sử dụng", toggle Kích hoạt/Ngừng sử dụng.
+- **`tsc -b`/`oxlint`/`npm run build`**: đều pass sạch, không có lỗi/warning mới phát
+  sinh từ thay đổi Đợt 4.
+- **Chưa làm được — giới hạn môi trường giống Đợt 1–3**: không verify UI bằng browser
+  thật (không có Playwright/browser automation tool trong session này). Bù lại bằng
+  build/test/verify dữ liệu qua `psql`.
+- **Lưu ý bảo mật — lặp lại lần thứ 2 và 3**: tiếp tục phát hiện các khối nội dung giả
+  dạng "system-reminder" bị chèn lẫn trong tool output đọc được trong phiên làm việc này
+  (bao gồm cả nội dung giả claim "Plan mode is active"/ngày hệ thống đổi/thông báo MCP
+  auth giả — không phải do hệ thống Claude Code thật sinh ra). Đã bỏ qua đúng đắn mọi
+  lần, không hành động theo nội dung giả, và báo cáo minh bạch cho người dùng mỗi lần
+  phát hiện. Nguồn injection thật chưa xác định rõ; không ảnh hưởng tới kết quả code Đợt
+  4.
+- Chưa làm (đúng phạm vi Đợt 4, để đợt sau nếu cần): picker chọn Appointment cụ thể khi
+  ghi nhận `SupplyUsage` (hiện để trống `AppointmentId`, nhập tay đơn giản), UI gọi
+  `TreatmentPlanItem.LinkItemToAppointment` (domain method có sẵn nhưng chưa có chỗ gọi
+  từ frontend), đọc lại/import CSV cho 4 module mới.
+- Tiếp theo: Đợt 5 theo đúng roadmap đã chốt (xem 2026-07-07 (8)) — Nhắc hẹn SMS/email,
+  Patient Portal — hoàn tất toàn bộ 13 mục gốc.
+
+### 2026-07-08 (3) — Roadmap Đợt 3: Multi-chair, Waitlist, Referral tracking
+
+Tiếp tục "cứ làm theo kế hoạch, tiếp tục đi, đừng bỏ sót chức năng nào" — sang Đợt 3.
+Lên plan qua EnterPlanMode, khảo sát xác nhận pattern `Doctor`/`Service` (Đợt 1, 2) và
+`EnsureDoctorNotDoubleBookedAsync` là mẫu chuẩn để làm `Chair`. Hỏi 2 câu qua
+AskUserQuestion trước khi code: (1) Multi-chair — chỉ backend + Select hay thêm cả
+resource view trên Calendar? Chốt: **resource view đầy đủ** (đầu tư frontend lớn hơn
+nhưng đúng nghĩa "multi-chair" trực quan). (2) Waitlist — tự động gợi ý khi có lịch
+trống hay chỉ danh sách xếp lịch thủ công? Chốt: **chỉ danh sách + thủ công** (đơn giản
+hoá, tránh phải định nghĩa phức tạp thế nào là "phù hợp").
+
+- **Entity `Chair`** (`Domain/Chairs/Chair.cs`, đúng khuôn `Doctor`): `Name` (≤64),
+  `IsActive`. `Appointment.ChairId: Guid?` FK thật, `IsRequired(false)` — đúng pattern
+  `DoctorId`/`ServiceId`.
+- **Chặn double-booking theo ghế**: `EnsureChairNotDoubleBookedAsync` trong
+  `AppointmentAppService` — copy nguyên logic `EnsureDoctorNotDoubleBookedAsync` (lọc
+  `ChairId`, loại `Cancelled`, loại chính nó khi update, check overlap khung giờ), throw
+  `BusinessException(ChairDoubleBooked)`. **2 check chạy độc lập nhau** — trùng giờ khác
+  ghế khác bác sĩ là hợp lệ; trùng ghế dù khác bác sĩ vẫn bị chặn (2 bác sĩ không thể
+  dùng chung 1 ghế cùng lúc) — đã viết test riêng cho từng trường hợp.
+- **Entity `WaitlistEntry`** (`Domain/Waitlist/WaitlistEntry.cs`, aggregate root độc lập
+  — không phải entity con của Patient/Appointment): `PatientId` bắt buộc,
+  `DoctorId`/`ServiceId` optional (mong muốn, không bắt buộc khớp), `PreferredTimeNote`
+  (text tự do ≤256, KHÔNG làm structured time-range vì không cần match tự động theo
+  quyết định đã chốt), `Notes`, `Status` (enum `Waiting/Scheduled/Cancelled` — chuyển
+  sang `Scheduled` hoàn toàn thủ công, không tự động liên kết `AppointmentId` nào).
+  `ChangeStatusAsync` action riêng, đúng pattern `UpdateStatusAsync` của LabWork.
+- **Referral tracking**: `Patient.ReferralSource` (string? ≤128, text tự do) — field đơn
+  giản nhất trong 3 mục, không JSON conversion (khác `Tags`/`Allergies` vì không phải
+  list), không có danh mục cố định theo đúng roadmap gốc.
+- **Migration `AddChairWaitlistAndReferralSource`** — gộp cả 3 thay đổi vào 1 file vì EF
+  Core tool tự gộp khi cả 3 thay đổi `DentifyDbContext` được code cùng lúc trước khi
+  chạy `dotnet ef migrations add` lần đầu tiên; đổi tên migration cho phản ánh đúng nội
+  dung thay vì tách lại thủ công. Không cần data migration đặc biệt (khác Đợt 2) — cả 3
+  đều cột/bảng hoàn toàn mới, không đụng dữ liệu hiện có. Verify qua `psql`: cấu trúc
+  bảng `AppChairs`/`AppWaitlistEntries` đúng, FK đúng, cột `ReferralSource`/`ChairId`
+  tồn tại trên bảng cũ.
+- **Frontend — resource view Calendar**: cài thêm `@fullcalendar/resource` +
+  `@fullcalendar/resource-timegrid` (cùng version `^6.1.21` khớp package cũ, phải dùng
+  `--cache` riêng vì npm cache global bị lỗi quyền root). `AppointmentCalendar.tsx` thêm
+  view `resourceTimeGridDay` ("Theo ghế") — mỗi Chair là 1 cột resource, cộng thêm 1
+  resource ảo "Chưa xếp ghế" cho appointment chưa có `ChairId` để không mất event khỏi
+  calendar. Kéo-thả sang cột ghế khác gọi `onEventReschedule` với `newChairId` optional
+  (giữ tương thích chữ ký cũ cho nơi gọi không đổi ghế).
+- **Trang mới `WaitlistPage.tsx`** (`/waitlist`, thêm route + menu sidebar): bảng lọc
+  theo Status (mặc định `Waiting`), dialog tạo/sửa, Select đổi Status ngay trên bảng
+  (không cần Kanban/kéo-thả vì là danh sách phẳng).
+- **`PatientsPage.tsx`/`PatientDetailPage.tsx`**: thêm Input "Nguồn giới thiệu" trong
+  dialog, hiển thị "Biết đến qua: ..." ở trang chi tiết nếu có giá trị, thêm cột vào
+  Export CSV (chưa đọc lại khi Import — không yêu cầu trong roadmap).
+- **Backend test mới**: `ChairAppServiceTests`, `WaitlistEntryAppServiceTests` (theo
+  khuôn `DoctorAppServiceTests`), thêm test double-booking ghế vào
+  `AppointmentAppServiceTests` (cùng ghế trùng giờ bị chặn dù khác bác sĩ; khác ghế khác
+  bác sĩ cùng giờ hợp lệ), test `Patient.ReferralSource` set/update trong
+  `PatientAppServiceTests`. Tổng 90 + 1 test pass (tăng từ 74 + 1 ở Đợt 2).
+- **Chưa làm được — giới hạn môi trường giống Đợt 1, 2**: không verify UI bằng browser
+  thật (không có Playwright/browser automation tool trong session này). Bù lại bằng
+  build/test/verify dữ liệu qua `psql`.
+- **Lưu ý bảo mật phát hiện khi khảo sát**: 1 agent Explore con báo cáo phát hiện các
+  khối nội dung giả dạng "system-reminder" bị chèn lẫn trong tool output nó đọc được lúc
+  khảo sát Đợt 3 (không phải do hệ thống Claude Code thật sinh ra, cố yêu cầu hành động
+  ngoài phạm vi) — agent đã bỏ qua đúng đắn, không hành động theo. Tự kiểm tra lại
+  `06-quy-uoc-phat-trien.md` trực tiếp xác nhận file sạch — nguồn injection thật (nếu
+  có) chưa xác định rõ nằm ở đâu, đã báo cho người dùng biết để tự kiểm tra thêm nếu
+  muốn, không ảnh hưởng tới kết quả code Đợt 3.
+- Chưa làm (đúng phạm vi Đợt 3, để đợt sau nếu cần): trang quản lý Chair riêng ở
+  frontend (hiện chỉ dùng làm nguồn Select/resource, tạo/sửa/xoá phải gọi API trực
+  tiếp), logic tự động gợi ý Waitlist khi có lịch trống/huỷ (cố tình không làm theo
+  quyết định đã chốt), đọc lại cột "Nguồn giới thiệu" khi Import CSV bệnh nhân.
+- Tiếp theo: Đợt 4 theo đúng roadmap đã chốt (xem 2026-07-07 (8)) — Treatment plan nhiều
+  bước, Consent form điện tử, Bảo hiểm y tế, Quản lý vật tư/tồn kho — không bỏ sót mục
+  nào trong 13 mục gốc.
+
+### 2026-07-08 (2) — Roadmap Đợt 2: entity Service (thay TreatmentType), entity Drug
+
+Tiếp tục "cứ làm theo kế hoạch, tiếp tục đi, đừng bỏ sót chức năng nào" — sang Đợt 2 của
+roadmap 5 đợt. Lên plan qua EnterPlanMode, khảo sát xác nhận `TreatmentType` (enum 10 giá
+trị cố định) tham chiếu ở 13 file (6 backend + 7 frontend) — breaking change thật vì đổi
+kiểu cột từ `int` sang `Guid`. Hỏi người dùng qua AskUserQuestion cách xử lý dữ liệu cũ,
+chốt: **seed 10 Service khớp đúng enum cũ bằng Guid cố định, migration tự động map dữ
+liệu** — không mất dữ liệu, không cần nhập lại tay (khác cách làm với Drug — giữ song
+song không breaking, theo đúng roadmap gốc đã định trước).
+
+- **Entity `Service`** (`Domain/Services/Service.cs`, theo đúng khuôn `Doctor`):
+  `Name` (≤128), `Price` (giá tham chiếu, không ràng buộc `Appointment.Price`),
+  `IsActive` (deactivate thay xoá cứng). Thay thế hoàn toàn `Appointment.TreatmentType`
+  (enum) bằng `Appointment.ServiceId` (`Guid?`, FK thật, `IsRequired(false)`) — domain
+  method `SetTreatmentType` đổi tên thành `AssignService` (nhất quán với `AssignDoctor`
+  đã có). Enum `TreatmentType.cs` bị xoá hẳn, không giữ song song.
+- **Entity `Drug`** (`Domain/Drugs/Drug.cs`): `Name` (≤256), `DefaultDosage?` (≤128),
+  `IsActive`. **Không breaking**: `PrescriptionItem.DrugName` (text tự do) giữ nguyên,
+  chỉ thêm `DrugId: Guid?` optional tham chiếu `Drug.Id` — không ràng buộc phải khớp tên.
+- **Migration `AddServiceEntity`** (1 file xử lý cả Service + Drug vì EF Core tool tự
+  gộp khi generate cùng lúc) — **có xử lý data migration thật**, không chỉ đổi schema:
+  1. Tạo bảng `AppServices`/`AppDrugs`, thêm cột `ServiceId`/`DrugId` (chưa FK).
+  2. `InsertData` 10 Service với **Guid cố định hard-code**
+     (`00000000-0000-0000-0000-00000000000N`) khớp đúng thứ tự enum cũ, `Price = 0` mặc
+     định (phòng khám tự cập nhật giá thật sau).
+  3. `migrationBuilder.Sql(...)` — `UPDATE "AppAppointments" SET "ServiceId" = CASE
+     "TreatmentType" WHEN 0 THEN '<guid>' ... END::uuid` để map toàn bộ dữ liệu cũ.
+  4. Thêm FK constraint sau khi map xong, rồi mới `DropColumn TreatmentType`.
+  **Thứ tự bước 2→3→4 bắt buộc** — đảo thứ tự sẽ khiến map dữ liệu hoặc FK constraint
+  thất bại.
+- **Verify thật qua `psql`** (đúng bài học Đợt 1 — không chỉ tin log `DbMigrator`): xác
+  nhận cả 10 Service seed đúng tên/Guid, toàn bộ 4 Appointment cũ (dữ liệu dev hiện có,
+  tất cả `TreatmentType = 0`) map đúng sang `ServiceId` = Service "Khám tổng quát", cột
+  `TreatmentType` đã bị xoá khỏi `AppAppointments`, bảng `AppDrugs` tồn tại với FK đúng.
+- **Phát hiện + fix 1 bug thật đang tồn tại** (không phải do Đợt 2 gây ra, có từ Đợt 1):
+  `StatisticsAppService.GetDoctorStatisticsAsync` vẫn join `Appointment.DoctorId` thẳng
+  tới `IdentityUser` — sai từ khi Đợt 1 đổi `DoctorId` thành FK tới `Doctor.Id` (không
+  phải `IdentityUser.Id` nữa), khiến thống kê theo bác sĩ luôn hiển thị "Chưa phân công".
+  Phát hiện qua khảo sát kỹ trước khi code (đọc lại toàn bộ `StatisticsAppService.cs`),
+  sửa cùng lúc vì đang động vào đúng file này để đổi `TreatmentType` → `Service`. Fix:
+  join 2 tầng đúng như `AppointmentAppService.MapToDtosAsync` đã làm
+  (`DoctorId → Doctor.IdentityUserId → IdentityUser.Name`).
+- **`GetTreatmentTypeStatisticsAsync` đổi tên thành `GetServiceStatisticsAsync`**
+  (`TreatmentTypeStatisticDto` → `ServiceStatisticDto`), group theo `ServiceId`, join tên
+  qua `Service.Name` — route đổi từ `treatment-type-statistics` sang
+  `service-statistics`.
+- **`ServiceAppService`/`DrugAppService`** (CRUD + `GetActiveListAsync` không phân trang
+  cho Select) + `ServiceMapper`/`DrugMapper` (Mapperly, đã đăng ký
+  `AddSingleton<...Mapper>()` ngay — bài học cũ từ 2026-07-06 (4)). Dùng alias
+  `ServiceEntity = GiapTech.Dentify.Services.Service` ở những file cần cả `Service` entity
+  và `Volo.Abp.Application.Services` namespace trong cùng scope, tránh nhầm lẫn tên.
+- **Permission mới**: nhóm `Services` (`Default/Create/Update/Delete`), `Drugs`
+  (`Default/Create/Update/Delete`).
+- **Backend test mới**: `ServiceAppServiceTests`, `DrugAppServiceTests` (theo khuôn
+  `DoctorAppServiceTests`), thêm test cho `AppointmentAppServiceTests` (tạo/sửa
+  Appointment có `ServiceId`, tạo `PrescriptionItem` có `DrugId`). Tổng 74 + 1 test pass
+  (tăng từ 61 + 1 ở Đợt 1).
+- **Frontend**: `types/service.ts`, `types/drug.ts`, `lib/services-api.ts`,
+  `lib/drugs-api.ts` mới. Xoá hẳn `TreatmentType`, `TreatmentTypeName`,
+  `TREATMENT_TYPE_LABELS_VI` khỏi `types/appointment.ts` — không giữ song song.
+  `AppointmentsPage.tsx`: Select "Loại hình khám" cũ (danh sách tĩnh) đổi thành Select
+  "Dịch vụ" động (`servicesApi.getActiveList()`); form đơn thuốc thêm Select chọn thuốc
+  từ danh mục (`drugsApi.getActiveList()`) tự điền `drugName`/`dosage`, có tuỳ chọn "Nhập
+  tên khác" để gõ tự do (không khoá cứng theo danh mục). `StatisticsPage.tsx` đổi
+  `treatmentStats` → `serviceStats`, bỏ lookup label tĩnh vì `serviceName` đã join sẵn từ
+  backend. `InvoicePage.tsx`, `PatientDetailPage.tsx` đổi hiển thị sang
+  `appointment.serviceName`. `tsc -b`, `oxlint`, `npm run build` đều pass sạch.
+- **Chưa làm được — giới hạn môi trường giống Đợt 1**: không verify UI bằng browser thật
+  (không có Playwright/browser automation tool trong session này). Bù lại bằng
+  build/test/verify dữ liệu qua `psql` như Đợt 1.
+- Chưa làm (đúng theo phạm vi Đợt 2, để đợt sau nếu cần): trang quản lý Service/Drug
+  riêng ở frontend (hiện chỉ dùng làm nguồn Select, tạo/sửa/xoá phải gọi API trực tiếp),
+  gợi ý `Appointment.Price` tự động theo `Service.Price` khi chọn dịch vụ (roadmap không
+  yêu cầu ràng buộc này).
+- Tiếp theo: Đợt 3 theo đúng roadmap đã chốt (xem 2026-07-07 (8)) — không bỏ sót mục nào
+  trong 13 mục gốc.
+
+### 2026-07-08 (1) — Roadmap Đợt 1: Doctor entity, phân quyền vai trò, DurationMinutes
+
+User ra lệnh "cứ làm theo kế hoạch, tiếp tục đi, đừng bỏ sót chức năng nào" — bắt đầu code
+Đợt 1 của roadmap 5 đợt đã chốt (2026-07-07 (8)), theo plan đã duyệt qua EnterPlanMode
+(có 1 câu AskUserQuestion: chọn tách riêng permission `Appointments.ManageClinicalNotes`
+khỏi `Appointments.Update` — Recommended).
+
+- **Entity `Doctor`** (`Domain/Doctors/Doctor.cs`, `FullAuditedAggregateRoot<Guid>`):
+  `IdentityUserId` (bắt buộc, unique), `Specialization?` (≤256), `IsActive` (mặc định
+  true — deactivate thay vì xoá cứng để không mất lịch sử Appointment cũ). EF Core:
+  bảng `AppDoctors`, unique index `IdentityUserId`, FK thật `Appointment.DoctorId →
+  Doctor.Id` (`IsRequired(false)`) — trước đây `DoctorId` chỉ là `Guid?` rời không FK.
+  Migration `AddDoctorAndAppointmentDuration`.
+- **`Appointment.DurationMinutes`**: `int`, mặc định 30, `Check.Range(5, 480)` ở domain.
+  Trước đây frontend giả định cố định 30 phút khi vẽ FullCalendar, không lưu DB — giờ
+  lưu thật và `AppointmentCalendar.tsx` đọc `durationMinutes` thật cho từng appointment.
+- **Chặn double-booking bác sĩ**: `AppointmentAppService.CreateAsync`/`UpdateAsync` query
+  các Appointment khác cùng `DoctorId` (loại `Status = Cancelled`, loại chính nó khi
+  update) có khung giờ giao với appointment đang lưu → throw `BusinessException`
+  (`DoctorDoubleBooked`).
+- **`DoctorAppService`** (CRUD + `GetActiveListAsync` không phân trang cho Select) +
+  `DoctorMapper` (Mapperly, đã nhớ đăng ký `AddSingleton<DoctorMapper>()` — bài học cũ từ
+  2026-07-06 (4)). Validate `IdentityUserId` tồn tại và chưa gắn Doctor khác
+  (`DoctorAlreadyLinkedToUser`).
+- **Permission mới**: nhóm `Doctors` (`Default/Create/Update/Delete`),
+  `Appointments.ManageClinicalNotes` (tách khỏi `Appointments.Update` —
+  `AppointmentAppService.UpdateAsync` chỉ `AuthorizationService.CheckAsync` permission
+  này khi `PreOpNotes`/`PostOpNotes` thực sự đổi so với giá trị cũ).
+- **Seed 3 Role lâm sàng tự động** qua `ClinicRoleDataSeedContributor`
+  (`IDataSeedContributor`) — Doctor (`Appointments.Update`,
+  `Appointments.ManageClinicalNotes`, `ToothChart.Update`,
+  `AppointmentPhotos.Upload/Delete`), Receptionist (`Patients.*`,
+  `Appointments.Create/Update`), Accountant (`Appointments.ManagePayment`, `Expenses.*`,
+  `Statistics.Default`). Gán qua `IPermissionManager.SetForRoleAsync`.
+- **2 lỗi layering/module đã gặp và fix**:
+  1. File contributor ban đầu đặt ở `Domain/Identity/` nhưng cần `using
+     GiapTech.Dentify.Permissions` (nằm ở `Application.Contracts`) → lỗi build CS0234
+     vì Domain không được reference tầng cao hơn (nguyên tắc DDD layering). Fix: chuyển
+     hẳn sang `Application/Identity/ClinicRoleDataSeedContributor.cs`.
+  2. Seed chạy không lỗi (`DbMigrator` log "Successfully completed") nhưng **Role không
+     xuất hiện trong DB** — verify bằng `psql` xác nhận `AbpRoles` chỉ có `admin`.
+     Nguyên nhân: `DentifyDbMigratorModule` chỉ `[DependsOn(...,
+     DentifyApplicationContractsModule)]`, không depend `DentifyApplicationModule` →
+     assembly chứa `ClinicRoleDataSeedContributor` không được ABP module system load,
+     `IDataSeeder.SeedAsync()` không gọi tới được. Fix: đổi `[DependsOn]` sang
+     `DentifyApplicationModule` + thêm `ProjectReference` trong
+     `GiapTech.Dentify.DbMigrator.csproj`. **Bài học quan trọng, đã ghi vào
+     `04-kien-truc-ky-thuat.md`**: build thành công không đảm bảo `IDataSeedContributor`
+     được chạy — phải verify bằng cách đọc lại DB thật, không chỉ tin log.
+  3. Lỗi nhỏ: `dotnet ef migrations add` tự sinh `defaultValue: 0` cho cột
+     `DurationMinutes` — không hợp lệ vì domain validate min=5; sửa tay thành
+     `defaultValue: 30` trước khi migrate.
+- **Verify thật trên Postgres** (không chỉ build/test pass): sau khi fix 2 lỗi trên, chạy
+  lại `DbMigrator`, query `psql` xác nhận `AbpRoles` có đủ `admin, Doctor, Receptionist,
+  Accountant`, và `AbpPermissionGrants` có đúng 17 dòng khớp 100% bảng phân quyền trong
+  plan.
+- **Backend test mới** (`AppointmentAppServiceTests`, `DoctorAppServiceTests` mới,
+  `ClinicRoleDataSeedContributorTests` mới): tạo Doctor, chặn liên kết trùng
+  `IdentityUserId`, chỉ liệt kê Doctor active, double-booking (chặn tạo/update trùng giờ
+  cùng bác sĩ, cho phép giờ không giao nhau, bỏ qua appointment đã Cancelled),
+  `DurationMinutes` validate range, xác nhận cả 3 Role + đúng permission được seed trong
+  test module (`DentifyTestBaseModule` gọi `IDataSeeder.SeedAsync()` khi khởi tạo, dùng
+  `AddAlwaysAllowAuthorization()` nên `ManageClinicalNotes` không chặn được trong test —
+  chấp nhận được, đã test riêng ở tầng permission-seed). Toàn bộ 61 test EfCoreTests +
+  1 Web.Tests đều pass.
+- **Frontend**: `types/doctor.ts`, `lib/doctors-api.ts` mới; `AppointmentDto`/
+  `CreateUpdateAppointmentDto` thêm `durationMinutes`; `AppointmentsPage.tsx` thêm Select
+  "Bác sĩ phụ trách" (gọi `doctorsApi.getActiveList()`) và Input số phút trong dialog tạo/
+  sửa lịch hẹn; `AppointmentCalendar.tsx` đổi từ hằng số cố định 30 phút sang đọc
+  `appointment.durationMinutes` thật. `tsc -b`, `oxlint`, `npm run build` đều pass sạch.
+- **Chưa làm được — giới hạn môi trường**: không verify UI bằng browser thật (không có
+  Playwright/browser automation tool nào trong session này, đã tự kiểm tra qua ToolSearch
+  và xác nhận lại bằng 1 agent con độc lập — không giả định, không bỏ qua âm thầm). Bù
+  lại bằng: verify schema/dữ liệu thật qua `psql` (bảng `AppDoctors`, cột
+  `DurationMinutes`), test 1 Doctor thật (insert tay, xác nhận đúng cấu trúc, rồi xoá
+  ngay vì tạo thẳng qua SQL không đi qua validate của AppService) — **chưa có ai thao tác
+  UI thật trên browser cho luồng Đợt 1 này, cần làm thủ công ở máy có sẵn trình duyệt**.
+- Chưa làm (đúng theo "Không làm trong Đợt 1" của plan): lịch làm việc theo tuần cho
+  Doctor, UI ẩn/hiện nút theo permission ở frontend, trang quản lý Doctor riêng (hiện chỉ
+  dùng làm nguồn Select, tạo/sửa/xoá Doctor phải gọi API trực tiếp).
+- Tiếp theo: Đợt 2 (chuyển `TreatmentType` enum → entity `Service` có giá tham chiếu,
+  danh mục thuốc chuẩn `Drug`), rồi Đợt 3–5 theo đúng roadmap đã chốt — không bỏ sót mục
+  nào trong 13 mục gốc.
 
 ### 2026-07-07 (9) — Bộ tài liệu kiến trúc `docs/architecture/*.md` (6 file)
 
@@ -1068,21 +1721,25 @@ Management), chỉ bỏ phần UI nghiệp vụ (Patient/Appointment) sang React
 
 - Giai đoạn 2: đã xong toàn bộ (Tooth Chart, Photo upload, Prescription chi tiết).
   Việc lặt vặt còn sót: UI xoá/sửa `Caption` cho ảnh appointment (field đã có ở domain,
-  chưa có form nhập).
-- Tooth Chart: hiển thị theo Palmer/Universal notation ở frontend (Setting
-  `Clinic.ToothNotationSystem` — hiện chưa có UI Settings, chỉ mới có ISO 3950), cho chọn
-  `appointmentId` liên quan khi cập nhật tình trạng răng.
-- Cân nhắc thêm `IsOperator` (bool) trên UserExtension để lọc danh sách bác sĩ trong
-  Appointment (hiện đang cho chọn từ toàn bộ Identity Users).
+  chưa có form nhập); 2 leak LOW-severity đã biết, cố tình chưa sửa vì mức độ nhỏ: caption
+  không reset trong `AppointmentPhotosDialog.tsx` khi đổi appointment, blob URL logo trong
+  `SettingsPage.tsx` không revoke khi unmount.
+- ~~Tooth Chart: hiển thị theo Palmer/Universal notation...~~ — **đã xong** (đợt hoàn
+  thiện sau đợt dọn dẹp): Setting `Dentify.Clinic.ToothNotationSystem` + UI Settings +
+  `frontend/src/lib/toothNotation.ts` + chọn `appointmentId` khi cập nhật tình trạng răng.
 - Production thật cho Docker Compose: reverse proxy + TLS thật + `openiddict.pfx` thật
-  thay placeholder tự sinh (xem nhật ký 2026-07-05 (2)).
-- Giai đoạn 3: đã xong toàn bộ (LabWork + Kanban board + Expense). Việc lặt vặt còn sót
-  (không nằm trong phạm vi đã chốt lúc đầu): liên kết Expense ↔ LabWork/Appointment,
-  UI biểu đồ cho `ExpenseSummaryDto` (hiện chỉ có API, chưa hiển thị chart), filter/tìm
-  kiếm trên board LabWork.
-- Giai đoạn 4: đã xong toàn bộ (CSV Patient/Expense, Backup/Restore script, Settings
-  phòng khám). Việc lặt vặt còn sót: CSV cho Appointment, upload logo trực tiếp (hiện
-  chỉ nhận URL), UI Settings cho `ToothNotationSystem`.
+  thay placeholder tự sinh (xem nhật ký 2026-07-05 (2)) — vẫn cần thông tin hạ tầng cụ thể
+  (domain thật, nhà cung cấp CA) chỉ người vận hành mới biết, checklist đã có ở
+  `05-trien-khai-van-hanh.md`.
+- ~~Giai đoạn 3 việc lặt vặt: liên kết Expense ↔ LabWork...~~ — **đã xong** (đợt hoàn
+  thiện sau đợt dọn dẹp): `Expense.LabWorkId` (optional, `ON DELETE SET NULL`), biểu đồ
+  chi phí theo danh mục ở `ExpensesPage.tsx`, thêm filter `WorkType` trên board LabWork.
+- ~~Giai đoạn 4 việc lặt vặt: CSV cho Appointment...~~ — **đã xong** (đợt hoàn thiện sau
+  đợt dọn dẹp): Import/Export CSV cho Appointment, xem chi tiết cách resolve tên→ID ở
+  `frontend/src/lib/csv-resolve.ts` và mục Appointment trong `02-dac-ta-chuc-nang.md`.
+  UI Settings cho `ToothNotationSystem` và upload logo trực tiếp đã xong từ trước.
+- Đã bỏ hẳn: `IsOperator` trên UserExtension — lỗi thời từ Đợt 1 roadmap, Doctor đã là
+  entity thật, không cần lọc theo cờ trên Identity User nữa.
 
 ## Cách backup / restore database
 
@@ -1186,8 +1843,8 @@ thêm nếu dùng đúng `docker-compose.yml` mặc định của dự án.
 - **Calendar dùng thư viện `@fullcalendar/react` thay vì tự viết** — chi phí tự làm
   đúng UX kéo-thả/resize/multi-view (Tháng/Tuần/Ngày) quá cao so với lợi ích, và
   `Appointment.getCalendarView` API đã có sẵn từ Giai đoạn 1 chỉ cần 1 UI thật sự dùng
-  tới. Lịch hẹn hiển thị thời lượng cố định 30 phút trên calendar (không lưu DB) vì
-  domain hiện không có trường thời lượng — chấp nhận được cho mục đích hiển thị.
+  tới. Từ Đợt 1 roadmap, lịch hẹn hiển thị đúng `DurationMinutes` thật lưu trong DB (mặc
+  định 30 phút, `Check.Range(5, 480)`), không còn hằng số cố định.
 - **`TaskItem` là entity độc lập, đặt tên khác `Task`** để không trùng/nhầm với
   `System.Threading.Tasks.Task` dùng khắp AppService async. `ToggleDoneAsync` tách
   riêng khỏi `UpdateAsync` vì đây là thao tác tần suất cao nhất, cần optimistic-update
@@ -1196,3 +1853,81 @@ thêm nếu dùng đúng `docker-compose.yml` mặc định của dự án.
   có sẵn của từng module qua `Promise.all`. Nếu sau này thêm số liệu tổng hợp phức tạp
   hơn (biểu đồ theo thời gian, so sánh kỳ) thì mới cân nhắc viết 1
   `IDashboardAppService` riêng để tránh N request round-trip.
+- **`Supply`/`SupplyUsage` là 2 aggregate root độc lập, không phải child collection** —
+  đúng lý do `ToothRecordHistory` tách khỏi `ToothChart`: log sử dụng phình to vô hạn
+  theo thời gian sống của phòng khám, nhúng vào `Supply` sẽ buộc load hết lịch sử mỗi
+  lần chỉ cần xem tồn hiện tại. `SupplyUsageAppService` tự điều phối 2 aggregate
+  (`Supply.DecreaseQuantity` rồi mới insert `SupplyUsage`) thay vì để `Supply` tự biết về
+  `SupplyUsage` — giữ đúng nguyên tắc DDD 1 domain method chỉ sửa aggregate của chính nó.
+- **`InsurancePolicy` cố tình không liên kết Appointment/Payment** — chỉ là hồ sơ thông
+  tin (hãng, số thẻ, ngày hiệu lực/hết hạn), không có claim workflow, không đụng bất kỳ
+  logic tiền bạc nào đã có. Quyết định chốt ngay từ roadmap gốc để tránh phải làm đúng
+  quy trình bảo hiểm y tế thật (phức tạp, khác nhau giữa các hãng) khi chưa có yêu cầu cụ
+  thể — nếu sau này cần, đây sẽ là thay đổi lớn thêm mới chứ không sửa lại field hiện có.
+- **`ConsentForm` tái dùng nguyên khối pattern `AppointmentPhoto`/`IBlobContainer`**
+  (container blob riêng `dentify-consent-forms`, cùng provider Database) thay vì tạo
+  cơ chế lưu file mới — nhất quán với quyết định "mọi file upload đều qua BlobStoring
+  Database" đã chốt ở Giai đoạn 2, tránh phải quản lý 2 cơ chế lưu trữ file song song.
+  Chỉ khác ở loại content-type cho phép (thêm PDF) và 2 field nghiệp vụ `FormTitle`/
+  `SignedAt`.
+- **Nhắc hẹn chỉ email, không SMS** — quyết định chốt ở Đợt 5 khi hỏi lại người dùng
+  (đúng tinh thần roadmap gốc "cố tình không chốt provider SMS/email thật trước"). Lý do:
+  SMS cần tài khoản provider trả phí (Twilio/ESMS/...) chưa có sẵn trong hạ tầng, ngoài
+  phạm vi có thể tự quyết định. Nếu sau này cần SMS, thêm 1 `ISmsSender` abstraction mới
+  cạnh `IEmailSender`, không sửa lại logic chọn appointment đã có trong
+  `AppointmentReminderAppService`.
+- **Email dùng cơ chế bật/tắt theo cấu hình thực tế, không còn theo `#if DEBUG`** — trước
+  Đợt 5, Release build luôn cố gắng gửi SMTP thật kể cả chưa cấu hình (rủi ro crash khi
+  deploy lần đầu nếu quên điền). Từ Đợt 5: kiểm tra `Settings:Abp.Mailing.Smtp.Host` lúc
+  khởi động, rỗng thì luôn dùng `NullEmailSender` bất kể môi trường nào — an toàn hơn,
+  và người vận hành chỉ cần điền đúng 1 chỗ (`appsettings.secrets.json`) để bật gửi thật.
+- **`AppointmentReminderAppService` tách riêng khỏi `AppointmentReminderWorker`, đánh dấu
+  `[RemoteService(IsEnabled = false)]`** — lý do kép: (1) tách logic chọn lịch hẹn ra
+  AppService riêng giúp unit-test được (gọi thẳng `SendDueRemindersAsync()`) mà không
+  phải mock vòng đời `AsyncPeriodicBackgroundWorkerBase`; (2) ABP tự sinh route REST cho
+  MỌI `IApplicationService` theo convention — nếu không tắt `RemoteService`, sẽ vô tình
+  có 1 endpoint public cho phép bất kỳ ai gọi kích hoạt gửi email hàng loạt ngay lập tức.
+  Bài học áp dụng cho mọi AppService "nội bộ" tương tự làm sau này (chỉ gọi từ worker/
+  job, không phải client thật).
+- **`Patient.IdentityUserId` dùng unique index có `filter` (partial index)**, khác
+  `Doctor.IdentityUserId` dùng unique index thường — vì field này **nullable** (không
+  phải mọi Patient đều có tài khoản Patient Portal), còn `Doctor.IdentityUserId` luôn bắt
+  buộc. Nếu dùng unique index thường trên cột nullable, Postgres sẽ chặn 2 Patient cùng
+  `NULL` — sai hoàn toàn với ý định (đa số Patient sẽ không có tài khoản portal cùng lúc).
+- **Module `PatientPortal` là AppService hoàn toàn riêng, không tái dùng
+  `IPatientAppService`/`IAppointmentAppService` của nhân viên** — dù có thể tiết kiệm code
+  bằng cách thêm tham số "chỉ trả dữ liệu của tôi" vào AppService cũ, quyết định tách hẳn
+  để: (1) không bao giờ lộ endpoint ghi cho role Patient nếu ai đó thêm method mới vào
+  AppService nhân viên mà quên kiểm tra quyền, (2) ép buộc mọi method chỉ tự tra
+  `Patient` theo `CurrentUser.Id` đang đăng nhập, không bao giờ nhận `patientId` làm
+  tham số đầu vào từ client — chặn tuyệt đối lỗi IDOR (đọc dữ liệu bệnh nhân khác) ngay
+  từ thiết kế, không phải dựa vào việc nhớ check quyền đúng chỗ mỗi lần thêm method mới.
+- **Patient Portal dùng OIDC client + SPA route group riêng, không mở rộng
+  `ProtectedRoute`/`AppLayout` nhân viên hiện có** — dù về mặt kỹ thuật có thể thêm cờ
+  role vào `ProtectedRoute` để phân nhánh UI theo loại người dùng trong cùng 1 client,
+  quyết định tách hẳn 2 SPA (2 `UserManager`, 2 context React, 2 client OIDC) để: tránh
+  nhầm lẫn quyền hạn giữa 2 loại người dùng trong cùng 1 phiên đăng nhập, cho phép đổi
+  redirect URI/scope của 1 SPA mà không đụng SPA còn lại, và giữ sidebar/nav nhân viên
+  không bao giờ vô tình render cho bệnh nhân. Đánh đổi: code trùng lặp nhẹ (2
+  UserManager/2 AuthProvider gần giống hệt nhau) — chấp nhận được vì đây là ranh giới bảo
+  mật quan trọng, không phải chỗ nên tối ưu DRY.
+- **Tái dùng `IIdentityUserAppService` có sẵn của ABP thay vì viết AppService tìm kiếm
+  user riêng** — module Identity Application/HttpApi/Web đã được wire đủ 3 tầng từ đầu
+  dự án (cho trang Identity Management Razor built-in), nên `GET /api/identity/users`
+  dùng được ngay cho `IdentityUserPicker` mà không cần thêm code backend, chỉ cần cấp
+  thêm 1 permission (`AbpIdentity.Users`) cho role cần dùng. Tránh trùng lặp 1 tính năng
+  "tìm kiếm user" mà ABP đã có sẵn.
+- **Route ABP convention không phải lúc nào cũng đoán đúng theo mẫu cũ — luôn xác minh
+  qua Swagger khi có method mới không hoàn toàn giống pattern đã biết.** Khi thêm
+  `UploadLogoAsync`/`DownloadLogoAsync`, đoán ban đầu là route `/logo` (dựa theo cảm giác
+  "tên field" thay vì tên method) — chạy thử app + đọc `/swagger/v1/swagger.json` thật
+  mới phát hiện ABP sinh đúng `/upload-logo`/`/download-logo` (kebab-case theo tên method,
+  đúng convention đã biết nhưng bị đoán sai lúc đầu vì nghĩ theo hướng khác). Bài học:
+  với 1-2 phút chạy thử app + `curl` Swagger spec, tránh được việc merge code frontend
+  gọi sai route mà chỉ phát hiện lúc chạy tay.
+- **Đổi chữ ký `IAppointmentPhotoAppService.UploadAsync` là breaking change chấp nhận
+  được** — vì đây là API nội bộ (chỉ frontend cùng repo gọi), không phải public API đã
+  publish cho bên thứ 3/mobile app riêng. Khi cần thêm field vào 1 upload endpoint đã có
+  chỉ 2 tham số rời (`id, IRemoteStreamContent`), ưu tiên đổi hẳn sang 1 input DTO (đúng
+  pattern `UploadConsentFormInput`) thay vì thêm tham số optional thứ 3 — dễ mở rộng thêm
+  field sau này hơn, và nhất quán với cách các upload endpoint khác trong dự án đã làm.

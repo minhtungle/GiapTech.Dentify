@@ -12,12 +12,17 @@ public class CreateUpdateAppointmentDto
 
     public Guid? DoctorId { get; set; }
 
+    public Guid? ServiceId { get; set; }
+
+    public Guid? ChairId { get; set; }
+
     [Required]
     public DateTime ScheduledDateTime { get; set; }
 
-    public AppointmentStatus Status { get; set; } = AppointmentStatus.Scheduled;
+    [Range(AppointmentConsts.MinDurationMinutes, AppointmentConsts.MaxDurationMinutes)]
+    public int DurationMinutes { get; set; } = AppointmentConsts.DefaultDurationMinutes;
 
-    public TreatmentType TreatmentType { get; set; } = TreatmentType.GeneralCheckup;
+    public AppointmentStatus Status { get; set; } = AppointmentStatus.Scheduled;
 
     [StringLength(AppointmentConsts.MaxNotesLength)]
     public string? PreOpNotes { get; set; }

@@ -33,9 +33,12 @@ export const appointmentPhotoApi = {
     return (await response.json()) as AppointmentPhotoDto[]
   },
 
-  upload: async (appointmentId: string, file: File): Promise<AppointmentPhotoDto> => {
+  upload: async (appointmentId: string, file: File, caption?: string): Promise<AppointmentPhotoDto> => {
     const formData = new FormData()
     formData.append("file", file)
+    if (caption) {
+      formData.append("caption", caption)
+    }
 
     const response = await fetch(`${API_URL}${BASE}/upload/${appointmentId}`, {
       method: "POST",

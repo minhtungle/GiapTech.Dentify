@@ -1,6 +1,10 @@
 using System;
 using System.Threading.Tasks;
 using GiapTech.Dentify.Application.Contracts.Expenses;
+using GiapTech.Dentify.Application.Contracts.LabWorks;
+using GiapTech.Dentify.Application.Contracts.Patients;
+using GiapTech.Dentify.LabWorks;
+using GiapTech.Dentify.Patients;
 using Shouldly;
 using Volo.Abp.Modularity;
 using Xunit;
@@ -11,10 +15,31 @@ public abstract class ExpenseAppServiceTests<TStartupModule> : DentifyApplicatio
     where TStartupModule : IAbpModule
 {
     private readonly IExpenseAppService _expenseAppService;
+    private readonly ILabWorkAppService _labWorkAppService;
+    private readonly IPatientAppService _patientAppService;
 
     protected ExpenseAppServiceTests()
     {
         _expenseAppService = GetRequiredService<IExpenseAppService>();
+        _labWorkAppService = GetRequiredService<ILabWorkAppService>();
+        _patientAppService = GetRequiredService<IPatientAppService>();
+    }
+
+    private async Task<Guid> CreateTestLabWorkAsync()
+    {
+        var patient = await _patientAppService.CreateAsync(new CreateUpdatePatientDto
+        {
+            FullName = "Expense Test Patient",
+            DateOfBirth = new DateTime(1990, 1, 1)
+        });
+        var labWork = await _labWorkAppService.CreateAsync(new CreateUpdateLabWorkDto
+        {
+            PatientId = patient.Id,
+            LabName = "ABC Dental Lab",
+            WorkType = "Crown",
+            SentDate = new DateTime(2026, 4, 1)
+        });
+        return labWork.Id;
     }
 
     [Fact]
@@ -89,6 +114,35 @@ public abstract class ExpenseAppServiceTests<TStartupModule> : DentifyApplicatio
         summary.TotalAmount.ShouldBe(1200);
         summary.ByCategory.ShouldContain(x => x.Category == ExpenseCategory.Lab && x.TotalAmount == 1000);
         summary.ByCategory.ShouldContain(x => x.Category == ExpenseCategory.Rent && x.TotalAmount == 200);
+    }
+
+    [Fact]
+    public async Task Should_Link_And_Unlink_Expense_To_LabWork()
+    {
+        var labWorkId = await CreateTestLabWorkAsync();
+
+        var created = await _expenseAppService.CreateAsync(new CreateUpdateExpenseDto
+        {
+            ExpenseDate = new DateTime(2026, 4, 1),
+            Amount = 500,
+            Category = ExpenseCategory.Lab,
+            LabWorkId = labWorkId
+        });
+
+        created.LabWorkId.ShouldBe(labWorkId);
+
+        var listByLabWork = await _expenseAppService.GetListAsync(new GetExpenseListDto { LabWorkId = labWorkId });
+        listByLabWork.Items.ShouldContain(x => x.Id == created.Id);
+
+        var unlinked = await _expenseAppService.UpdateAsync(created.Id, new CreateUpdateExpenseDto
+        {
+            ExpenseDate = created.ExpenseDate,
+            Amount = created.Amount,
+            Category = created.Category,
+            LabWorkId = null
+        });
+
+        unlinked.LabWorkId.ShouldBeNull();
     }
 
     [Fact]

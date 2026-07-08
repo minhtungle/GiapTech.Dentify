@@ -3,6 +3,7 @@ import type { PagedResultDto } from "@/types/common"
 import type {
   CreateUpdatePatientDto,
   GetPatientListRequest,
+  LinkPatientIdentityUserDto,
   PatientDetailDto,
   PatientDto,
   RecallPatientDto,
@@ -22,4 +23,8 @@ export const patientsApi = {
   update: (id: string, input: CreateUpdatePatientDto) =>
     api.put<PatientDto>(`${BASE}/${id}`, input),
   delete: (id: string) => api.delete<void>(`${BASE}/${id}`),
+  linkIdentityUser: (id: string, input: LinkPatientIdentityUserDto) =>
+    api.post<PatientDto>(`${BASE}/${id}/link-identity-user`, input),
+  unlinkIdentityUser: (id: string) =>
+    api.post<PatientDto>(`${BASE}/${id}/unlink-identity-user`),
 }

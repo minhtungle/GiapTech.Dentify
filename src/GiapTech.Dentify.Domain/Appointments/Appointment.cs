@@ -10,14 +10,17 @@ public class Appointment : FullAuditedAggregateRoot<Guid>
 {
     public Guid PatientId { get; private set; }
     public Guid? DoctorId { get; private set; }
+    public Guid? ServiceId { get; private set; }
+    public Guid? ChairId { get; private set; }
     public DateTime ScheduledDateTime { get; private set; }
+    public int DurationMinutes { get; private set; }
     public AppointmentStatus Status { get; private set; }
-    public TreatmentType TreatmentType { get; private set; }
     public string? PreOpNotes { get; private set; }
     public string? PostOpNotes { get; private set; }
     public decimal Price { get; private set; }
     public decimal PaidAmount { get; private set; }
     public PaymentStatus PaymentStatus { get; private set; }
+    public DateTime? ReminderSentAt { get; private set; }
 
     private readonly List<PrescriptionItem> _prescriptionItems = new();
     public IReadOnlyList<PrescriptionItem> PrescriptionItems => _prescriptionItems;
@@ -29,22 +32,30 @@ public class Appointment : FullAuditedAggregateRoot<Guid>
     {
     }
 
-    public Appointment(Guid id, Guid patientId, DateTime scheduledDateTime, decimal price, Guid? doctorId = null, TreatmentType treatmentType = TreatmentType.GeneralCheckup)
+    public Appointment(Guid id, Guid patientId, DateTime scheduledDateTime, decimal price, Guid? doctorId = null, Guid? serviceId = null, int durationMinutes = AppointmentConsts.DefaultDurationMinutes, Guid? chairId = null)
         : base(id)
     {
         PatientId = patientId;
         Reschedule(scheduledDateTime);
         DoctorId = doctorId;
         Status = AppointmentStatus.Scheduled;
-        TreatmentType = treatmentType;
+        ServiceId = serviceId;
+        ChairId = chairId;
         PaymentStatus = PaymentStatus.Unpaid;
         SetPrice(price);
+        SetDuration(durationMinutes);
     }
 
     public void Reschedule(DateTime scheduledDateTime)
     {
         // PostgreSQL's "timestamp with time zone" only accepts UTC DateTimes.
         ScheduledDateTime = DateTime.SpecifyKind(scheduledDateTime, DateTimeKind.Utc);
+    }
+
+    public void SetDuration(int durationMinutes)
+    {
+        Check.Range(durationMinutes, nameof(durationMinutes), AppointmentConsts.MinDurationMinutes, AppointmentConsts.MaxDurationMinutes);
+        DurationMinutes = durationMinutes;
     }
 
     public void AssignPatient(Guid patientId)
@@ -62,9 +73,14 @@ public class Appointment : FullAuditedAggregateRoot<Guid>
         Status = status;
     }
 
-    public void SetTreatmentType(TreatmentType treatmentType)
+    public void AssignService(Guid? serviceId)
     {
-        TreatmentType = treatmentType;
+        ServiceId = serviceId;
+    }
+
+    public void AssignChair(Guid? chairId)
+    {
+        ChairId = chairId;
     }
 
     public void SetClinicalNotes(string? preOpNotes, string? postOpNotes)
@@ -73,20 +89,21 @@ public class Appointment : FullAuditedAggregateRoot<Guid>
         PostOpNotes = Check.Length(postOpNotes, nameof(postOpNotes), AppointmentConsts.MaxNotesLength);
     }
 
-    public PrescriptionItem AddPrescriptionItem(Guid id, string drugName, string? dosage, int quantity, string? instructions)
+    public PrescriptionItem AddPrescriptionItem(Guid id, string drugName, string? dosage, int quantity, string? instructions, Guid? drugId = null)
     {
-        var item = new PrescriptionItem(id, Id, drugName, dosage, quantity, instructions);
+        var item = new PrescriptionItem(id, Id, drugName, dosage, quantity, instructions, drugId);
         _prescriptionItems.Add(item);
         return item;
     }
 
-    public void UpdatePrescriptionItem(Guid itemId, string drugName, string? dosage, int quantity, string? instructions)
+    public void UpdatePrescriptionItem(Guid itemId, string drugName, string? dosage, int quantity, string? instructions, Guid? drugId = null)
     {
         var item = GetPrescriptionItem(itemId);
         item.SetDrugName(drugName);
         item.SetDosage(dosage);
         item.SetQuantity(quantity);
         item.SetInstructions(instructions);
+        item.SetDrugId(drugId);
     }
 
     public void RemovePrescriptionItem(Guid itemId)
@@ -134,6 +151,12 @@ public class Appointment : FullAuditedAggregateRoot<Guid>
 
         _payments.Remove(payment);
         RecalculatePaymentStatus();
+    }
+
+    public void MarkReminderSent(DateTime sentAt)
+    {
+        // PostgreSQL's "timestamp with time zone" only accepts UTC DateTimes.
+        ReminderSentAt = DateTime.SpecifyKind(sentAt, DateTimeKind.Utc);
     }
 
     private void RecalculatePaymentStatus()

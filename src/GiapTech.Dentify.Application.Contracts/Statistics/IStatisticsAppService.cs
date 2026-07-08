@@ -9,7 +9,7 @@ public interface IStatisticsAppService : IApplicationService
 {
     Task<RevenueOverviewDto> GetRevenueOverviewAsync(DateTime fromDate, DateTime toDate);
 
-    Task<List<TreatmentTypeStatisticDto>> GetTreatmentTypeStatisticsAsync(DateTime fromDate, DateTime toDate);
+    Task<List<ServiceStatisticDto>> GetServiceStatisticsAsync(DateTime fromDate, DateTime toDate);
 
     Task<List<DoctorStatisticDto>> GetDoctorStatisticsAsync(DateTime fromDate, DateTime toDate);
 }

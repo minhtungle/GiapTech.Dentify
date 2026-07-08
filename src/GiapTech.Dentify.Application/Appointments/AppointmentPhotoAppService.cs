@@ -41,10 +41,11 @@ public class AppointmentPhotoAppService : ApplicationService, IAppointmentPhotoA
     }
 
     [Authorize(DentifyPermissions.AppointmentPhotos.Upload)]
-    public virtual async Task<AppointmentPhotoDto> UploadAsync(Guid appointmentId, IRemoteStreamContent file)
+    public virtual async Task<AppointmentPhotoDto> UploadAsync(Guid appointmentId, UploadAppointmentPhotoInput input)
     {
         await _appointmentRepository.GetAsync(appointmentId);
 
+        var file = input.File;
         var contentType = file.ContentType ?? "application/octet-stream";
         if (!AppointmentPhotoConsts.AllowedContentTypes.Contains(contentType))
         {
@@ -71,7 +72,8 @@ public class AppointmentPhotoAppService : ApplicationService, IAppointmentPhotoA
             blobName,
             file.FileName ?? "photo",
             contentType,
-            bytes.LongLength);
+            bytes.LongLength,
+            input.Caption);
 
         await _photoRepository.InsertAsync(photo);
 

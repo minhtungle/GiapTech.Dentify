@@ -1,6 +1,6 @@
-import { useEffect, useState } from "react"
-import type { FormEvent } from "react"
-import { CalendarPlus, Image, Pencil, Pill, Plus, Trash2, Wallet, X } from "lucide-react"
+import { useEffect, useRef, useState } from "react"
+import type { ChangeEvent, FormEvent } from "react"
+import { CalendarPlus, Download, FileText, Image, MailCheck, Pencil, Pill, Plus, Trash2, Upload, Wallet, X } from "lucide-react"
 import { toast } from "sonner"
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
@@ -34,27 +34,38 @@ import {
 import { Tabs, TabsList, TabsTrigger, TabsContent } from "@/components/ui/tabs"
 import { Tooltip, TooltipContent, TooltipTrigger } from "@/components/ui/tooltip"
 import { AppointmentPhotosDialog } from "@/components/appointments/AppointmentPhotosDialog"
+import { ConsentFormsDialog } from "@/components/appointments/ConsentFormsDialog"
 import { AppointmentCalendar } from "@/components/appointments/AppointmentCalendar"
 import { PaymentHistoryDialog } from "@/components/appointments/PaymentHistoryDialog"
 import { appointmentsApi } from "@/lib/appointments-api"
 import { patientsApi } from "@/lib/patients-api"
+import { doctorsApi } from "@/lib/doctors-api"
+import { servicesApi } from "@/lib/services-api"
+import { drugsApi } from "@/lib/drugs-api"
+import { chairsApi } from "@/lib/chairs-api"
 import { ApiError } from "@/lib/api"
 import { formatCurrency } from "@/lib/utils"
+import { downloadCsv, parseCsvToObjects, toCsv } from "@/lib/csv"
+import { resolveEntityId } from "@/lib/csv-resolve"
 import type {
   AppointmentDto,
   AppointmentStatusName,
   CreateUpdateAppointmentDto,
   CreateUpdatePrescriptionItemDto,
-  TreatmentTypeName,
 } from "@/types/appointment"
 import {
   APPOINTMENT_STATUS_LABELS_VI,
   AppointmentStatus,
+  DEFAULT_APPOINTMENT_DURATION_MINUTES,
+  MAX_APPOINTMENT_DURATION_MINUTES,
+  MIN_APPOINTMENT_DURATION_MINUTES,
   PAYMENT_STATUS_LABELS_VI,
-  TREATMENT_TYPE_LABELS_VI,
-  TreatmentType,
 } from "@/types/appointment"
 import type { PatientDto } from "@/types/patient"
+import type { DoctorDto } from "@/types/doctor"
+import type { ServiceDto } from "@/types/service"
+import type { DrugDto } from "@/types/drug"
+import type { ChairDto } from "@/types/chair"
 
 const STATUS_OPTIONS: AppointmentStatusName[] = [
   "Scheduled",
@@ -64,25 +75,15 @@ const STATUS_OPTIONS: AppointmentStatusName[] = [
   "NoShow",
 ]
 
-const TREATMENT_TYPE_OPTIONS: TreatmentTypeName[] = [
-  "GeneralCheckup",
-  "Filling",
-  "Extraction",
-  "Whitening",
-  "RootCanal",
-  "Orthodontics",
-  "Implant",
-  "Cleaning",
-  "Crown",
-  "Other",
-]
-
 function emptyForm(patientId = ""): CreateUpdateAppointmentDto {
   return {
     patientId,
+    doctorId: null,
+    serviceId: null,
+    chairId: null,
     scheduledDateTime: "",
+    durationMinutes: DEFAULT_APPOINTMENT_DURATION_MINUTES,
     status: "Scheduled",
-    treatmentType: "GeneralCheckup",
     preOpNotes: "",
     postOpNotes: "",
     price: 0,
@@ -104,7 +105,7 @@ interface PrescriptionItemRow {
 function emptyPrescriptionRow(): PrescriptionItemRow {
   return {
     key: newTempKey(),
-    data: { drugName: "", dosage: "", quantity: 1, instructions: "" },
+    data: { drugId: null, drugName: "", dosage: "", quantity: 1, instructions: "" },
   }
 }
 
@@ -117,6 +118,10 @@ function toLocalInputValue(iso: string): string {
 export function AppointmentsPage() {
   const [appointments, setAppointments] = useState<AppointmentDto[]>([])
   const [patients, setPatients] = useState<PatientDto[]>([])
+  const [doctors, setDoctors] = useState<DoctorDto[]>([])
+  const [services, setServices] = useState<ServiceDto[]>([])
+  const [drugs, setDrugs] = useState<DrugDto[]>([])
+  const [chairs, setChairs] = useState<ChairDto[]>([])
   const [totalCount, setTotalCount] = useState(0)
   const [isLoading, setIsLoading] = useState(true)
 
@@ -133,14 +138,20 @@ export function AppointmentsPage() {
   const [photosDialogAppointment, setPhotosDialogAppointment] =
     useState<AppointmentDto | null>(null)
 
+  const [consentFormsDialogAppointment, setConsentFormsDialogAppointment] =
+    useState<AppointmentDto | null>(null)
+
   const [deletingAppointment, setDeletingAppointment] = useState<AppointmentDto | null>(null)
   const [isDeleting, setIsDeleting] = useState(false)
 
   const [calendarAppointments, setCalendarAppointments] = useState<AppointmentDto[]>([])
 
+  const [isImporting, setIsImporting] = useState(false)
+  const importInputRef = useRef<HTMLInputElement>(null)
+
   const [nameFilter, setNameFilter] = useState("")
   const [statusFilter, setStatusFilter] = useState<AppointmentStatusName | "">("")
-  const [treatmentTypeFilter, setTreatmentTypeFilter] = useState<TreatmentTypeName | "">("")
+  const [serviceFilter, setServiceFilter] = useState<string>("")
   const [fromDateFilter, setFromDateFilter] = useState("")
   const [toDateFilter, setToDateFilter] = useState("")
 
@@ -169,7 +180,7 @@ export function AppointmentsPage() {
   const loadData = async () => {
     setIsLoading(true)
     try {
-      const [appointmentsResult, patientsResult] = await Promise.all([
+      const [appointmentsResult, patientsResult, doctorsResult, servicesResult, drugsResult, chairsResult] = await Promise.all([
         appointmentsApi.getList({
           maxResultCount: 100,
           sorting: "scheduledDateTime desc",
@@ -178,17 +189,24 @@ export function AppointmentsPage() {
           toDate: toDateFilter ? new Date(toDateFilter).toISOString() : undefined,
         }),
         patientsApi.getList({ maxResultCount: 1000 }),
+        doctorsApi.getActiveList(),
+        servicesApi.getActiveList(),
+        drugsApi.getActiveList(),
+        chairsApi.getActiveList(),
       ])
       const filtered = appointmentsResult.items.filter((a) => {
         const matchesName =
           !nameFilter || a.patientFullName.toLowerCase().includes(nameFilter.toLowerCase())
-        const matchesTreatmentType =
-          !treatmentTypeFilter || a.treatmentType === TreatmentType[treatmentTypeFilter]
-        return matchesName && matchesTreatmentType
+        const matchesService = !serviceFilter || a.serviceId === serviceFilter
+        return matchesName && matchesService
       })
       setAppointments(filtered)
-      setTotalCount(nameFilter || treatmentTypeFilter ? filtered.length : appointmentsResult.totalCount)
+      setTotalCount(nameFilter || serviceFilter ? filtered.length : appointmentsResult.totalCount)
       setPatients(patientsResult.items)
+      setDoctors(doctorsResult)
+      setServices(servicesResult)
+      setDrugs(drugsResult)
+      setChairs(chairsResult)
     } catch (err) {
       toast.error(err instanceof ApiError ? err.message : "Không tải được danh sách lịch hẹn")
     } finally {
@@ -210,21 +228,27 @@ export function AppointmentsPage() {
     }
   }
 
-  const handleEventReschedule = async (appointmentId: string, newDateTime: string) => {
+  const handleEventReschedule = async (
+    appointmentId: string,
+    newDateTime: string,
+    newChairId?: string | null,
+  ) => {
     const appointment = calendarAppointments.find((a) => a.id === appointmentId)
     if (!appointment) return
+
+    const chairId = newChairId === undefined ? appointment.chairId : newChairId
 
     try {
       await appointmentsApi.update(appointmentId, {
         patientId: appointment.patientId,
         doctorId: appointment.doctorId,
+        serviceId: appointment.serviceId,
+        chairId,
         scheduledDateTime: newDateTime,
+        durationMinutes: appointment.durationMinutes,
         status: (Object.keys(AppointmentStatus) as AppointmentStatusName[]).find(
           (key) => AppointmentStatus[key] === appointment.status,
         ) ?? "Scheduled",
-        treatmentType: (Object.keys(TreatmentType) as TreatmentTypeName[]).find(
-          (key) => TreatmentType[key] === appointment.treatmentType,
-        ) ?? "GeneralCheckup",
         preOpNotes: appointment.preOpNotes,
         postOpNotes: appointment.postOpNotes,
         price: appointment.price,
@@ -232,7 +256,9 @@ export function AppointmentsPage() {
       })
       toast.success("Đã đổi giờ lịch hẹn")
       setCalendarAppointments((prev) =>
-        prev.map((a) => (a.id === appointmentId ? { ...a, scheduledDateTime: newDateTime } : a)),
+        prev.map((a) =>
+          a.id === appointmentId ? { ...a, scheduledDateTime: newDateTime, chairId } : a,
+        ),
       )
       await loadData()
     } catch (err) {
@@ -279,13 +305,13 @@ export function AppointmentsPage() {
     setForm({
       patientId: appointment.patientId,
       doctorId: appointment.doctorId,
+      serviceId: appointment.serviceId,
+      chairId: appointment.chairId,
       scheduledDateTime: toLocalInputValue(appointment.scheduledDateTime),
+      durationMinutes: appointment.durationMinutes,
       status: (Object.keys(AppointmentStatus) as AppointmentStatusName[]).find(
         (key) => AppointmentStatus[key] === appointment.status,
       ) ?? "Scheduled",
-      treatmentType: (Object.keys(TreatmentType) as TreatmentTypeName[]).find(
-        (key) => TreatmentType[key] === appointment.treatmentType,
-      ) ?? "GeneralCheckup",
       preOpNotes: appointment.preOpNotes ?? "",
       postOpNotes: appointment.postOpNotes ?? "",
       price: appointment.price,
@@ -296,6 +322,7 @@ export function AppointmentsPage() {
         key: item.id,
         data: {
           id: item.id,
+          drugId: item.drugId,
           drugName: item.drugName,
           dosage: item.dosage ?? "",
           quantity: item.quantity,
@@ -361,6 +388,134 @@ export function AppointmentsPage() {
     }
   }
 
+  const handleExportCsv = async () => {
+    try {
+      const result = await appointmentsApi.getList({ maxResultCount: 1000, sorting: "scheduledDateTime desc" })
+      const csv = toCsv(
+        [
+          "Bệnh nhân",
+          "PatientId",
+          "Bác sĩ",
+          "DoctorId",
+          "Dịch vụ",
+          "ServiceId",
+          "Ghế",
+          "ChairId",
+          "Thời gian hẹn",
+          "Thời lượng (phút)",
+          "Trạng thái",
+          "Giá",
+          "Ghi chú trước điều trị",
+          "Ghi chú sau điều trị",
+        ],
+        result.items.map((a) => [
+          a.patientFullName,
+          a.patientId,
+          a.doctorName ?? "",
+          a.doctorId ?? "",
+          a.serviceName ?? "",
+          a.serviceId ?? "",
+          a.chairName ?? "",
+          a.chairId ?? "",
+          a.scheduledDateTime,
+          a.durationMinutes,
+          APPOINTMENT_STATUS_LABELS_VI[a.status],
+          a.price,
+          a.preOpNotes ?? "",
+          a.postOpNotes ?? "",
+        ]),
+      )
+      downloadCsv(`lich-hen-${new Date().toISOString().slice(0, 10)}.csv`, csv)
+      toast.success(`Đã xuất ${result.items.length} lịch hẹn ra CSV`)
+    } catch (err) {
+      toast.error(err instanceof ApiError ? err.message : "Xuất CSV thất bại")
+    }
+  }
+
+  const handleImportCsv = async (e: ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0]
+    e.target.value = ""
+    if (!file) return
+
+    const text = await file.text()
+    const rows = parseCsvToObjects(text)
+    if (rows.length === 0) {
+      toast.error("File CSV không có dữ liệu")
+      return
+    }
+
+    setIsImporting(true)
+    let successCount = 0
+    const errors: string[] = []
+
+    for (let i = 0; i < rows.length; i++) {
+      const row = rows[i]
+      const scheduledDateTime = row["Thời gian hẹn"]?.trim()
+      const durationText = row["Thời lượng (phút)"]?.trim()
+      const durationMinutes = Number(durationText)
+      const priceText = row["Giá"]?.trim()
+      const price = Number(priceText)
+
+      if (!scheduledDateTime || Number.isNaN(new Date(scheduledDateTime).getTime())) {
+        errors.push(`Dòng ${i + 2}: Thời gian hẹn không hợp lệ`)
+        continue
+      }
+      if (!durationText || Number.isNaN(durationMinutes) || durationMinutes <= 0) {
+        errors.push(`Dòng ${i + 2}: Thời lượng không hợp lệ`)
+        continue
+      }
+      if (!priceText || Number.isNaN(price) || price < 0) {
+        errors.push(`Dòng ${i + 2}: Giá không hợp lệ`)
+        continue
+      }
+
+      const patientResult = resolveEntityId(patients, row["PatientId"], row["Bệnh nhân"], (p) => p.fullName)
+      if (!patientResult.id) {
+        errors.push(`Dòng ${i + 2}: Bệnh nhân ${patientResult.error ?? "bị thiếu"}`)
+        continue
+      }
+
+      const doctorResult = resolveEntityId(doctors, row["DoctorId"], row["Bác sĩ"], (d) => d.fullName)
+      const serviceResult = resolveEntityId(services, row["ServiceId"], row["Dịch vụ"], (s) => s.name)
+      const chairResult = resolveEntityId(chairs, row["ChairId"], row["Ghế"], (c) => c.name)
+
+      const statusLabel = row["Trạng thái"]?.trim()
+      const statusName =
+        STATUS_OPTIONS.find((s) => APPOINTMENT_STATUS_LABELS_VI[AppointmentStatus[s]] === statusLabel) ??
+        "Scheduled"
+
+      try {
+        await appointmentsApi.create({
+          patientId: patientResult.id,
+          doctorId: doctorResult.id,
+          serviceId: serviceResult.id,
+          chairId: chairResult.id,
+          scheduledDateTime: new Date(scheduledDateTime).toISOString(),
+          durationMinutes,
+          status: statusName,
+          preOpNotes: row["Ghi chú trước điều trị"]?.trim() || undefined,
+          postOpNotes: row["Ghi chú sau điều trị"]?.trim() || undefined,
+          price,
+          prescriptionItems: [],
+        })
+        successCount++
+      } catch (err) {
+        const message = err instanceof ApiError ? err.message : "Lỗi không xác định"
+        errors.push(`Dòng ${i + 2}: ${message}`)
+      }
+    }
+
+    setIsImporting(false)
+
+    if (successCount > 0) {
+      toast.success(`Đã nhập ${successCount}/${rows.length} lịch hẹn`)
+      await loadData()
+    }
+    if (errors.length > 0) {
+      toast.error(`${errors.length} dòng lỗi: ${errors.slice(0, 3).join("; ")}${errors.length > 3 ? "..." : ""}`)
+    }
+  }
+
   const openPaymentDialog = async (summary: AppointmentDto) => {
     try {
       const appointment = await appointmentsApi.get(summary.id)
@@ -382,24 +537,46 @@ export function AppointmentsPage() {
           <h1 className="text-2xl font-semibold">Lịch hẹn</h1>
           <p className="text-sm text-muted-foreground">{totalCount} lịch hẹn</p>
         </div>
-        {patients.length === 0 ? (
-          <Tooltip>
-            <TooltipTrigger asChild>
-              <span>
-                <Button disabled>
-                  <Plus />
-                  Thêm lịch hẹn
-                </Button>
-              </span>
-            </TooltipTrigger>
-            <TooltipContent>Cần thêm bệnh nhân trước khi tạo lịch hẹn</TooltipContent>
-          </Tooltip>
-        ) : (
-          <Button onClick={openCreateDialog}>
-            <Plus />
-            Thêm lịch hẹn
+        <div className="flex gap-2">
+          <input
+            ref={importInputRef}
+            type="file"
+            accept=".csv"
+            aria-label="Chọn file CSV để nhập"
+            className="hidden"
+            onChange={(e) => void handleImportCsv(e)}
+          />
+          <Button
+            variant="outline"
+            onClick={() => importInputRef.current?.click()}
+            disabled={isImporting}
+          >
+            <Upload className="size-4" />
+            {isImporting ? "Đang nhập..." : "Nhập CSV"}
           </Button>
-        )}
+          <Button variant="outline" onClick={() => void handleExportCsv()} disabled={isImporting}>
+            <Download className="size-4" />
+            Xuất CSV
+          </Button>
+          {patients.length === 0 ? (
+            <Tooltip>
+              <TooltipTrigger asChild>
+                <span>
+                  <Button disabled>
+                    <Plus />
+                    Thêm lịch hẹn
+                  </Button>
+                </span>
+              </TooltipTrigger>
+              <TooltipContent>Cần thêm bệnh nhân trước khi tạo lịch hẹn</TooltipContent>
+            </Tooltip>
+          ) : (
+            <Button onClick={openCreateDialog}>
+              <Plus />
+              Thêm lịch hẹn
+            </Button>
+          )}
+        </div>
       </div>
 
       <div className="flex flex-wrap items-end gap-2">
@@ -429,19 +606,17 @@ export function AppointmentsPage() {
           </SelectContent>
         </Select>
         <Select
-          value={treatmentTypeFilter || "all"}
-          onValueChange={(value: string) =>
-            setTreatmentTypeFilter(value === "all" ? "" : (value as TreatmentTypeName))
-          }
+          value={serviceFilter || "all"}
+          onValueChange={(value: string) => setServiceFilter(value === "all" ? "" : value)}
         >
           <SelectTrigger className="w-44">
-            <SelectValue placeholder="Loại hình khám" />
+            <SelectValue placeholder="Dịch vụ" />
           </SelectTrigger>
           <SelectContent>
-            <SelectItem value="all">Mọi loại hình khám</SelectItem>
-            {TREATMENT_TYPE_OPTIONS.map((type) => (
-              <SelectItem key={type} value={type}>
-                {TREATMENT_TYPE_LABELS_VI[TreatmentType[type]]}
+            <SelectItem value="all">Mọi dịch vụ</SelectItem>
+            {services.map((service) => (
+              <SelectItem key={service.id} value={service.id}>
+                {service.name}
               </SelectItem>
             ))}
           </SelectContent>
@@ -478,7 +653,7 @@ export function AppointmentsPage() {
                 <TableRow>
                   <TableHead>Bệnh nhân</TableHead>
                   <TableHead>Thời gian</TableHead>
-                  <TableHead>Loại hình khám</TableHead>
+                  <TableHead>Dịch vụ</TableHead>
                   <TableHead>Trạng thái</TableHead>
                   <TableHead>Giá</TableHead>
                   <TableHead>Thanh toán</TableHead>
@@ -518,7 +693,7 @@ export function AppointmentsPage() {
                     <TableCell>
                       {new Date(appointment.scheduledDateTime).toLocaleString("vi-VN")}
                     </TableCell>
-                    <TableCell>{TREATMENT_TYPE_LABELS_VI[appointment.treatmentType]}</TableCell>
+                    <TableCell>{appointment.serviceName ?? "Chưa phân loại"}</TableCell>
                     <TableCell>
                       <Badge variant="outline">
                         {APPOINTMENT_STATUS_LABELS_VI[appointment.status]}
@@ -526,17 +701,33 @@ export function AppointmentsPage() {
                     </TableCell>
                     <TableCell>{formatCurrency(appointment.price)}</TableCell>
                     <TableCell>
-                      <Badge
-                        variant={
-                          appointment.paymentStatus === 2
-                            ? "success"
-                            : appointment.paymentStatus === 1
-                              ? "warning"
-                              : "destructive"
-                        }
-                      >
-                        {PAYMENT_STATUS_LABELS_VI[appointment.paymentStatus]}
-                      </Badge>
+                      <div className="flex items-center gap-1.5">
+                        <Badge
+                          variant={
+                            appointment.paymentStatus === 2
+                              ? "success"
+                              : appointment.paymentStatus === 1
+                                ? "warning"
+                                : "destructive"
+                          }
+                        >
+                          {PAYMENT_STATUS_LABELS_VI[appointment.paymentStatus]}
+                        </Badge>
+                        {appointment.reminderSentAt && (
+                          <Tooltip>
+                            <TooltipTrigger asChild>
+                              <MailCheck
+                                className="size-4 text-muted-foreground"
+                                aria-label={`Đã gửi email nhắc hẹn lúc ${new Date(appointment.reminderSentAt).toLocaleString("vi-VN")}`}
+                              />
+                            </TooltipTrigger>
+                            <TooltipContent>
+                              Đã nhắc hẹn qua email lúc{" "}
+                              {new Date(appointment.reminderSentAt).toLocaleString("vi-VN")}
+                            </TooltipContent>
+                          </Tooltip>
+                        )}
+                      </div>
                     </TableCell>
                     <TableCell className="text-right">
                       <Button
@@ -547,6 +738,15 @@ export function AppointmentsPage() {
                         onClick={() => setPhotosDialogAppointment(appointment)}
                       >
                         <Image className="size-4" />
+                      </Button>
+                      <Button
+                        variant="ghost"
+                        size="icon"
+                        title="Phiếu đồng ý"
+                        aria-label={`Xem phiếu đồng ý của ${appointment.patientFullName}`}
+                        onClick={() => setConsentFormsDialogAppointment(appointment)}
+                      >
+                        <FileText className="size-4" />
                       </Button>
                       <Button
                         variant="ghost"
@@ -586,6 +786,7 @@ export function AppointmentsPage() {
         <TabsContent value="calendar">
           <AppointmentCalendar
             appointments={calendarAppointments}
+            chairs={chairs}
             onDateRangeChange={(fromDate, toDate) => void loadCalendarRange(fromDate, toDate)}
             onEventClick={(id) => void openEditDialogById(id)}
             onEventReschedule={handleEventReschedule}
@@ -651,6 +852,42 @@ export function AppointmentsPage() {
                 />
               </div>
               <div className="grid gap-2">
+                <Label htmlFor="durationMinutes">Thời lượng (phút)</Label>
+                <Input
+                  id="durationMinutes"
+                  type="number"
+                  min={MIN_APPOINTMENT_DURATION_MINUTES}
+                  max={MAX_APPOINTMENT_DURATION_MINUTES}
+                  required
+                  value={form.durationMinutes}
+                  onChange={(e) => setForm({ ...form, durationMinutes: Number(e.target.value) })}
+                />
+              </div>
+            </div>
+
+            <div className="grid grid-cols-2 gap-4">
+              <div className="grid gap-2">
+                <Label htmlFor="doctorId">Bác sĩ phụ trách</Label>
+                <Select
+                  value={form.doctorId ?? "none"}
+                  onValueChange={(value: string) =>
+                    setForm({ ...form, doctorId: value === "none" ? null : value })
+                  }
+                >
+                  <SelectTrigger id="doctorId">
+                    <SelectValue placeholder="Chọn bác sĩ" />
+                  </SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="none">Chưa chỉ định</SelectItem>
+                    {doctors.map((doctor) => (
+                      <SelectItem key={doctor.id} value={doctor.id}>
+                        {doctor.fullName}
+                      </SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+              </div>
+              <div className="grid gap-2">
                 <Label htmlFor="status">Trạng thái</Label>
                 <Select
                   value={form.status}
@@ -672,25 +909,49 @@ export function AppointmentsPage() {
               </div>
             </div>
 
-            <div className="grid gap-2">
-              <Label htmlFor="treatmentType">Loại hình khám</Label>
-              <Select
-                value={form.treatmentType}
-                onValueChange={(value: TreatmentTypeName) =>
-                  setForm({ ...form, treatmentType: value })
-                }
-              >
-                <SelectTrigger id="treatmentType">
-                  <SelectValue />
-                </SelectTrigger>
-                <SelectContent>
-                  {TREATMENT_TYPE_OPTIONS.map((type) => (
-                    <SelectItem key={type} value={type}>
-                      {TREATMENT_TYPE_LABELS_VI[TreatmentType[type]]}
-                    </SelectItem>
-                  ))}
-                </SelectContent>
-              </Select>
+            <div className="grid grid-cols-2 gap-4">
+              <div className="grid gap-2">
+                <Label htmlFor="serviceId">Dịch vụ</Label>
+                <Select
+                  value={form.serviceId ?? "none"}
+                  onValueChange={(value: string) =>
+                    setForm({ ...form, serviceId: value === "none" ? null : value })
+                  }
+                >
+                  <SelectTrigger id="serviceId">
+                    <SelectValue placeholder="Chọn dịch vụ" />
+                  </SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="none">Chưa phân loại</SelectItem>
+                    {services.map((service) => (
+                      <SelectItem key={service.id} value={service.id}>
+                        {service.name}
+                      </SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+              </div>
+              <div className="grid gap-2">
+                <Label htmlFor="chairId">Ghế</Label>
+                <Select
+                  value={form.chairId ?? "none"}
+                  onValueChange={(value: string) =>
+                    setForm({ ...form, chairId: value === "none" ? null : value })
+                  }
+                >
+                  <SelectTrigger id="chairId">
+                    <SelectValue placeholder="Chọn ghế" />
+                  </SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="none">Chưa xếp ghế</SelectItem>
+                    {chairs.map((chair) => (
+                      <SelectItem key={chair.id} value={chair.id}>
+                        {chair.name}
+                      </SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+              </div>
             </div>
 
             <div className="grid gap-2">
@@ -744,13 +1005,41 @@ export function AppointmentsPage() {
                   key={row.key}
                   className="grid grid-cols-2 gap-2 rounded-md border p-2 sm:grid-cols-[2fr_1fr_5rem_2fr_auto] sm:items-start sm:border-0 sm:p-0"
                 >
-                  <Input
-                    placeholder="Tên thuốc"
-                    aria-label="Tên thuốc"
-                    className="col-span-2 sm:col-span-1"
-                    value={row.data.drugName}
-                    onChange={(e) => updatePrescriptionRow(row.key, { drugName: e.target.value })}
-                  />
+                  <div className="col-span-2 flex flex-col gap-1 sm:col-span-1">
+                    <Select
+                      value={row.data.drugId ?? "custom"}
+                      onValueChange={(value: string) => {
+                        if (value === "custom") {
+                          updatePrescriptionRow(row.key, { drugId: null })
+                          return
+                        }
+                        const drug = drugs.find((d) => d.id === value)
+                        updatePrescriptionRow(row.key, {
+                          drugId: value,
+                          drugName: drug?.name ?? row.data.drugName,
+                          dosage: drug?.defaultDosage ?? row.data.dosage,
+                        })
+                      }}
+                    >
+                      <SelectTrigger aria-label="Chọn thuốc từ danh mục">
+                        <SelectValue placeholder="Chọn thuốc" />
+                      </SelectTrigger>
+                      <SelectContent>
+                        <SelectItem value="custom">Nhập tên khác</SelectItem>
+                        {drugs.map((drug) => (
+                          <SelectItem key={drug.id} value={drug.id}>
+                            {drug.name}
+                          </SelectItem>
+                        ))}
+                      </SelectContent>
+                    </Select>
+                    <Input
+                      placeholder="Tên thuốc"
+                      aria-label="Tên thuốc"
+                      value={row.data.drugName}
+                      onChange={(e) => updatePrescriptionRow(row.key, { drugName: e.target.value })}
+                    />
+                  </div>
                   <Input
                     placeholder="Liều lượng"
                     aria-label="Liều lượng"
@@ -806,6 +1095,12 @@ export function AppointmentsPage() {
         appointmentId={photosDialogAppointment?.id ?? null}
         patientName={photosDialogAppointment?.patientFullName}
         onOpenChange={(open) => !open && setPhotosDialogAppointment(null)}
+      />
+
+      <ConsentFormsDialog
+        appointmentId={consentFormsDialogAppointment?.id ?? null}
+        patientName={consentFormsDialogAppointment?.patientFullName}
+        onOpenChange={(open) => !open && setConsentFormsDialogAppointment(null)}
       />
 
       <ConfirmDialog

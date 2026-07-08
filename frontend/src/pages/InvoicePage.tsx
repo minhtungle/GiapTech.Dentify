@@ -12,7 +12,6 @@ import {
   APPOINTMENT_STATUS_LABELS_VI,
   PAYMENT_METHOD_LABELS_VI,
   PAYMENT_STATUS_LABELS_VI,
-  TREATMENT_TYPE_LABELS_VI,
 } from "@/types/appointment"
 import type { ClinicSettingsDto } from "@/types/clinicSettings"
 
@@ -96,8 +95,8 @@ export function InvoicePage() {
           </p>
         </div>
         <div>
-          <p className="text-muted-foreground">Loại hình khám</p>
-          <p className="font-medium">{TREATMENT_TYPE_LABELS_VI[appointment.treatmentType]}</p>
+          <p className="text-muted-foreground">Dịch vụ</p>
+          <p className="font-medium">{appointment.serviceName ?? "Chưa phân loại"}</p>
         </div>
         <div>
           <p className="text-muted-foreground">Trạng thái lịch hẹn</p>

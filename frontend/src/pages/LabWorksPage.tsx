@@ -66,6 +66,7 @@ export function LabWorksPage() {
   const [isDeleting, setIsDeleting] = useState(false)
 
   const [searchTerm, setSearchTerm] = useState("")
+  const [workTypeFilter, setWorkTypeFilter] = useState("")
 
   const loadData = async () => {
     setIsLoading(true)
@@ -190,12 +191,16 @@ export function LabWorksPage() {
     await changeStatus(id, status)
   }
 
+  const workTypes = Array.from(new Set(labWorks.map((x) => x.workType))).sort()
+
   const visibleLabWorks = labWorks.filter((x) => {
     const term = searchTerm.trim().toLowerCase()
-    if (!term) return true
-    return (
-      x.patientFullName.toLowerCase().includes(term) || x.labName.toLowerCase().includes(term)
-    )
+    const matchesTerm =
+      !term ||
+      x.patientFullName.toLowerCase().includes(term) ||
+      x.labName.toLowerCase().includes(term)
+    const matchesWorkType = !workTypeFilter || x.workType === workTypeFilter
+    return matchesTerm && matchesWorkType
   })
 
   return (
@@ -213,12 +218,30 @@ export function LabWorksPage() {
         </Button>
       </div>
 
-      <Input
-        placeholder="Tìm theo tên bệnh nhân hoặc labo..."
-        value={searchTerm}
-        onChange={(e) => setSearchTerm(e.target.value)}
-        className="max-w-sm"
-      />
+      <div className="flex flex-wrap items-center gap-2">
+        <Input
+          placeholder="Tìm theo tên bệnh nhân hoặc labo..."
+          value={searchTerm}
+          onChange={(e) => setSearchTerm(e.target.value)}
+          className="max-w-sm"
+        />
+        <Select
+          value={workTypeFilter || "all"}
+          onValueChange={(value: string) => setWorkTypeFilter(value === "all" ? "" : value)}
+        >
+          <SelectTrigger className="w-48">
+            <SelectValue placeholder="Loại công việc" />
+          </SelectTrigger>
+          <SelectContent>
+            <SelectItem value="all">Mọi loại công việc</SelectItem>
+            {workTypes.map((workType) => (
+              <SelectItem key={workType} value={workType}>
+                {workType}
+              </SelectItem>
+            ))}
+          </SelectContent>
+        </Select>
+      </div>
 
       {isLoading && (
         <div className="grid grid-cols-1 gap-4 md:grid-cols-4">

@@ -47,10 +47,17 @@ public abstract class AppointmentPhotoAppServiceTests<TStartupModule> : DentifyA
         return appointment.Id;
     }
 
-    private static IRemoteStreamContent CreateFakeImage(string fileName = "test.jpg", string contentType = "image/jpeg")
+    private static UploadAppointmentPhotoInput CreateFakeImage(
+        string fileName = "test.jpg",
+        string contentType = "image/jpeg",
+        string? caption = null)
     {
         var bytes = Encoding.UTF8.GetBytes("fake-image-bytes");
-        return new RemoteStreamContent(new MemoryStream(bytes), fileName, contentType);
+        return new UploadAppointmentPhotoInput
+        {
+            Caption = caption,
+            File = new RemoteStreamContent(new MemoryStream(bytes), fileName, contentType)
+        };
     }
 
     [Fact]
@@ -67,6 +74,21 @@ public abstract class AppointmentPhotoAppServiceTests<TStartupModule> : DentifyA
 
         var list = await _appointmentPhotoAppService.GetListAsync(appointmentId);
         list.ShouldContain(x => x.Id == uploaded.Id);
+    }
+
+    [Fact]
+    public async Task Should_Upload_Photo_With_Caption()
+    {
+        var appointmentId = await CreateAppointmentAsync();
+
+        var uploaded = await _appointmentPhotoAppService.UploadAsync(
+            appointmentId,
+            CreateFakeImage(caption: "Trước khi trám"));
+
+        uploaded.Caption.ShouldBe("Trước khi trám");
+
+        var list = await _appointmentPhotoAppService.GetListAsync(appointmentId);
+        list.ShouldContain(x => x.Id == uploaded.Id && x.Caption == "Trước khi trám");
     }
 
     [Fact]

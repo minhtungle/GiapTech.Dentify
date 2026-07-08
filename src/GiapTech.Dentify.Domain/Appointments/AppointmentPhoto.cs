@@ -41,11 +41,11 @@ public class AppointmentPhoto : CreationAuditedAggregateRoot<Guid>
             nameof(contentType),
             AppointmentPhotoConsts.MaxContentTypeLength)!;
         SizeBytes = sizeBytes;
-        Caption = caption;
+        Caption = Check.Length(caption, nameof(caption), AppointmentPhotoConsts.MaxCaptionLength);
     }
 
     public void SetCaption(string? caption)
     {
-        Caption = caption;
+        Caption = Check.Length(caption, nameof(caption), AppointmentPhotoConsts.MaxCaptionLength);
     }
 }

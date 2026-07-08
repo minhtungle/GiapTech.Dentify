@@ -105,9 +105,48 @@ CLIENT_URL=http://localhost:5173
 
 **Cảnh báo production thật**: cấu hình compose hiện tại (`RequireHttpsMetadata=false`,
 cert placeholder tự tạo bằng `dotnet dev-certs https` trong Dockerfile) chỉ phù hợp môi
-trường nội bộ/demo. Deploy production thật cần: (1) reverse proxy TLS thật (Nginx/
-Caddy/Cloudflare) trước `backend`, (2) certificate signing/encryption OpenIddict thật
-(không dùng dev cert), (3) đổi `AuthServer:RequireHttpsMetadata=true`.
+trường nội bộ/demo. Xem checklist đầy đủ ở mục "Checklist trước khi deploy production
+thật" bên dưới trước khi expose ra internet.
+
+## Checklist trước khi deploy production thật
+
+Cấu hình mặc định trong repo (Docker Compose, migration, seed data) được thiết kế để
+chạy **được ngay** cho demo/nội bộ, không phải để expose thẳng ra internet. Trước khi
+deploy thật cho 1 phòng khám dùng thật, tự thực hiện từng mục sau — không mục nào tự
+động hoá được vì đều cần thông tin cụ thể (domain thật, nhà cung cấp hạ tầng) chỉ người
+vận hành mới biết:
+
+1. **Certificate signing/encryption OpenIddict thật** — thay `openiddict.pfx` placeholder
+   (tự sinh bằng `dotnet dev-certs https` trong `Dockerfile`, xem mục Dockerfile bên
+   dưới) bằng certificate thật (mua CA hoặc tự ký nội bộ tuỳ chính sách bảo mật), đặt
+   đúng `AuthServer:CertificatePassPhrase` trong `appsettings.secrets.json`/biến môi
+   trường compose — **không commit passphrase thật vào git**.
+2. **Reverse proxy + TLS thật trước `backend`** — Nginx/Caddy/Traefik/Cloudflare Tunnel
+   đứng trước container `backend`, cấp domain thật + chứng chỉ TLS thật (Let's Encrypt
+   hoặc CA khác). Container `frontend`/`backend` hiện tại tự phục vụ HTTP nội bộ trong
+   compose network, không tự có TLS.
+3. **Đổi `AuthServer:RequireHttpsMetadata=true`** trong cấu hình production sau khi có
+   reverse proxy TLS thật — cấu hình `false` hiện tại chỉ chấp nhận được vì cả stack chạy
+   nội bộ qua HTTP trong cùng Docker network, **không an toàn nếu expose thẳng ra
+   internet không qua reverse proxy kiểm soát** (xem thêm mục "Cơ chế Auth chi tiết" ở
+   `04-kien-truc-ky-thuat.md`).
+4. **Điền SMTP thật vào `appsettings.secrets.json`** (`Settings:Abp.Mailing.Smtp.*`,
+   xem `04-kien-truc-ky-thuat.md` mục "Email & Background Worker") — nếu để trống,
+   `AppointmentReminderWorker` vẫn chạy nhưng không gửi được email thật (tự fallback
+   `NullEmailSender`, không crash, chỉ không có tác dụng).
+5. **Đổi `RootUrl` của cả 2 OIDC client** (`Dentify_App`, `Dentify_PatientPortal`) trong
+   `appsettings.json` của `DbMigrator` sang domain thật trước khi chạy migration/seed lần
+   đầu trên production — client được seed 1 lần bởi `OpenIddictDataSeedContributor`, đổi
+   domain sau này cần chạy lại DbMigrator để `CreateOrUpdateApplicationAsync` cập nhật
+   redirect URI.
+6. **Đổi mật khẩu admin mặc định** (`admin@abp.io` / `1q2w3E*`) ngay sau lần deploy đầu
+   tiên — đây là tài khoản seed sẵn dùng cho demo/dev, không phải tài khoản vận hành thật.
+7. **Backup định kỳ** — script `backup-db.sh` có sẵn (xem mục "Backup / Restore database")
+   nhưng không tự chạy theo lịch; tự thêm cron job/scheduled task gọi script này định kỳ
+   trên máy chủ thật, không chỉ chạy tay khi nhớ ra.
+8. **Review CORS origins** (`App:CorsOrigins` trong `appsettings.json`) — giá trị mặc định
+   trỏ tới `localhost`, phải đổi thành domain thật của cả 2 frontend (SPA nhân viên +
+   Patient Portal) khi deploy.
 
 ## Dockerfile — tóm tắt multi-stage
 

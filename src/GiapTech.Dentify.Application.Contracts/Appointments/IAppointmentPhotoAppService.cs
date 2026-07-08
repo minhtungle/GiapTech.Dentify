@@ -10,7 +10,7 @@ public interface IAppointmentPhotoAppService : IApplicationService
 {
     Task<List<AppointmentPhotoDto>> GetListAsync(Guid appointmentId);
 
-    Task<AppointmentPhotoDto> UploadAsync(Guid appointmentId, IRemoteStreamContent file);
+    Task<AppointmentPhotoDto> UploadAsync(Guid appointmentId, UploadAppointmentPhotoInput input);
 
     Task<IRemoteStreamContent> DownloadAsync(Guid id);
 

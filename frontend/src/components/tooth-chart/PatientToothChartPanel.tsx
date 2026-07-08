@@ -23,7 +23,11 @@ import {
 } from "@/components/ui/select"
 import { ToothChartSvg } from "@/components/tooth-chart/ToothChartSvg"
 import { toothChartApi } from "@/lib/tooth-chart-api"
+import { appointmentsApi } from "@/lib/appointments-api"
+import { clinicSettingsApi } from "@/lib/clinic-settings-api"
 import { ApiError } from "@/lib/api"
+import { formatToothNumber } from "@/lib/toothNotation"
+import type { ToothNotationSystemName } from "@/lib/toothNotation"
 import type {
   ToothChartDto,
   ToothRecordHistoryDto,
@@ -35,6 +39,7 @@ import {
   TOOTH_STATUS_NAMES,
   ToothStatus,
 } from "@/types/toothChart"
+import type { AppointmentDto } from "@/types/appointment"
 
 interface PatientToothChartPanelProps {
   patientId: string
@@ -44,10 +49,13 @@ export function PatientToothChartPanel({ patientId }: PatientToothChartPanelProp
   const [chart, setChart] = useState<ToothChartDto | null>(null)
   const [isLoading, setIsLoading] = useState(true)
   const [loadError, setLoadError] = useState(false)
+  const [notationSystem, setNotationSystem] = useState<ToothNotationSystemName>("Iso3950")
 
   const [selectedTooth, setSelectedTooth] = useState<number | null>(null)
   const [statusValue, setStatusValue] = useState<ToothStatusName>("Healthy")
   const [notesValue, setNotesValue] = useState("")
+  const [appointmentIdValue, setAppointmentIdValue] = useState<string>("none")
+  const [appointments, setAppointments] = useState<AppointmentDto[]>([])
   const [isSaving, setIsSaving] = useState(false)
 
   const [history, setHistory] = useState<ToothRecordHistoryDto[] | null>(null)
@@ -69,6 +77,18 @@ export function PatientToothChartPanel({ patientId }: PatientToothChartPanelProp
 
   useEffect(() => {
     void loadData()
+    void clinicSettingsApi
+      .get()
+      .then((settings) => setNotationSystem(settings.toothNotationSystem))
+      .catch(() => {
+        // Keep default ISO 3950 if settings fail to load.
+      })
+    void appointmentsApi
+      .getList({ patientId, maxResultCount: 100, sorting: "scheduledDateTime desc" })
+      .then((result) => setAppointments(result.items))
+      .catch(() => {
+        // Non-fatal — the appointment picker just stays empty.
+      })
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [patientId])
 
@@ -79,6 +99,7 @@ export function PatientToothChartPanel({ patientId }: PatientToothChartPanelProp
     setSelectedTooth(toothNumber)
     setStatusValue(statusName)
     setNotesValue(record?.notes ?? "")
+    setAppointmentIdValue(record?.updatedByAppointmentId ?? "none")
     setHistory(null)
   }
 
@@ -90,6 +111,7 @@ export function PatientToothChartPanel({ patientId }: PatientToothChartPanelProp
       await toothChartApi.updateStatus(patientId, selectedTooth, {
         status: statusValue,
         notes: notesValue.trim() || undefined,
+        appointmentId: appointmentIdValue === "none" ? null : appointmentIdValue,
       })
       toast.success(`Đã cập nhật răng ${selectedTooth}`)
       setSelectedTooth(null)
@@ -158,6 +180,7 @@ export function PatientToothChartPanel({ patientId }: PatientToothChartPanelProp
               records={chart.records}
               selectedTooth={selectedTooth}
               onToothClick={openToothDialog}
+              notationSystem={notationSystem}
             />
           </div>
         </>
@@ -170,7 +193,12 @@ export function PatientToothChartPanel({ patientId }: PatientToothChartPanelProp
         <DialogContent>
           <form onSubmit={handleSave} className="flex flex-col gap-4">
             <DialogHeader>
-              <DialogTitle>Răng số {selectedTooth}</DialogTitle>
+              <DialogTitle>
+                Răng số{" "}
+                {selectedTooth !== null
+                  ? formatToothNumber(selectedTooth, notationSystem)
+                  : ""}
+              </DialogTitle>
             </DialogHeader>
 
             {selectedRecord && (
@@ -193,6 +221,24 @@ export function PatientToothChartPanel({ patientId }: PatientToothChartPanelProp
                   {TOOTH_STATUS_NAMES.map((name, value) => (
                     <SelectItem key={name} value={name}>
                       {TOOTH_STATUS_LABELS_VI[value as ToothStatus]}
+                    </SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+            </div>
+
+            <div className="grid gap-2">
+              <Label htmlFor="tooth-appointment">Lịch hẹn liên quan</Label>
+              <Select value={appointmentIdValue} onValueChange={setAppointmentIdValue}>
+                <SelectTrigger id="tooth-appointment">
+                  <SelectValue />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="none">Không liên kết</SelectItem>
+                  {appointments.map((appointment) => (
+                    <SelectItem key={appointment.id} value={appointment.id}>
+                      {new Date(appointment.scheduledDateTime).toLocaleString("vi-VN")}
+                      {appointment.serviceName ? ` — ${appointment.serviceName}` : ""}
                     </SelectItem>
                   ))}
                 </SelectContent>

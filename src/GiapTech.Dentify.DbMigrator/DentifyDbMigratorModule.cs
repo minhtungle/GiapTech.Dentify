@@ -7,7 +7,7 @@ namespace GiapTech.Dentify.DbMigrator;
 [DependsOn(
     typeof(AbpAutofacModule),
     typeof(DentifyEntityFrameworkCoreModule),
-    typeof(DentifyApplicationContractsModule)
+    typeof(DentifyApplicationModule)
 )]
 public class DentifyDbMigratorModule : AbpModule
 {

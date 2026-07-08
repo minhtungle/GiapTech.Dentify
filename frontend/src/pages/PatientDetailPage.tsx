@@ -1,11 +1,18 @@
 import { useEffect, useState } from "react"
 import { useNavigate, useParams } from "react-router-dom"
-import { AlertCircle, ArrowLeft, Wallet } from "lucide-react"
+import { AlertCircle, ArrowLeft, KeyRound, Wallet } from "lucide-react"
 import { toast } from "sonner"
 import { Button } from "@/components/ui/button"
 import { Badge } from "@/components/ui/badge"
 import { Skeleton } from "@/components/ui/skeleton"
 import { Tabs, TabsList, TabsTrigger, TabsContent } from "@/components/ui/tabs"
+import {
+  Dialog,
+  DialogContent,
+  DialogFooter,
+  DialogHeader,
+  DialogTitle,
+} from "@/components/ui/dialog"
 import {
   Table,
   TableBody,
@@ -15,7 +22,11 @@ import {
   TableRow,
 } from "@/components/ui/table"
 import { PatientToothChartPanel } from "@/components/tooth-chart/PatientToothChartPanel"
+import { TreatmentPlansPanel } from "@/components/patients/TreatmentPlansPanel"
+import { InsurancePoliciesPanel } from "@/components/patients/InsurancePoliciesPanel"
 import { PaymentHistoryDialog } from "@/components/appointments/PaymentHistoryDialog"
+import { ConfirmDialog } from "@/components/ConfirmDialog"
+import { IdentityUserPicker } from "@/components/IdentityUserPicker"
 import { patientsApi } from "@/lib/patients-api"
 import { appointmentsApi } from "@/lib/appointments-api"
 import { labWorksApi } from "@/lib/lab-works-api"
@@ -26,7 +37,6 @@ import type { AppointmentDto } from "@/types/appointment"
 import {
   APPOINTMENT_STATUS_LABELS_VI,
   PAYMENT_STATUS_LABELS_VI,
-  TREATMENT_TYPE_LABELS_VI,
 } from "@/types/appointment"
 import type { LabWorkDto } from "@/types/labWork"
 import { LAB_WORK_STATUS_LABELS_VI } from "@/types/labWork"
@@ -54,6 +64,12 @@ export function PatientDetailPage() {
 
   const [paymentDialogAppointment, setPaymentDialogAppointment] =
     useState<AppointmentDto | null>(null)
+
+  const [linkPortalDialogOpen, setLinkPortalDialogOpen] = useState(false)
+  const [selectedIdentityUserId, setSelectedIdentityUserId] = useState<string | null>(null)
+  const [isLinkingPortal, setIsLinkingPortal] = useState(false)
+  const [unlinkPortalConfirmOpen, setUnlinkPortalConfirmOpen] = useState(false)
+  const [isUnlinkingPortal, setIsUnlinkingPortal] = useState(false)
 
   const loadData = async () => {
     if (!patientId) return
@@ -97,6 +113,39 @@ export function PatientDetailPage() {
   const handlePaymentChanged = (updated: AppointmentDto) => {
     setPaymentDialogAppointment(updated)
     setAppointments((prev) => prev.map((a) => (a.id === updated.id ? updated : a)))
+  }
+
+  const handleLinkPortalAccount = async () => {
+    if (!patientId || !selectedIdentityUserId) return
+    setIsLinkingPortal(true)
+    try {
+      const updated = await patientsApi.linkIdentityUser(patientId, {
+        identityUserId: selectedIdentityUserId,
+      })
+      setDetail((prev) => (prev ? { ...prev, patient: updated } : prev))
+      toast.success("Đã cấp tài khoản cổng bệnh nhân")
+      setLinkPortalDialogOpen(false)
+      setSelectedIdentityUserId(null)
+    } catch (err) {
+      toast.error(err instanceof ApiError ? err.message : "Cấp tài khoản thất bại")
+    } finally {
+      setIsLinkingPortal(false)
+    }
+  }
+
+  const handleUnlinkPortalAccount = async () => {
+    if (!patientId) return
+    setIsUnlinkingPortal(true)
+    try {
+      const updated = await patientsApi.unlinkIdentityUser(patientId)
+      setDetail((prev) => (prev ? { ...prev, patient: updated } : prev))
+      toast.success("Đã huỷ liên kết tài khoản cổng bệnh nhân")
+      setUnlinkPortalConfirmOpen(false)
+    } catch (err) {
+      toast.error(err instanceof ApiError ? err.message : "Huỷ liên kết thất bại")
+    } finally {
+      setIsUnlinkingPortal(false)
+    }
   }
 
   if (!patientId) return null
@@ -143,9 +192,31 @@ export function PatientDetailPage() {
               {detail.lastAppointmentDate
                 ? ` · Lần khám gần nhất: ${new Date(detail.lastAppointmentDate).toLocaleDateString("vi-VN")}`
                 : ""}
+              {detail.patient.referralSource ? ` · Biết đến qua: ${detail.patient.referralSource}` : ""}
             </p>
           </div>
         ) : null}
+        {!isLoading && detail && (
+          <div className="ml-auto">
+            {detail.patient.identityUserId ? (
+              <div className="flex items-center gap-2">
+                <Badge variant="success">Đã cấp tài khoản portal</Badge>
+                <Button
+                  variant="outline"
+                  size="sm"
+                  onClick={() => setUnlinkPortalConfirmOpen(true)}
+                >
+                  Huỷ liên kết
+                </Button>
+              </div>
+            ) : (
+              <Button variant="outline" size="sm" onClick={() => setLinkPortalDialogOpen(true)}>
+                <KeyRound className="size-4" />
+                Cấp tài khoản cổng bệnh nhân
+              </Button>
+            )}
+          </div>
+        )}
       </div>
 
       {!isLoading && loadError && (
@@ -164,6 +235,8 @@ export function PatientDetailPage() {
             <TabsTrigger value="appointments">Lịch hẹn ({appointments.length})</TabsTrigger>
             <TabsTrigger value="payments">Thanh toán</TabsTrigger>
             <TabsTrigger value="lab-works">Ca labo ({labWorks.length})</TabsTrigger>
+            <TabsTrigger value="treatment-plans">Kế hoạch điều trị</TabsTrigger>
+            <TabsTrigger value="insurance">Bảo hiểm</TabsTrigger>
             <TabsTrigger value="tooth-chart">Sơ đồ răng</TabsTrigger>
           </TabsList>
 
@@ -190,7 +263,7 @@ export function PatientDetailPage() {
                   {appointments.map((a) => (
                     <TableRow key={a.id}>
                       <TableCell>{new Date(a.scheduledDateTime).toLocaleString("vi-VN")}</TableCell>
-                      <TableCell>{TREATMENT_TYPE_LABELS_VI[a.treatmentType]}</TableCell>
+                      <TableCell>{a.serviceName ?? "Chưa phân loại"}</TableCell>
                       <TableCell>
                         <Badge variant="outline">{APPOINTMENT_STATUS_LABELS_VI[a.status]}</Badge>
                       </TableCell>
@@ -305,6 +378,14 @@ export function PatientDetailPage() {
             </div>
           </TabsContent>
 
+          <TabsContent value="treatment-plans">
+            <TreatmentPlansPanel patientId={patientId} />
+          </TabsContent>
+
+          <TabsContent value="insurance">
+            <InsurancePoliciesPanel patientId={patientId} />
+          </TabsContent>
+
           <TabsContent value="tooth-chart">
             <PatientToothChartPanel patientId={patientId} />
           </TabsContent>
@@ -315,6 +396,41 @@ export function PatientDetailPage() {
         appointment={paymentDialogAppointment}
         onOpenChange={(open) => !open && setPaymentDialogAppointment(null)}
         onChanged={handlePaymentChanged}
+      />
+
+      <Dialog
+        open={linkPortalDialogOpen}
+        onOpenChange={(open) => {
+          setLinkPortalDialogOpen(open)
+          if (!open) setSelectedIdentityUserId(null)
+        }}
+      >
+        <DialogContent>
+          <DialogHeader>
+            <DialogTitle>Cấp tài khoản cổng bệnh nhân</DialogTitle>
+          </DialogHeader>
+          <IdentityUserPicker
+            value={selectedIdentityUserId}
+            onChange={(identityUserId) => setSelectedIdentityUserId(identityUserId)}
+          />
+          <DialogFooter>
+            <Button
+              disabled={!selectedIdentityUserId || isLinkingPortal}
+              onClick={() => void handleLinkPortalAccount()}
+            >
+              {isLinkingPortal ? "Đang lưu..." : "Cấp tài khoản"}
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+
+      <ConfirmDialog
+        open={unlinkPortalConfirmOpen}
+        onOpenChange={setUnlinkPortalConfirmOpen}
+        title="Huỷ liên kết tài khoản cổng bệnh nhân"
+        description="Bệnh nhân sẽ không còn đăng nhập được vào cổng thông tin bằng tài khoản này nữa. Bạn có thể cấp lại tài khoản khác sau."
+        isConfirming={isUnlinkingPortal}
+        onConfirm={() => void handleUnlinkPortalAccount()}
       />
     </div>
   )

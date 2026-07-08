@@ -21,4 +21,8 @@ public interface IPatientAppService : IApplicationService
     Task<PatientDetailDto> GetPatientDetailAsync(Guid id);
 
     Task<List<RecallPatientDto>> GetRecallListAsync(int monthsThreshold);
+
+    Task<PatientDto> LinkIdentityUserAsync(Guid id, LinkPatientIdentityUserDto input);
+
+    Task<PatientDto> UnlinkIdentityUserAsync(Guid id);
 }

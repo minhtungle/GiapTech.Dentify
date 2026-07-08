@@ -9,4 +9,5 @@ public class GetExpenseListDto : PagedAndSortedResultRequestDto
     public ExpenseCategory? Category { get; set; }
     public DateTime? FromDate { get; set; }
     public DateTime? ToDate { get; set; }
+    public Guid? LabWorkId { get; set; }
 }

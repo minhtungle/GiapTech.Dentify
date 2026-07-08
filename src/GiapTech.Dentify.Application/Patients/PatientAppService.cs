@@ -7,9 +7,11 @@ using GiapTech.Dentify.Appointments;
 using GiapTech.Dentify.Patients;
 using GiapTech.Dentify.Permissions;
 using Microsoft.AspNetCore.Authorization;
+using Volo.Abp;
 using Volo.Abp.Application.Dtos;
 using Volo.Abp.Application.Services;
 using Volo.Abp.Domain.Repositories;
+using Volo.Abp.Identity;
 
 namespace GiapTech.Dentify.Application.Patients;
 
@@ -18,15 +20,18 @@ public class PatientAppService : ApplicationService, IPatientAppService
 {
     private readonly IRepository<Patient, Guid> _patientRepository;
     private readonly IRepository<Appointment, Guid> _appointmentRepository;
+    private readonly IRepository<IdentityUser, Guid> _identityUserRepository;
     private readonly PatientMapper _patientMapper;
 
     public PatientAppService(
         IRepository<Patient, Guid> patientRepository,
         IRepository<Appointment, Guid> appointmentRepository,
+        IRepository<IdentityUser, Guid> identityUserRepository,
         PatientMapper patientMapper)
     {
         _patientRepository = patientRepository;
         _appointmentRepository = appointmentRepository;
+        _identityUserRepository = identityUserRepository;
         _patientMapper = patientMapper;
     }
 
@@ -76,6 +81,7 @@ public class PatientAppService : ApplicationService, IPatientAppService
         var patient = new Patient(GuidGenerator.Create(), input.FullName, input.DateOfBirth, input.Gender);
         patient.SetContactInfo(input.PhoneNumber, input.Email, input.Address);
         patient.SetNotes(input.Notes);
+        patient.SetReferralSource(input.ReferralSource);
         patient.SetTags(input.Tags);
         patient.SetAllergies(input.Allergies);
         patient.SetMedicalConditions(input.MedicalConditions);
@@ -95,6 +101,7 @@ public class PatientAppService : ApplicationService, IPatientAppService
         patient.SetGender(input.Gender);
         patient.SetContactInfo(input.PhoneNumber, input.Email, input.Address);
         patient.SetNotes(input.Notes);
+        patient.SetReferralSource(input.ReferralSource);
         patient.SetTags(input.Tags);
         patient.SetAllergies(input.Allergies);
         patient.SetMedicalConditions(input.MedicalConditions);
@@ -177,6 +184,50 @@ public class PatientAppService : ApplicationService, IPatientAppService
             })
             .OrderBy(x => x.LastCompletedDate)
             .ToList();
+    }
+
+    [Authorize(DentifyPermissions.Patients.ManagePortalAccess)]
+    public virtual async Task<PatientDto> LinkIdentityUserAsync(Guid id, LinkPatientIdentityUserDto input)
+    {
+        var patient = await GetPatientOrThrowAsync(id);
+
+        await EnsureIdentityUserExistsAsync(input.IdentityUserId);
+        await EnsureIdentityUserNotLinkedAsync(input.IdentityUserId, excludePatientId: id);
+
+        patient.LinkToIdentityUser(input.IdentityUserId);
+
+        await _patientRepository.UpdateAsync(patient);
+
+        return _patientMapper.MapToDto(patient);
+    }
+
+    [Authorize(DentifyPermissions.Patients.ManagePortalAccess)]
+    public virtual async Task<PatientDto> UnlinkIdentityUserAsync(Guid id)
+    {
+        var patient = await GetPatientOrThrowAsync(id);
+
+        patient.UnlinkIdentityUser();
+
+        await _patientRepository.UpdateAsync(patient);
+
+        return _patientMapper.MapToDto(patient);
+    }
+
+    private async Task EnsureIdentityUserExistsAsync(Guid identityUserId)
+    {
+        await _identityUserRepository.GetAsync(identityUserId);
+    }
+
+    private async Task EnsureIdentityUserNotLinkedAsync(Guid identityUserId, Guid? excludePatientId)
+    {
+        var queryable = await _patientRepository.GetQueryableAsync();
+        var alreadyLinked = await AsyncExecuter.AnyAsync(
+            queryable.Where(x => x.IdentityUserId == identityUserId && x.Id != excludePatientId));
+
+        if (alreadyLinked)
+        {
+            throw new BusinessException(DentifyDomainErrorCodes.PatientAlreadyLinkedToUser);
+        }
     }
 
     private async Task<Patient> GetPatientOrThrowAsync(Guid id)

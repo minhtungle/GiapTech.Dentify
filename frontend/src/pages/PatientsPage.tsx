@@ -46,6 +46,7 @@ const EMPTY_FORM: CreateUpdatePatientDto = {
   email: "",
   address: "",
   notes: "",
+  referralSource: "",
   tags: [],
   allergies: [],
   medicalConditions: [],
@@ -70,6 +71,7 @@ function toDto(
     email: form.email?.trim() || undefined,
     address: form.address?.trim() || undefined,
     notes: form.notes?.trim() || undefined,
+    referralSource: form.referralSource?.trim() || undefined,
     tags: splitCommaList(tagsInput),
     allergies: splitCommaList(allergiesInput),
     medicalConditions: splitCommaList(medicalConditionsInput),
@@ -139,6 +141,7 @@ export function PatientsPage() {
       email: patient.email ?? "",
       address: patient.address ?? "",
       notes: patient.notes ?? "",
+      referralSource: patient.referralSource ?? "",
       tags: patient.tags,
       allergies: patient.allergies,
       medicalConditions: patient.medicalConditions,
@@ -189,7 +192,7 @@ export function PatientsPage() {
     try {
       const result = await patientsApi.getList({ maxResultCount: 1000 })
       const csv = toCsv(
-        ["Họ và tên", "Ngày sinh", "Giới tính", "Số điện thoại", "Email", "Địa chỉ", "Tags", "Ghi chú"],
+        ["Họ và tên", "Ngày sinh", "Giới tính", "Số điện thoại", "Email", "Địa chỉ", "Nguồn giới thiệu", "Tags", "Ghi chú"],
         result.items.map((p) => [
           p.fullName,
           p.dateOfBirth.slice(0, 10),
@@ -197,6 +200,7 @@ export function PatientsPage() {
           p.phoneNumber ?? "",
           p.email ?? "",
           p.address ?? "",
+          p.referralSource ?? "",
           p.tags.join("; "),
           p.notes ?? "",
         ]),
@@ -250,6 +254,7 @@ export function PatientsPage() {
           phoneNumber: row["Số điện thoại"]?.trim() || undefined,
           email: row["Email"]?.trim() || undefined,
           address: row["Địa chỉ"]?.trim() || undefined,
+          referralSource: row["Nguồn giới thiệu"]?.trim() || undefined,
           notes: row["Ghi chú"]?.trim() || undefined,
           tags: (row["Tags"] ?? "")
             .split(";")
@@ -496,6 +501,16 @@ export function PatientsPage() {
                 id="address"
                 value={form.address ?? ""}
                 onChange={(e) => setForm({ ...form, address: e.target.value })}
+              />
+            </div>
+
+            <div className="grid gap-2">
+              <Label htmlFor="referralSource">Nguồn giới thiệu</Label>
+              <Input
+                id="referralSource"
+                placeholder="Bạn bè giới thiệu, Facebook, Google..."
+                value={form.referralSource ?? ""}
+                onChange={(e) => setForm({ ...form, referralSource: e.target.value })}
               />
             </div>
 

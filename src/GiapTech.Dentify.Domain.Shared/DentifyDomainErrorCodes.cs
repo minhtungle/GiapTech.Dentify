@@ -14,4 +14,22 @@ public static class DentifyDomainErrorCodes
     public const string AppointmentPhotoNotFound = "Dentify:00008";
     public const string PrescriptionItemNotFound = "Dentify:00009";
     public const string PaymentNotFound = "Dentify:00010";
+    public const string DoctorNotFound = "Dentify:00011";
+    public const string DoctorAlreadyLinkedToUser = "Dentify:00012";
+    public const string DoctorDoubleBooked = "Dentify:00013";
+    public const string ServiceNotFound = "Dentify:00014";
+    public const string ChairDoubleBooked = "Dentify:00015";
+    public const string TreatmentPlanNotFound = "Dentify:00016";
+    public const string TreatmentPlanItemNotFound = "Dentify:00017";
+    public const string ConsentFormNotFound = "Dentify:00018";
+    public const string UnsupportedConsentFormContentType = "Dentify:00019";
+    public const string ConsentFormSizeTooLarge = "Dentify:00020";
+    public const string SupplyNotFound = "Dentify:00021";
+    public const string InsufficientSupplyQuantity = "Dentify:00022";
+    public const string InsurancePolicyNotFound = "Dentify:00023";
+    public const string PatientAlreadyLinkedToUser = "Dentify:00024";
+    public const string PatientPortalAccountNotLinked = "Dentify:00025";
+    public const string AppointmentBelongsToDifferentPatient = "Dentify:00026";
+    public const string UnsupportedLogoContentType = "Dentify:00027";
+    public const string LogoSizeTooLarge = "Dentify:00028";
 }

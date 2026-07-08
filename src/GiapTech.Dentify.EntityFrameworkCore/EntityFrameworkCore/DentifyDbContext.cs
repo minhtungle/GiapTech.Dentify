@@ -5,11 +5,18 @@ using System.Text.Json;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.EntityFrameworkCore.ChangeTracking;
 using GiapTech.Dentify.Appointments;
+using GiapTech.Dentify.Chairs;
+using GiapTech.Dentify.Doctors;
+using GiapTech.Dentify.Drugs;
 using GiapTech.Dentify.Expenses;
 using GiapTech.Dentify.LabWorks;
 using GiapTech.Dentify.Patients;
+using GiapTech.Dentify.Services;
+using GiapTech.Dentify.Supplies;
 using GiapTech.Dentify.Tasks;
 using GiapTech.Dentify.ToothCharts;
+using GiapTech.Dentify.TreatmentPlans;
+using GiapTech.Dentify.Waitlist;
 using Volo.Abp.AuditLogging.EntityFrameworkCore;
 using Volo.Abp.BackgroundJobs.EntityFrameworkCore;
 using Volo.Abp.BlobStoring.Database.EntityFrameworkCore;
@@ -39,6 +46,11 @@ public class DentifyDbContext :
     /* Add DbSet properties for your Aggregate Roots / Entities here. */
 
     public DbSet<Patient> Patients { get; set; }
+    public DbSet<Doctor> Doctors { get; set; }
+    public DbSet<Service> Services { get; set; }
+    public DbSet<Drug> Drugs { get; set; }
+    public DbSet<Chair> Chairs { get; set; }
+    public DbSet<WaitlistEntry> WaitlistEntries { get; set; }
     public DbSet<Appointment> Appointments { get; set; }
     public DbSet<ToothChart> ToothCharts { get; set; }
     public DbSet<ToothRecordHistory> ToothRecordHistories { get; set; }
@@ -48,6 +60,12 @@ public class DentifyDbContext :
     public DbSet<LabWork> LabWorks { get; set; }
     public DbSet<Expense> Expenses { get; set; }
     public DbSet<TaskItem> TaskItems { get; set; }
+    public DbSet<TreatmentPlan> TreatmentPlans { get; set; }
+    public DbSet<TreatmentPlanItem> TreatmentPlanItems { get; set; }
+    public DbSet<ConsentForm> ConsentForms { get; set; }
+    public DbSet<Supply> Supplies { get; set; }
+    public DbSet<SupplyUsage> SupplyUsages { get; set; }
+    public DbSet<InsurancePolicy> InsurancePolicies { get; set; }
 
 
     #region Entities from the modules
@@ -113,6 +131,7 @@ public class DentifyDbContext :
             b.Property(x => x.Email).HasMaxLength(PatientConsts.MaxEmailLength);
             b.Property(x => x.Address).HasMaxLength(PatientConsts.MaxAddressLength);
             b.Property(x => x.Notes).HasMaxLength(PatientConsts.MaxNotesLength);
+            b.Property(x => x.ReferralSource).HasMaxLength(PatientConsts.MaxReferralSourceLength);
             b.Property(x => x.Tags)
                 .HasConversion(
                     tags => JsonSerializer.Serialize(tags, (JsonSerializerOptions?)null),
@@ -144,6 +163,7 @@ public class DentifyDbContext :
 
             b.HasIndex(x => x.FullName);
             b.HasIndex(x => x.PhoneNumber);
+            b.HasIndex(x => x.IdentityUserId).IsUnique().HasFilter("\"IdentityUserId\" IS NOT NULL");
         });
 
         builder.Entity<Appointment>(b =>
@@ -157,6 +177,9 @@ public class DentifyDbContext :
             b.Property(x => x.PaidAmount).HasColumnType("decimal(18,2)");
 
             b.HasOne<Patient>().WithMany().HasForeignKey(x => x.PatientId).IsRequired();
+            b.HasOne<Doctor>().WithMany().HasForeignKey(x => x.DoctorId).IsRequired(false);
+            b.HasOne<Service>().WithMany().HasForeignKey(x => x.ServiceId).IsRequired(false);
+            b.HasOne<Chair>().WithMany().HasForeignKey(x => x.ChairId).IsRequired(false);
 
             b.HasMany(x => x.PrescriptionItems).WithOne().HasForeignKey(x => x.AppointmentId).IsRequired();
             b.Navigation(x => x.PrescriptionItems).HasField("_prescriptionItems").UsePropertyAccessMode(PropertyAccessMode.Field);
@@ -166,7 +189,61 @@ public class DentifyDbContext :
 
             b.HasIndex(x => x.PatientId);
             b.HasIndex(x => x.DoctorId);
+            b.HasIndex(x => x.ServiceId);
+            b.HasIndex(x => x.ChairId);
             b.HasIndex(x => x.ScheduledDateTime);
+        });
+
+        builder.Entity<Doctor>(b =>
+        {
+            b.ToTable(DentifyConsts.DbTablePrefix + "Doctors", DentifyConsts.DbSchema);
+            b.ConfigureByConvention();
+
+            b.Property(x => x.Specialization).HasMaxLength(DoctorConsts.MaxSpecializationLength);
+
+            b.HasIndex(x => x.IdentityUserId).IsUnique();
+        });
+
+        builder.Entity<Service>(b =>
+        {
+            b.ToTable(DentifyConsts.DbTablePrefix + "Services", DentifyConsts.DbSchema);
+            b.ConfigureByConvention();
+
+            b.Property(x => x.Name).IsRequired().HasMaxLength(ServiceConsts.MaxNameLength);
+            b.Property(x => x.Price).HasColumnType("decimal(18,2)");
+        });
+
+        builder.Entity<Drug>(b =>
+        {
+            b.ToTable(DentifyConsts.DbTablePrefix + "Drugs", DentifyConsts.DbSchema);
+            b.ConfigureByConvention();
+
+            b.Property(x => x.Name).IsRequired().HasMaxLength(DrugConsts.MaxNameLength);
+            b.Property(x => x.DefaultDosage).HasMaxLength(DrugConsts.MaxDefaultDosageLength);
+        });
+
+        builder.Entity<Chair>(b =>
+        {
+            b.ToTable(DentifyConsts.DbTablePrefix + "Chairs", DentifyConsts.DbSchema);
+            b.ConfigureByConvention();
+
+            b.Property(x => x.Name).IsRequired().HasMaxLength(ChairConsts.MaxNameLength);
+        });
+
+        builder.Entity<WaitlistEntry>(b =>
+        {
+            b.ToTable(DentifyConsts.DbTablePrefix + "WaitlistEntries", DentifyConsts.DbSchema);
+            b.ConfigureByConvention();
+
+            b.Property(x => x.PreferredTimeNote).HasMaxLength(WaitlistEntryConsts.MaxPreferredTimeNoteLength);
+            b.Property(x => x.Notes).HasMaxLength(WaitlistEntryConsts.MaxNotesLength);
+
+            b.HasOne<Patient>().WithMany().HasForeignKey(x => x.PatientId).IsRequired();
+            b.HasOne<Doctor>().WithMany().HasForeignKey(x => x.DoctorId).IsRequired(false);
+            b.HasOne<Service>().WithMany().HasForeignKey(x => x.ServiceId).IsRequired(false);
+
+            b.HasIndex(x => x.PatientId);
+            b.HasIndex(x => x.Status);
         });
 
         builder.Entity<PrescriptionItem>(b =>
@@ -178,7 +255,10 @@ public class DentifyDbContext :
             b.Property(x => x.Dosage).HasMaxLength(PrescriptionItemConsts.MaxDosageLength);
             b.Property(x => x.Instructions).HasMaxLength(PrescriptionItemConsts.MaxInstructionsLength);
 
+            b.HasOne<Drug>().WithMany().HasForeignKey(x => x.DrugId).IsRequired(false);
+
             b.HasIndex(x => x.AppointmentId);
+            b.HasIndex(x => x.DrugId);
         });
 
         builder.Entity<Payment>(b =>
@@ -235,9 +315,98 @@ public class DentifyDbContext :
             b.Property(x => x.BlobName).IsRequired();
             b.Property(x => x.FileName).IsRequired().HasMaxLength(AppointmentPhotoConsts.MaxFileNameLength);
             b.Property(x => x.ContentType).IsRequired().HasMaxLength(AppointmentPhotoConsts.MaxContentTypeLength);
+            b.Property(x => x.Caption).HasMaxLength(AppointmentPhotoConsts.MaxCaptionLength);
 
             b.HasOne<Appointment>().WithMany().HasForeignKey(x => x.AppointmentId).IsRequired();
 
+            b.HasIndex(x => x.AppointmentId);
+        });
+
+        builder.Entity<ConsentForm>(b =>
+        {
+            b.ToTable(DentifyConsts.DbTablePrefix + "ConsentForms", DentifyConsts.DbSchema);
+            b.ConfigureByConvention();
+
+            b.Property(x => x.BlobName).IsRequired();
+            b.Property(x => x.FileName).IsRequired().HasMaxLength(ConsentFormConsts.MaxFileNameLength);
+            b.Property(x => x.ContentType).IsRequired().HasMaxLength(ConsentFormConsts.MaxContentTypeLength);
+            b.Property(x => x.FormTitle).IsRequired().HasMaxLength(ConsentFormConsts.MaxFormTitleLength);
+
+            b.HasOne<Appointment>().WithMany().HasForeignKey(x => x.AppointmentId).IsRequired();
+
+            b.HasIndex(x => x.AppointmentId);
+        });
+
+        builder.Entity<TreatmentPlan>(b =>
+        {
+            b.ToTable(DentifyConsts.DbTablePrefix + "TreatmentPlans", DentifyConsts.DbSchema);
+            b.ConfigureByConvention();
+
+            b.Property(x => x.Title).IsRequired().HasMaxLength(TreatmentPlanConsts.MaxTitleLength);
+            b.Property(x => x.Notes).HasMaxLength(TreatmentPlanConsts.MaxNotesLength);
+
+            b.HasOne<Patient>().WithMany().HasForeignKey(x => x.PatientId).IsRequired();
+
+            b.HasMany(x => x.Items).WithOne().HasForeignKey(x => x.TreatmentPlanId).IsRequired();
+            b.Navigation(x => x.Items).HasField("_items").UsePropertyAccessMode(PropertyAccessMode.Field);
+
+            b.HasIndex(x => x.PatientId);
+            b.HasIndex(x => x.Status);
+        });
+
+        builder.Entity<TreatmentPlanItem>(b =>
+        {
+            b.ToTable(DentifyConsts.DbTablePrefix + "TreatmentPlanItems", DentifyConsts.DbSchema);
+            b.ConfigureByConvention();
+
+            b.Property(x => x.Description).IsRequired().HasMaxLength(TreatmentPlanConsts.MaxItemDescriptionLength);
+            b.Property(x => x.EstimatedCost).HasColumnType("decimal(18,2)");
+
+            b.HasOne<Service>().WithMany().HasForeignKey(x => x.ServiceId).IsRequired(false);
+            b.HasOne<Appointment>().WithMany().HasForeignKey(x => x.AppointmentId).IsRequired(false);
+
+            b.HasIndex(x => x.TreatmentPlanId);
+            b.HasIndex(x => x.ServiceId);
+            b.HasIndex(x => x.AppointmentId);
+        });
+
+        builder.Entity<InsurancePolicy>(b =>
+        {
+            b.ToTable(DentifyConsts.DbTablePrefix + "InsurancePolicies", DentifyConsts.DbSchema);
+            b.ConfigureByConvention();
+
+            b.Property(x => x.ProviderName).IsRequired().HasMaxLength(InsurancePolicyConsts.MaxProviderNameLength);
+            b.Property(x => x.PolicyNumber).IsRequired().HasMaxLength(InsurancePolicyConsts.MaxPolicyNumberLength);
+            b.Property(x => x.Notes).HasMaxLength(InsurancePolicyConsts.MaxNotesLength);
+
+            b.HasOne<Patient>().WithMany().HasForeignKey(x => x.PatientId).IsRequired();
+
+            b.HasIndex(x => x.PatientId);
+        });
+
+        builder.Entity<Supply>(b =>
+        {
+            b.ToTable(DentifyConsts.DbTablePrefix + "Supplies", DentifyConsts.DbSchema);
+            b.ConfigureByConvention();
+
+            b.Property(x => x.Name).IsRequired().HasMaxLength(SupplyConsts.MaxNameLength);
+            b.Property(x => x.Unit).IsRequired().HasMaxLength(SupplyConsts.MaxUnitLength);
+            b.Property(x => x.Quantity).HasColumnType("decimal(18,3)");
+            b.Property(x => x.LowStockThreshold).HasColumnType("decimal(18,3)");
+        });
+
+        builder.Entity<SupplyUsage>(b =>
+        {
+            b.ToTable(DentifyConsts.DbTablePrefix + "SupplyUsages", DentifyConsts.DbSchema);
+            b.ConfigureByConvention();
+
+            b.Property(x => x.Quantity).HasColumnType("decimal(18,3)");
+            b.Property(x => x.Notes).HasMaxLength(SupplyUsageConsts.MaxNotesLength);
+
+            b.HasOne<Supply>().WithMany().HasForeignKey(x => x.SupplyId).IsRequired();
+            b.HasOne<Appointment>().WithMany().HasForeignKey(x => x.AppointmentId).IsRequired(false);
+
+            b.HasIndex(x => x.SupplyId);
             b.HasIndex(x => x.AppointmentId);
         });
 
@@ -274,8 +443,11 @@ public class DentifyDbContext :
             b.Property(x => x.Amount).HasColumnType("decimal(18,2)");
             b.Property(x => x.Description).HasMaxLength(ExpenseConsts.MaxDescriptionLength);
 
+            b.HasOne<LabWork>().WithMany().HasForeignKey(x => x.LabWorkId).IsRequired(false).OnDelete(DeleteBehavior.SetNull);
+
             b.HasIndex(x => x.ExpenseDate);
             b.HasIndex(x => x.Category);
+            b.HasIndex(x => x.LabWorkId);
         });
 
         builder.Entity<TaskItem>(b =>

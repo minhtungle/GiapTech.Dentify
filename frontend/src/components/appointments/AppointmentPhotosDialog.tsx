@@ -2,6 +2,8 @@ import { useEffect, useRef, useState } from "react"
 import { ImageIcon, Trash2, Upload } from "lucide-react"
 import { toast } from "sonner"
 import { Button } from "@/components/ui/button"
+import { Input } from "@/components/ui/input"
+import { Label } from "@/components/ui/label"
 import {
   Dialog,
   DialogContent,
@@ -39,6 +41,7 @@ export function AppointmentPhotosDialog({
   const [isDeleting, setIsDeleting] = useState(false)
   const [deletingPhoto, setDeletingPhoto] = useState<PhotoWithUrl | null>(null)
   const [previewPhoto, setPreviewPhoto] = useState<PhotoWithUrl | null>(null)
+  const [caption, setCaption] = useState("")
   const fileInputRef = useRef<HTMLInputElement>(null)
 
   const revokeAllBlobUrls = (list: PhotoWithUrl[]) => {
@@ -94,8 +97,9 @@ export function AppointmentPhotosDialog({
 
     setIsUploading(true)
     try {
-      await appointmentPhotoApi.upload(appointmentId, file)
+      await appointmentPhotoApi.upload(appointmentId, file, caption.trim() || undefined)
       toast.success("Đã tải ảnh lên")
+      setCaption("")
       await loadPhotos(appointmentId)
     } catch (err) {
       toast.error(err instanceof ApiError ? err.message : "Tải ảnh lên thất bại")
@@ -127,23 +131,34 @@ export function AppointmentPhotosDialog({
         </DialogHeader>
 
         <div className="flex flex-col gap-4">
-          <div>
-            <input
-              ref={fileInputRef}
-              type="file"
-              accept={ALLOWED_PHOTO_CONTENT_TYPES.join(",")}
-              aria-label="Chọn ảnh để tải lên"
-              className="hidden"
-              onChange={(e) => void handleFileSelected(e)}
-            />
-            <Button
-              variant="outline"
-              onClick={() => fileInputRef.current?.click()}
-              disabled={isUploading}
-            >
-              <Upload className="size-4" />
-              {isUploading ? "Đang tải lên..." : "Tải ảnh lên"}
-            </Button>
+          <div className="flex flex-col gap-2 sm:flex-row sm:items-end">
+            <div className="grid flex-1 gap-2">
+              <Label htmlFor="photoCaption">Chú thích (tuỳ chọn)</Label>
+              <Input
+                id="photoCaption"
+                placeholder="Ví dụ: Trước khi trám"
+                value={caption}
+                onChange={(e) => setCaption(e.target.value)}
+              />
+            </div>
+            <div>
+              <input
+                ref={fileInputRef}
+                type="file"
+                accept={ALLOWED_PHOTO_CONTENT_TYPES.join(",")}
+                aria-label="Chọn ảnh để tải lên"
+                className="hidden"
+                onChange={(e) => void handleFileSelected(e)}
+              />
+              <Button
+                variant="outline"
+                onClick={() => fileInputRef.current?.click()}
+                disabled={isUploading}
+              >
+                <Upload className="size-4" />
+                {isUploading ? "Đang tải lên..." : "Tải ảnh lên"}
+              </Button>
+            </div>
           </div>
 
           {isLoading && (
@@ -164,29 +179,36 @@ export function AppointmentPhotosDialog({
           {!isLoading && photos.length > 0 && (
             <div className="grid grid-cols-3 gap-3">
               {photos.map((photo) => (
-                <div key={photo.id} className="relative overflow-hidden rounded-lg border">
-                  <button
-                    type="button"
-                    className="block w-full"
-                    aria-label={`Xem ảnh lớn: ${photo.fileName}`}
-                    onClick={() => setPreviewPhoto(photo)}
-                  >
-                    <img
-                      src={photo.blobUrl}
-                      alt={photo.fileName}
-                      className="aspect-square w-full object-cover"
-                    />
-                  </button>
-                  <Button
-                    variant="destructive"
-                    size="icon"
-                    className="absolute top-1 right-1 size-7"
-                    title="Xoá ảnh"
-                    aria-label={`Xoá ảnh ${photo.fileName}`}
-                    onClick={() => setDeletingPhoto(photo)}
-                  >
-                    <Trash2 className="size-3.5" />
-                  </Button>
+                <div key={photo.id} className="overflow-hidden rounded-lg border">
+                  <div className="relative">
+                    <button
+                      type="button"
+                      className="block w-full"
+                      aria-label={`Xem ảnh lớn: ${photo.fileName}`}
+                      onClick={() => setPreviewPhoto(photo)}
+                    >
+                      <img
+                        src={photo.blobUrl}
+                        alt={photo.fileName}
+                        className="aspect-square w-full object-cover"
+                      />
+                    </button>
+                    <Button
+                      variant="destructive"
+                      size="icon"
+                      className="absolute top-1 right-1 size-7"
+                      title="Xoá ảnh"
+                      aria-label={`Xoá ảnh ${photo.fileName}`}
+                      onClick={() => setDeletingPhoto(photo)}
+                    >
+                      <Trash2 className="size-3.5" />
+                    </Button>
+                  </div>
+                  {photo.caption && (
+                    <p className="truncate px-2 py-1 text-xs text-muted-foreground">
+                      {photo.caption}
+                    </p>
+                  )}
                 </div>
               ))}
             </div>

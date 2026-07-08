@@ -26,11 +26,17 @@ export interface PatientDto {
   email?: string | null
   address?: string | null
   notes?: string | null
+  referralSource?: string | null
+  identityUserId?: string | null
   tags: string[]
   allergies: string[]
   medicalConditions: string[]
   isChildPatient: boolean
   creationTime: string
+}
+
+export interface LinkPatientIdentityUserDto {
+  identityUserId: string
 }
 
 export interface PatientDetailDto {
@@ -55,6 +61,7 @@ export interface CreateUpdatePatientDto {
   email?: string | null
   address?: string | null
   notes?: string | null
+  referralSource?: string | null
   tags: string[]
   allergies: string[]
   medicalConditions: string[]

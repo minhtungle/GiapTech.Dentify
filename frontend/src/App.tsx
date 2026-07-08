@@ -8,11 +8,53 @@ import { PatientDetailPage } from "@/pages/PatientDetailPage"
 import { AppointmentsPage } from "@/pages/AppointmentsPage"
 import { ToothChartPage } from "@/pages/ToothChartPage"
 import { LabWorksPage } from "@/pages/LabWorksPage"
+import { WaitlistPage } from "@/pages/WaitlistPage"
 import { ExpensesPage } from "@/pages/ExpensesPage"
+import { SuppliesPage } from "@/pages/SuppliesPage"
 import { TasksPage } from "@/pages/TasksPage"
 import { SettingsPage } from "@/pages/SettingsPage"
 import { InvoicePage } from "@/pages/InvoicePage"
 import { StatisticsPage } from "@/pages/StatisticsPage"
+import { DoctorsPage } from "@/pages/DoctorsPage"
+import { ServicesPage } from "@/pages/ServicesPage"
+import { DrugsPage } from "@/pages/DrugsPage"
+import { ChairsPage } from "@/pages/ChairsPage"
+import { PatientPortalAuthProvider } from "@/auth/PatientPortalAuthProvider"
+import { PortalProtectedRoute } from "@/components/portal/PortalProtectedRoute"
+import { PortalAuthCallbackPage } from "@/pages/portal/PortalAuthCallbackPage"
+import { PortalLayout } from "@/pages/portal/PortalLayout"
+import { PortalDashboardPage } from "@/pages/portal/PortalDashboardPage"
+import { PortalAppointmentsPage } from "@/pages/portal/PortalAppointmentsPage"
+
+function PatientPortalRoutes() {
+  return (
+    <PatientPortalAuthProvider>
+      <Routes>
+        <Route path="auth-callback" element={<PortalAuthCallbackPage />} />
+        <Route
+          index
+          element={
+            <PortalProtectedRoute>
+              <PortalLayout>
+                <PortalDashboardPage />
+              </PortalLayout>
+            </PortalProtectedRoute>
+          }
+        />
+        <Route
+          path="appointments"
+          element={
+            <PortalProtectedRoute>
+              <PortalLayout>
+                <PortalAppointmentsPage />
+              </PortalLayout>
+            </PortalProtectedRoute>
+          }
+        />
+      </Routes>
+    </PatientPortalAuthProvider>
+  )
+}
 
 function App() {
   return (
@@ -80,11 +122,71 @@ function App() {
           }
         />
         <Route
+          path="/waitlist"
+          element={
+            <ProtectedRoute>
+              <AppLayout>
+                <WaitlistPage />
+              </AppLayout>
+            </ProtectedRoute>
+          }
+        />
+        <Route
+          path="/doctors"
+          element={
+            <ProtectedRoute>
+              <AppLayout>
+                <DoctorsPage />
+              </AppLayout>
+            </ProtectedRoute>
+          }
+        />
+        <Route
+          path="/services"
+          element={
+            <ProtectedRoute>
+              <AppLayout>
+                <ServicesPage />
+              </AppLayout>
+            </ProtectedRoute>
+          }
+        />
+        <Route
+          path="/drugs"
+          element={
+            <ProtectedRoute>
+              <AppLayout>
+                <DrugsPage />
+              </AppLayout>
+            </ProtectedRoute>
+          }
+        />
+        <Route
+          path="/chairs"
+          element={
+            <ProtectedRoute>
+              <AppLayout>
+                <ChairsPage />
+              </AppLayout>
+            </ProtectedRoute>
+          }
+        />
+        <Route
           path="/expenses"
           element={
             <ProtectedRoute>
               <AppLayout>
                 <ExpensesPage />
+              </AppLayout>
+            </ProtectedRoute>
+          }
+        />
+        <Route
+          path="/supplies"
+          element={
+            <ProtectedRoute>
+              <AppLayout>
+                <SuppliesPage />
               </AppLayout>
             </ProtectedRoute>
           }
@@ -127,6 +229,7 @@ function App() {
             </ProtectedRoute>
           }
         />
+        <Route path="/portal/*" element={<PatientPortalRoutes />} />
       </Routes>
     </BrowserRouter>
   )

@@ -1,5 +1,9 @@
 import type { PagedAndSortedRequest } from "./common"
 
+export const DEFAULT_APPOINTMENT_DURATION_MINUTES = 30
+export const MIN_APPOINTMENT_DURATION_MINUTES = 5
+export const MAX_APPOINTMENT_DURATION_MINUTES = 480
+
 export const AppointmentStatus = {
   Scheduled: 0,
   InProgress: 1,
@@ -36,45 +40,6 @@ export const PAYMENT_STATUS_LABELS_VI: Record<PaymentStatus, string> = {
   [PaymentStatus.Unpaid]: "Chưa thanh toán",
   [PaymentStatus.PartiallyPaid]: "Thanh toán một phần",
   [PaymentStatus.Paid]: "Đã thanh toán",
-}
-
-export const TreatmentType = {
-  GeneralCheckup: 0,
-  Filling: 1,
-  Extraction: 2,
-  Whitening: 3,
-  RootCanal: 4,
-  Orthodontics: 5,
-  Implant: 6,
-  Cleaning: 7,
-  Crown: 8,
-  Other: 9,
-} as const
-export type TreatmentType = (typeof TreatmentType)[keyof typeof TreatmentType]
-
-export type TreatmentTypeName =
-  | "GeneralCheckup"
-  | "Filling"
-  | "Extraction"
-  | "Whitening"
-  | "RootCanal"
-  | "Orthodontics"
-  | "Implant"
-  | "Cleaning"
-  | "Crown"
-  | "Other"
-
-export const TREATMENT_TYPE_LABELS_VI: Record<TreatmentType, string> = {
-  [TreatmentType.GeneralCheckup]: "Khám tổng quát",
-  [TreatmentType.Filling]: "Trám răng",
-  [TreatmentType.Extraction]: "Nhổ răng",
-  [TreatmentType.Whitening]: "Tẩy trắng răng",
-  [TreatmentType.RootCanal]: "Điều trị tuỷ",
-  [TreatmentType.Orthodontics]: "Chỉnh nha",
-  [TreatmentType.Implant]: "Cấy ghép Implant",
-  [TreatmentType.Cleaning]: "Cạo vôi răng",
-  [TreatmentType.Crown]: "Bọc răng sứ",
-  [TreatmentType.Other]: "Khác",
 }
 
 export const PaymentMethod = {
@@ -119,6 +84,7 @@ export interface PrescriptionItemDto {
   id: string
   appointmentId: string
   drugName: string
+  drugId?: string | null
   dosage?: string | null
   quantity: number
   instructions?: string | null
@@ -126,6 +92,7 @@ export interface PrescriptionItemDto {
 
 export interface CreateUpdatePrescriptionItemDto {
   id?: string | null
+  drugId?: string | null
   drugName: string
   dosage?: string | null
   quantity: number
@@ -138,14 +105,19 @@ export interface AppointmentDto {
   patientFullName: string
   doctorId?: string | null
   doctorName?: string | null
+  serviceId?: string | null
+  serviceName?: string | null
+  chairId?: string | null
+  chairName?: string | null
   scheduledDateTime: string
+  durationMinutes: number
   status: AppointmentStatus
-  treatmentType: TreatmentType
   preOpNotes?: string | null
   postOpNotes?: string | null
   price: number
   paidAmount: number
   paymentStatus: PaymentStatus
+  reminderSentAt?: string | null
   prescriptionItems: PrescriptionItemDto[]
   payments: PaymentDto[]
 }
@@ -153,9 +125,11 @@ export interface AppointmentDto {
 export interface CreateUpdateAppointmentDto {
   patientId: string
   doctorId?: string | null
+  serviceId?: string | null
+  chairId?: string | null
   scheduledDateTime: string
+  durationMinutes: number
   status: AppointmentStatusName
-  treatmentType: TreatmentTypeName
   preOpNotes?: string | null
   postOpNotes?: string | null
   price: number

@@ -8,6 +8,8 @@ public class CreateUpdatePrescriptionItemDto
 {
     public Guid? Id { get; set; }
 
+    public Guid? DrugId { get; set; }
+
     [Required]
     [StringLength(PrescriptionItemConsts.MaxDrugNameLength)]
     public string DrugName { get; set; } = string.Empty;

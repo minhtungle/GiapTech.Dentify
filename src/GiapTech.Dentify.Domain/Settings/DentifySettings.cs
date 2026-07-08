@@ -12,5 +12,7 @@ public static class DentifySettings
         public const string Address = GroupPrefix + ".Address";
         public const string PhoneNumber = GroupPrefix + ".PhoneNumber";
         public const string LogoUrl = GroupPrefix + ".LogoUrl";
+        public const string HasUploadedLogo = GroupPrefix + ".HasUploadedLogo";
+        public const string ToothNotationSystem = GroupPrefix + ".ToothNotationSystem";
     }
 }

@@ -46,6 +46,7 @@ export interface ExpenseDto {
   amount: number
   category: ExpenseCategory
   description?: string | null
+  labWorkId?: string | null
 }
 
 export interface CreateUpdateExpenseDto {
@@ -53,12 +54,14 @@ export interface CreateUpdateExpenseDto {
   amount: number
   category: ExpenseCategoryName
   description?: string | null
+  labWorkId?: string | null
 }
 
 export interface GetExpenseListRequest extends PagedAndSortedRequest {
   category?: ExpenseCategoryName
   fromDate?: string
   toDate?: string
+  labWorkId?: string
 }
 
 export interface ExpenseCategorySummaryDto {

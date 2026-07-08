@@ -10,18 +10,25 @@ public class Expense : FullAuditedAggregateRoot<Guid>
     public decimal Amount { get; private set; }
     public ExpenseCategory Category { get; private set; }
     public string? Description { get; private set; }
+    public Guid? LabWorkId { get; private set; }
 
     protected Expense()
     {
     }
 
-    public Expense(Guid id, DateTime expenseDate, decimal amount, ExpenseCategory category, string? description = null)
+    public Expense(Guid id, DateTime expenseDate, decimal amount, ExpenseCategory category, string? description = null, Guid? labWorkId = null)
         : base(id)
     {
         SetExpenseDate(expenseDate);
         SetAmount(amount);
         Category = category;
         SetDescription(description);
+        LabWorkId = labWorkId;
+    }
+
+    public void LinkToLabWork(Guid? labWorkId)
+    {
+        LabWorkId = labWorkId;
     }
 
     public void SetExpenseDate(DateTime expenseDate)

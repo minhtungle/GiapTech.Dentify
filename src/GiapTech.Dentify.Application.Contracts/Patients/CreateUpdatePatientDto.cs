@@ -29,6 +29,9 @@ public class CreateUpdatePatientDto
     [StringLength(PatientConsts.MaxNotesLength)]
     public string? Notes { get; set; }
 
+    [StringLength(PatientConsts.MaxReferralSourceLength)]
+    public string? ReferralSource { get; set; }
+
     public List<string> Tags { get; set; } = new();
     public List<string> Allergies { get; set; } = new();
     public List<string> MedicalConditions { get; set; } = new();

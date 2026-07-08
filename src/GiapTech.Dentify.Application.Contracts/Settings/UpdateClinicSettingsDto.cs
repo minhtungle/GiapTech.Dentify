@@ -16,4 +16,8 @@ public class UpdateClinicSettingsDto
 
     [StringLength(512)]
     public string? LogoUrl { get; set; }
+
+    [Required]
+    [RegularExpression("^(Iso3950|Palmer|Universal)$")]
+    public string ToothNotationSystem { get; set; } = "Iso3950";
 }
