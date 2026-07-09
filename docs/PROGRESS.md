@@ -75,6 +75,50 @@
 
 ## Nhật ký
 
+### 2026-07-09 (3) — Đợt hoàn thiện thứ 2: Caption ảnh, LabWork→Appointment, filter Appointment, 2 leak LOW
+
+Sau khi khảo sát lại toàn bộ tài liệu đối chiếu code (không phát hiện chức năng nào bị bỏ
+sót hoàn toàn — chỉ còn 4 mục "làm dở/thiếu chi tiết nhỏ"), làm hết cả 4 mục theo đúng thứ
+tự đã lên plan (dọn 2 leak nhỏ trước, rồi Caption → LabWork→Appointment → filter
+Appointment):
+
+- **2 leak LOW-severity** (đã biết từ review đối kháng trước, cố tình chưa sửa lúc đó):
+  `AppointmentPhotosDialog.tsx` — `useEffect` phụ thuộc `appointmentId` giờ reset
+  `caption`/`editingCaptionId` về rỗng ở cả 2 nhánh. `SettingsPage.tsx` — thêm 1
+  `useEffect` riêng phụ thuộc `[uploadedLogoBlobUrl]` trả cleanup `revokeObjectURL` khi
+  unmount hoặc đổi giá trị (an toàn double-revoke vì `revokeObjectURL` trên URL đã revoke
+  là no-op).
+- **Sửa Caption ảnh appointment sau khi upload** — backend thêm
+  `UpdateCaptionAsync(id, UpdateAppointmentPhotoCaptionInput)` gọi domain method
+  `SetCaption` đã có sẵn từ trước (chỉ chưa từng được AppService gọi tới). Route thật
+  `PUT .../appointment-photo/{id}/caption` — verify bằng cách chạy tạm Web app + đọc
+  Swagger spec JSON qua `curl`/`python3` (đúng bài học cũ: không đoán route, ABP tự bỏ
+  tiền tố `Update` khi sinh route theo tên method). Frontend: nút Pencil cạnh nút Trash2
+  trên mỗi thumbnail, mở ô `Input` inline (không dùng dialog con lồng) + nút Lưu/Huỷ.
+- **Hiển thị link LabWork → Appointment ngược lại** — chọn pattern "backend join sẵn"
+  (nhất quán với cách `LabWorkAppService` đã làm cho `PatientFullName`, thay vì để
+  frontend tự tải danh sách Appointment rồi map như `ExpensesPage.tsx` đang làm với
+  LabWork — 2 pattern cùng tồn tại trong codebase, chọn pattern khớp với chính
+  `LabWorkAppService` hiện có). Thêm `LabWorkDto.AppointmentScheduledDateTime` (tính toán,
+  không lưu DB), `LabWorkAppService` inject thêm `IRepository<Appointment, Guid>`, join
+  trong `MapToDtosAsync` đúng khuôn đã làm với `_patientRepository`. Card LabWork hiển thị
+  ngày giờ hẹn (icon `CalendarClock`) nếu có, không click-through.
+- **Filter PaymentStatus/ServiceId/ChairId server-side cho Appointment** — xác nhận qua
+  khảo sát: `PaymentStatus` là cột thật trong DB (ghi qua `RecalculatePaymentStatus()` mỗi
+  lần `SetPrice`/`AddPayment`/`RemovePayment`, không `[NotMapped]`), lọc được trực tiếp ở
+  SQL không cần lọc in-memory. `GetAppointmentListDto` + `ApplyFilters` mở rộng 3 field
+  theo đúng khuôn `DoctorId`/`Status` đã có. Frontend: chuyển `serviceFilter` từ lọc
+  client-side (đang làm sai `totalCount` khi filter, vì chỉ lọc trên 100 record đã tải)
+  sang server-side, thêm `Select` "Ghế"/"Thanh toán" mới — giữ `nameFilter` client-side
+  (không có field free-text tương ứng trong DTO, không thuộc phạm vi việc này).
+
+Build/test riêng sau mỗi việc, cuối cùng chạy lại toàn bộ backend test suite 1 lần: 141 EF
+Core test + 1 Web test pass (tăng từ 137 — 4 test mới: Caption, LabWork-Appointment,
+ServiceId/ChairId, PaymentStatus). Không có regression chéo giữa các thay đổi.
+
+Không đưa vào đợt này (đúng phạm vi đã chốt): production Docker thật, Giai đoạn 5 tuỳ
+chọn, và các mục "ra khỏi phạm vi có chủ đích" khác đã liệt kê ở đợt hoàn thiện trước.
+
 ### 2026-07-09 (2) — Đợt hoàn thiện: ToothChart notation + Expense↔LabWork + CSV Appointment
 
 Sau đợt dọn dẹp + review đối kháng (2026-07-09 (1)), gộp toàn bộ TODO còn tồn đọng (mục
@@ -1719,11 +1763,10 @@ Management), chỉ bỏ phần UI nghiệp vụ (Patient/Appointment) sang React
 
 ## TODO / việc đang dở
 
-- Giai đoạn 2: đã xong toàn bộ (Tooth Chart, Photo upload, Prescription chi tiết).
-  Việc lặt vặt còn sót: UI xoá/sửa `Caption` cho ảnh appointment (field đã có ở domain,
-  chưa có form nhập); 2 leak LOW-severity đã biết, cố tình chưa sửa vì mức độ nhỏ: caption
-  không reset trong `AppointmentPhotosDialog.tsx` khi đổi appointment, blob URL logo trong
-  `SettingsPage.tsx` không revoke khi unmount.
+- ~~Giai đoạn 2 việc lặt vặt: UI sửa Caption ảnh appointment, 2 leak LOW-severity...~~ —
+  **đã xong** (đợt hoàn thiện thứ 2 sau đợt dọn dẹp): `UpdateCaptionAsync` + nút Pencil
+  inline edit trong `AppointmentPhotosDialog.tsx`; caption tự reset khi đổi appointment;
+  blob URL logo trong `SettingsPage.tsx` tự revoke khi unmount.
 - ~~Tooth Chart: hiển thị theo Palmer/Universal notation...~~ — **đã xong** (đợt hoàn
   thiện sau đợt dọn dẹp): Setting `Dentify.Clinic.ToothNotationSystem` + UI Settings +
   `frontend/src/lib/toothNotation.ts` + chọn `appointmentId` khi cập nhật tình trạng răng.
@@ -1733,11 +1776,18 @@ Management), chỉ bỏ phần UI nghiệp vụ (Patient/Appointment) sang React
   `05-trien-khai-van-hanh.md`.
 - ~~Giai đoạn 3 việc lặt vặt: liên kết Expense ↔ LabWork...~~ — **đã xong** (đợt hoàn
   thiện sau đợt dọn dẹp): `Expense.LabWorkId` (optional, `ON DELETE SET NULL`), biểu đồ
-  chi phí theo danh mục ở `ExpensesPage.tsx`, thêm filter `WorkType` trên board LabWork.
+  chi phí theo danh mục ở `ExpensesPage.tsx`, thêm filter `WorkType` trên board LabWork,
+  và hiển thị `AppointmentScheduledDateTime` (join sẵn ở backend) trên Card LabWork (đợt
+  hoàn thiện thứ 2).
 - ~~Giai đoạn 4 việc lặt vặt: CSV cho Appointment...~~ — **đã xong** (đợt hoàn thiện sau
   đợt dọn dẹp): Import/Export CSV cho Appointment, xem chi tiết cách resolve tên→ID ở
   `frontend/src/lib/csv-resolve.ts` và mục Appointment trong `02-dac-ta-chuc-nang.md`.
   UI Settings cho `ToothNotationSystem` và upload logo trực tiếp đã xong từ trước.
+- ~~Filter PaymentStatus/ServiceId/ChairId ở backend cho Appointment...~~ — **đã xong**
+  (đợt hoàn thiện thứ 2): `GetAppointmentListDto` mở rộng cả 3 field, `ApplyFilters` lọc
+  trực tiếp ở SQL (xác nhận `PaymentStatus` là cột thật, không phải field tính runtime).
+  `AppointmentsPage.tsx` bỏ lọc client-side cho `serviceFilter` (đang gây sai
+  `totalCount`), thêm `Select` "Ghế"/"Thanh toán" mới.
 - Đã bỏ hẳn: `IsOperator` trên UserExtension — lỗi thời từ Đợt 1 roadmap, Doctor đã là
   entity thật, không cần lọc theo cờ trên Identity User nữa.
 

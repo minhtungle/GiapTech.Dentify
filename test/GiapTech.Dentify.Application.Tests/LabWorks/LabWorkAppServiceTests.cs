@@ -1,8 +1,10 @@
 using System;
 using System.Linq;
 using System.Threading.Tasks;
+using GiapTech.Dentify.Application.Contracts.Appointments;
 using GiapTech.Dentify.Application.Contracts.LabWorks;
 using GiapTech.Dentify.Application.Contracts.Patients;
+using GiapTech.Dentify.Appointments;
 using GiapTech.Dentify.Patients;
 using Shouldly;
 using Volo.Abp;
@@ -16,11 +18,13 @@ public abstract class LabWorkAppServiceTests<TStartupModule> : DentifyApplicatio
 {
     private readonly ILabWorkAppService _labWorkAppService;
     private readonly IPatientAppService _patientAppService;
+    private readonly IAppointmentAppService _appointmentAppService;
 
     protected LabWorkAppServiceTests()
     {
         _labWorkAppService = GetRequiredService<ILabWorkAppService>();
         _patientAppService = GetRequiredService<IPatientAppService>();
+        _appointmentAppService = GetRequiredService<IAppointmentAppService>();
     }
 
     private async Task<Guid> CreateTestPatientAsync()
@@ -31,6 +35,19 @@ public abstract class LabWorkAppServiceTests<TStartupModule> : DentifyApplicatio
             DateOfBirth = new DateTime(1990, 1, 1)
         });
         return patient.Id;
+    }
+
+    private async Task<(Guid Id, DateTime ScheduledDateTime)> CreateTestAppointmentAsync(Guid patientId)
+    {
+        var scheduledDateTime = DateTime.UtcNow.AddDays(1);
+        var appointment = await _appointmentAppService.CreateAsync(new CreateUpdateAppointmentDto
+        {
+            PatientId = patientId,
+            ScheduledDateTime = scheduledDateTime,
+            Status = AppointmentStatus.Scheduled,
+            Price = 100
+        });
+        return (appointment.Id, appointment.ScheduledDateTime);
     }
 
     [Fact]
@@ -118,6 +135,32 @@ public abstract class LabWorkAppServiceTests<TStartupModule> : DentifyApplicatio
 
         board.ShouldContain(x => x.Id == active.Id);
         board.ShouldNotContain(x => x.Id == cancelled.Id);
+    }
+
+    [Fact]
+    public async Task Should_Return_AppointmentScheduledDateTime_When_Linked()
+    {
+        var patientId = await CreateTestPatientAsync();
+        var (appointmentId, scheduledDateTime) = await CreateTestAppointmentAsync(patientId);
+
+        var linked = await _labWorkAppService.CreateAsync(new CreateUpdateLabWorkDto
+        {
+            PatientId = patientId,
+            AppointmentId = appointmentId,
+            LabName = "Lab A",
+            WorkType = "Crown",
+            SentDate = DateTime.UtcNow
+        });
+        var unlinked = await _labWorkAppService.CreateAsync(new CreateUpdateLabWorkDto
+        {
+            PatientId = patientId,
+            LabName = "Lab B",
+            WorkType = "Bridge",
+            SentDate = DateTime.UtcNow
+        });
+
+        linked.AppointmentScheduledDateTime.ShouldBe(scheduledDateTime);
+        unlinked.AppointmentScheduledDateTime.ShouldBeNull();
     }
 
     [Fact]

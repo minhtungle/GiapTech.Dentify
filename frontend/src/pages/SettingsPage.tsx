@@ -76,6 +76,12 @@ export function SettingsPage() {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [])
 
+  useEffect(() => {
+    return () => {
+      if (uploadedLogoBlobUrl) URL.revokeObjectURL(uploadedLogoBlobUrl)
+    }
+  }, [uploadedLogoBlobUrl])
+
   const handleLogoFileSelected = async (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0]
     e.target.value = ""

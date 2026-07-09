@@ -2,6 +2,7 @@ using System;
 using System.Collections.Generic;
 using System.Linq;
 using System.Threading.Tasks;
+using GiapTech.Dentify.Appointments;
 using GiapTech.Dentify.Application.Contracts.LabWorks;
 using GiapTech.Dentify.LabWorks;
 using GiapTech.Dentify.Patients;
@@ -18,15 +19,18 @@ public class LabWorkAppService : ApplicationService, ILabWorkAppService
 {
     private readonly IRepository<LabWork, Guid> _labWorkRepository;
     private readonly IRepository<Patient, Guid> _patientRepository;
+    private readonly IRepository<Appointment, Guid> _appointmentRepository;
     private readonly LabWorkMapper _labWorkMapper;
 
     public LabWorkAppService(
         IRepository<LabWork, Guid> labWorkRepository,
         IRepository<Patient, Guid> patientRepository,
+        IRepository<Appointment, Guid> appointmentRepository,
         LabWorkMapper labWorkMapper)
     {
         _labWorkRepository = labWorkRepository;
         _patientRepository = patientRepository;
+        _appointmentRepository = appointmentRepository;
         _labWorkMapper = labWorkMapper;
     }
 
@@ -147,10 +151,26 @@ public class LabWorkAppService : ApplicationService, ILabWorkAppService
                 .Select(p => new { p.Id, p.FullName }));
         var patientNameMap = patientNames.ToDictionary(p => p.Id, p => p.FullName);
 
+        var appointmentIds = labWorks
+            .Where(x => x.AppointmentId.HasValue)
+            .Select(x => x.AppointmentId!.Value)
+            .Distinct()
+            .ToList();
+        var appointmentQueryable = await _appointmentRepository.GetQueryableAsync();
+        var appointmentTimes = await AsyncExecuter.ToListAsync(
+            appointmentQueryable
+                .Where(a => appointmentIds.Contains(a.Id))
+                .Select(a => new { a.Id, a.ScheduledDateTime }));
+        var appointmentTimeMap = appointmentTimes.ToDictionary(a => a.Id, a => a.ScheduledDateTime);
+
         return labWorks.Select(labWork =>
         {
             var dto = _labWorkMapper.MapToDto(labWork);
             dto.PatientFullName = patientNameMap.TryGetValue(labWork.PatientId, out var name) ? name : string.Empty;
+            dto.AppointmentScheduledDateTime = labWork.AppointmentId.HasValue &&
+                appointmentTimeMap.TryGetValue(labWork.AppointmentId.Value, out var scheduledDateTime)
+                    ? scheduledDateTime
+                    : null;
             return dto;
         }).ToList();
     }

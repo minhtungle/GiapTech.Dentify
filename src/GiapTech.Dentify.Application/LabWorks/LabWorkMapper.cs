@@ -8,6 +8,7 @@ namespace GiapTech.Dentify.Application.LabWorks;
 public partial class LabWorkMapper
 {
     [MapperIgnoreTarget(nameof(LabWorkDto.PatientFullName))]
+    [MapperIgnoreTarget(nameof(LabWorkDto.AppointmentScheduledDateTime))]
     [MapperIgnoreSource(nameof(LabWork.ExtraProperties))]
     [MapperIgnoreSource(nameof(LabWork.ConcurrencyStamp))]
     public partial LabWorkDto MapToDto(LabWork labWork);

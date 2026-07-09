@@ -36,6 +36,7 @@ export interface LabWorkDto {
   patientId: string
   patientFullName: string
   appointmentId?: string | null
+  appointmentScheduledDateTime?: string | null
   labName: string
   workType: string
   toothNumberList: number[]

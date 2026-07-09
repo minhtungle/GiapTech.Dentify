@@ -1,5 +1,5 @@
 import { useEffect, useRef, useState } from "react"
-import { ImageIcon, Trash2, Upload } from "lucide-react"
+import { Check, ImageIcon, Pencil, Trash2, Upload, X } from "lucide-react"
 import { toast } from "sonner"
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
@@ -42,6 +42,9 @@ export function AppointmentPhotosDialog({
   const [deletingPhoto, setDeletingPhoto] = useState<PhotoWithUrl | null>(null)
   const [previewPhoto, setPreviewPhoto] = useState<PhotoWithUrl | null>(null)
   const [caption, setCaption] = useState("")
+  const [editingCaptionId, setEditingCaptionId] = useState<string | null>(null)
+  const [editingCaptionValue, setEditingCaptionValue] = useState("")
+  const [isSavingCaption, setIsSavingCaption] = useState(false)
   const fileInputRef = useRef<HTMLInputElement>(null)
 
   const revokeAllBlobUrls = (list: PhotoWithUrl[]) => {
@@ -70,6 +73,8 @@ export function AppointmentPhotosDialog({
   }
 
   useEffect(() => {
+    setCaption("")
+    setEditingCaptionId(null)
     if (appointmentId) {
       void loadPhotos(appointmentId)
     } else {
@@ -105,6 +110,26 @@ export function AppointmentPhotosDialog({
       toast.error(err instanceof ApiError ? err.message : "Tải ảnh lên thất bại")
     } finally {
       setIsUploading(false)
+    }
+  }
+
+  const openCaptionEdit = (photo: PhotoWithUrl) => {
+    setEditingCaptionId(photo.id)
+    setEditingCaptionValue(photo.caption ?? "")
+  }
+
+  const handleSaveCaption = async () => {
+    if (!editingCaptionId || !appointmentId) return
+    setIsSavingCaption(true)
+    try {
+      await appointmentPhotoApi.updateCaption(editingCaptionId, editingCaptionValue.trim() || null)
+      toast.success("Đã cập nhật chú thích")
+      setEditingCaptionId(null)
+      await loadPhotos(appointmentId)
+    } catch (err) {
+      toast.error(err instanceof ApiError ? err.message : "Cập nhật chú thích thất bại")
+    } finally {
+      setIsSavingCaption(false)
     }
   }
 
@@ -193,21 +218,69 @@ export function AppointmentPhotosDialog({
                         className="aspect-square w-full object-cover"
                       />
                     </button>
-                    <Button
-                      variant="destructive"
-                      size="icon"
-                      className="absolute top-1 right-1 size-7"
-                      title="Xoá ảnh"
-                      aria-label={`Xoá ảnh ${photo.fileName}`}
-                      onClick={() => setDeletingPhoto(photo)}
-                    >
-                      <Trash2 className="size-3.5" />
-                    </Button>
+                    <div className="absolute top-1 right-1 flex gap-1">
+                      <Button
+                        variant="secondary"
+                        size="icon"
+                        className="size-7"
+                        title="Sửa chú thích"
+                        aria-label={`Sửa chú thích ảnh ${photo.fileName}`}
+                        onClick={() => openCaptionEdit(photo)}
+                      >
+                        <Pencil className="size-3.5" />
+                      </Button>
+                      <Button
+                        variant="destructive"
+                        size="icon"
+                        className="size-7"
+                        title="Xoá ảnh"
+                        aria-label={`Xoá ảnh ${photo.fileName}`}
+                        onClick={() => setDeletingPhoto(photo)}
+                      >
+                        <Trash2 className="size-3.5" />
+                      </Button>
+                    </div>
                   </div>
-                  {photo.caption && (
-                    <p className="truncate px-2 py-1 text-xs text-muted-foreground">
-                      {photo.caption}
-                    </p>
+                  {editingCaptionId === photo.id ? (
+                    <div className="flex items-center gap-1 p-1">
+                      <Input
+                        autoFocus
+                        aria-label={`Chú thích mới cho ảnh ${photo.fileName}`}
+                        className="h-7 text-xs"
+                        value={editingCaptionValue}
+                        onChange={(e) => setEditingCaptionValue(e.target.value)}
+                        onKeyDown={(e) => e.key === "Enter" && void handleSaveCaption()}
+                        disabled={isSavingCaption}
+                      />
+                      <Button
+                        variant="ghost"
+                        size="icon"
+                        className="size-7 shrink-0"
+                        title="Lưu"
+                        aria-label="Lưu chú thích"
+                        onClick={() => void handleSaveCaption()}
+                        disabled={isSavingCaption}
+                      >
+                        <Check className="size-3.5" />
+                      </Button>
+                      <Button
+                        variant="ghost"
+                        size="icon"
+                        className="size-7 shrink-0"
+                        title="Huỷ"
+                        aria-label="Huỷ sửa chú thích"
+                        onClick={() => setEditingCaptionId(null)}
+                        disabled={isSavingCaption}
+                      >
+                        <X className="size-3.5" />
+                      </Button>
+                    </div>
+                  ) : (
+                    photo.caption && (
+                      <p className="truncate px-2 py-1 text-xs text-muted-foreground">
+                        {photo.caption}
+                      </p>
+                    )
                   )}
                 </div>
               ))}

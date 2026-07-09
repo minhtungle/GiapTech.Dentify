@@ -80,6 +80,17 @@ public class AppointmentPhotoAppService : ApplicationService, IAppointmentPhotoA
         return MapToDto(photo);
     }
 
+    [Authorize(DentifyPermissions.AppointmentPhotos.Upload)]
+    public virtual async Task<AppointmentPhotoDto> UpdateCaptionAsync(Guid id, UpdateAppointmentPhotoCaptionInput input)
+    {
+        var photo = await GetPhotoOrThrowAsync(id);
+
+        photo.SetCaption(input.Caption);
+        await _photoRepository.UpdateAsync(photo);
+
+        return MapToDto(photo);
+    }
+
     public virtual async Task<IRemoteStreamContent> DownloadAsync(Guid id)
     {
         var photo = await GetPhotoOrThrowAsync(id);

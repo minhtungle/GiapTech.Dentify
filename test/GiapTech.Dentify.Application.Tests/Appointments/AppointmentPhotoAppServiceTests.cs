@@ -105,6 +105,24 @@ public abstract class AppointmentPhotoAppServiceTests<TStartupModule> : DentifyA
     }
 
     [Fact]
+    public async Task Should_Update_Caption()
+    {
+        var appointmentId = await CreateAppointmentAsync();
+        var uploaded = await _appointmentPhotoAppService.UploadAsync(
+            appointmentId,
+            CreateFakeImage(caption: "Trước khi trám"));
+
+        var updated = await _appointmentPhotoAppService.UpdateCaptionAsync(
+            uploaded.Id,
+            new UpdateAppointmentPhotoCaptionInput { Caption = "Sau khi trám" });
+
+        updated.Caption.ShouldBe("Sau khi trám");
+
+        var list = await _appointmentPhotoAppService.GetListAsync(appointmentId);
+        list.ShouldContain(x => x.Id == uploaded.Id && x.Caption == "Sau khi trám");
+    }
+
+    [Fact]
     public async Task Should_Delete_Photo()
     {
         var appointmentId = await CreateAppointmentAsync();

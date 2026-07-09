@@ -57,7 +57,16 @@ public class AppointmentAppService : ApplicationService, IAppointmentAppService
     {
         var queryable = await _appointmentRepository.GetQueryableAsync();
 
-        queryable = ApplyFilters(queryable, input.PatientId, input.DoctorId, input.Status, input.FromDate, input.ToDate);
+        queryable = ApplyFilters(
+            queryable,
+            input.PatientId,
+            input.DoctorId,
+            input.ServiceId,
+            input.ChairId,
+            input.Status,
+            input.PaymentStatus,
+            input.FromDate,
+            input.ToDate);
 
         var totalCount = await AsyncExecuter.CountAsync(queryable);
 
@@ -328,7 +337,10 @@ public class AppointmentAppService : ApplicationService, IAppointmentAppService
         IQueryable<Appointment> queryable,
         Guid? patientId,
         Guid? doctorId,
+        Guid? serviceId,
+        Guid? chairId,
         AppointmentStatus? status,
+        PaymentStatus? paymentStatus,
         DateTime? fromDate,
         DateTime? toDate)
     {
@@ -342,9 +354,24 @@ public class AppointmentAppService : ApplicationService, IAppointmentAppService
             queryable = queryable.Where(a => a.DoctorId == doctorId.Value);
         }
 
+        if (serviceId.HasValue)
+        {
+            queryable = queryable.Where(a => a.ServiceId == serviceId.Value);
+        }
+
+        if (chairId.HasValue)
+        {
+            queryable = queryable.Where(a => a.ChairId == chairId.Value);
+        }
+
         if (status.HasValue)
         {
             queryable = queryable.Where(a => a.Status == status.Value);
+        }
+
+        if (paymentStatus.HasValue)
+        {
+            queryable = queryable.Where(a => a.PaymentStatus == paymentStatus.Value);
         }
 
         if (fromDate.HasValue)

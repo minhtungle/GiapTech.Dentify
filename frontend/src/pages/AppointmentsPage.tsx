@@ -52,6 +52,7 @@ import type {
   AppointmentStatusName,
   CreateUpdateAppointmentDto,
   CreateUpdatePrescriptionItemDto,
+  PaymentStatusName,
 } from "@/types/appointment"
 import {
   APPOINTMENT_STATUS_LABELS_VI,
@@ -60,6 +61,7 @@ import {
   MAX_APPOINTMENT_DURATION_MINUTES,
   MIN_APPOINTMENT_DURATION_MINUTES,
   PAYMENT_STATUS_LABELS_VI,
+  PaymentStatus,
 } from "@/types/appointment"
 import type { PatientDto } from "@/types/patient"
 import type { DoctorDto } from "@/types/doctor"
@@ -74,6 +76,8 @@ const STATUS_OPTIONS: AppointmentStatusName[] = [
   "Cancelled",
   "NoShow",
 ]
+
+const PAYMENT_STATUS_OPTIONS: PaymentStatusName[] = ["Unpaid", "PartiallyPaid", "Paid"]
 
 function emptyForm(patientId = ""): CreateUpdateAppointmentDto {
   return {
@@ -151,7 +155,9 @@ export function AppointmentsPage() {
 
   const [nameFilter, setNameFilter] = useState("")
   const [statusFilter, setStatusFilter] = useState<AppointmentStatusName | "">("")
+  const [paymentStatusFilter, setPaymentStatusFilter] = useState<PaymentStatusName | "">("")
   const [serviceFilter, setServiceFilter] = useState<string>("")
+  const [chairFilter, setChairFilter] = useState<string>("")
   const [fromDateFilter, setFromDateFilter] = useState("")
   const [toDateFilter, setToDateFilter] = useState("")
 
@@ -185,6 +191,9 @@ export function AppointmentsPage() {
           maxResultCount: 100,
           sorting: "scheduledDateTime desc",
           status: statusFilter || undefined,
+          paymentStatus: paymentStatusFilter || undefined,
+          serviceId: serviceFilter || undefined,
+          chairId: chairFilter || undefined,
           fromDate: fromDateFilter ? new Date(fromDateFilter).toISOString() : undefined,
           toDate: toDateFilter ? new Date(toDateFilter).toISOString() : undefined,
         }),
@@ -194,14 +203,11 @@ export function AppointmentsPage() {
         drugsApi.getActiveList(),
         chairsApi.getActiveList(),
       ])
-      const filtered = appointmentsResult.items.filter((a) => {
-        const matchesName =
-          !nameFilter || a.patientFullName.toLowerCase().includes(nameFilter.toLowerCase())
-        const matchesService = !serviceFilter || a.serviceId === serviceFilter
-        return matchesName && matchesService
-      })
+      const filtered = appointmentsResult.items.filter(
+        (a) => !nameFilter || a.patientFullName.toLowerCase().includes(nameFilter.toLowerCase()),
+      )
       setAppointments(filtered)
-      setTotalCount(nameFilter || serviceFilter ? filtered.length : appointmentsResult.totalCount)
+      setTotalCount(nameFilter ? filtered.length : appointmentsResult.totalCount)
       setPatients(patientsResult.items)
       setDoctors(doctorsResult)
       setServices(servicesResult)
@@ -617,6 +623,40 @@ export function AppointmentsPage() {
             {services.map((service) => (
               <SelectItem key={service.id} value={service.id}>
                 {service.name}
+              </SelectItem>
+            ))}
+          </SelectContent>
+        </Select>
+        <Select
+          value={chairFilter || "all"}
+          onValueChange={(value: string) => setChairFilter(value === "all" ? "" : value)}
+        >
+          <SelectTrigger className="w-36">
+            <SelectValue placeholder="Ghế" />
+          </SelectTrigger>
+          <SelectContent>
+            <SelectItem value="all">Mọi ghế</SelectItem>
+            {chairs.map((chair) => (
+              <SelectItem key={chair.id} value={chair.id}>
+                {chair.name}
+              </SelectItem>
+            ))}
+          </SelectContent>
+        </Select>
+        <Select
+          value={paymentStatusFilter || "all"}
+          onValueChange={(value: string) =>
+            setPaymentStatusFilter(value === "all" ? "" : (value as PaymentStatusName))
+          }
+        >
+          <SelectTrigger className="w-44">
+            <SelectValue placeholder="Thanh toán" />
+          </SelectTrigger>
+          <SelectContent>
+            <SelectItem value="all">Mọi trạng thái thanh toán</SelectItem>
+            {PAYMENT_STATUS_OPTIONS.map((status) => (
+              <SelectItem key={status} value={status}>
+                {PAYMENT_STATUS_LABELS_VI[PaymentStatus[status]]}
               </SelectItem>
             ))}
           </SelectContent>

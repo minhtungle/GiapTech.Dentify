@@ -136,10 +136,15 @@ export interface CreateUpdateAppointmentDto {
   prescriptionItems: CreateUpdatePrescriptionItemDto[]
 }
 
+export type PaymentStatusName = "Unpaid" | "PartiallyPaid" | "Paid"
+
 export interface GetAppointmentListRequest extends PagedAndSortedRequest {
   patientId?: string
   doctorId?: string
+  serviceId?: string
+  chairId?: string
   status?: AppointmentStatusName
+  paymentStatus?: PaymentStatusName
   fromDate?: string
   toDate?: string
 }

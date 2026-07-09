@@ -594,4 +594,69 @@ public abstract class AppointmentAppServiceTests<TStartupModule> : DentifyApplic
             });
         });
     }
+
+    [Fact]
+    public async Task Should_Filter_By_ServiceId_And_ChairId()
+    {
+        var patientId = await CreateTestPatientAsync();
+        var serviceId = await CreateTestServiceAsync("Dịch vụ filter test");
+        var chairId = await CreateTestChairAsync("Ghế filter test");
+
+        var matching = await _appointmentAppService.CreateAsync(new CreateUpdateAppointmentDto
+        {
+            PatientId = patientId,
+            ServiceId = serviceId,
+            ChairId = chairId,
+            ScheduledDateTime = new DateTime(2030, 5, 1, 9, 0, 0),
+            DurationMinutes = 30,
+            Price = 100
+        });
+        await _appointmentAppService.CreateAsync(new CreateUpdateAppointmentDto
+        {
+            PatientId = patientId,
+            ScheduledDateTime = new DateTime(2030, 5, 2, 9, 0, 0),
+            DurationMinutes = 30,
+            Price = 100
+        });
+
+        var byService = await _appointmentAppService.GetListAsync(new GetAppointmentListDto { ServiceId = serviceId });
+        byService.Items.ShouldContain(x => x.Id == matching.Id);
+        byService.Items.Count.ShouldBe(1);
+
+        var byChair = await _appointmentAppService.GetListAsync(new GetAppointmentListDto { ChairId = chairId });
+        byChair.Items.ShouldContain(x => x.Id == matching.Id);
+        byChair.Items.Count.ShouldBe(1);
+    }
+
+    [Fact]
+    public async Task Should_Filter_By_PaymentStatus()
+    {
+        var patientId = await CreateTestPatientAsync();
+
+        var unpaid = await _appointmentAppService.CreateAsync(new CreateUpdateAppointmentDto
+        {
+            PatientId = patientId,
+            ScheduledDateTime = new DateTime(2030, 5, 3, 9, 0, 0),
+            DurationMinutes = 30,
+            Price = 100
+        });
+        var paid = await _appointmentAppService.CreateAsync(new CreateUpdateAppointmentDto
+        {
+            PatientId = patientId,
+            ScheduledDateTime = new DateTime(2030, 5, 4, 9, 0, 0),
+            DurationMinutes = 30,
+            Price = 100
+        });
+        await _appointmentAppService.AddPaymentAsync(paid.Id, new CreatePaymentDto
+        {
+            Amount = 100,
+            PaymentDate = DateTime.UtcNow,
+            Method = PaymentMethod.Cash
+        });
+
+        var result = await _appointmentAppService.GetListAsync(new GetAppointmentListDto { PaymentStatus = PaymentStatus.Paid });
+
+        result.Items.ShouldContain(x => x.Id == paid.Id);
+        result.Items.ShouldNotContain(x => x.Id == unpaid.Id);
+    }
 }

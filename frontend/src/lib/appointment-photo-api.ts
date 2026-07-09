@@ -49,6 +49,16 @@ export const appointmentPhotoApi = {
     return (await response.json()) as AppointmentPhotoDto
   },
 
+  updateCaption: async (id: string, caption: string | null): Promise<AppointmentPhotoDto> => {
+    const response = await fetch(`${API_URL}${BASE}/${id}/caption`, {
+      method: "PUT",
+      headers: { ...(await authHeaders()), "Content-Type": "application/json" },
+      body: JSON.stringify({ caption }),
+    })
+    await throwIfError(response)
+    return (await response.json()) as AppointmentPhotoDto
+  },
+
   getDownloadBlobUrl: async (id: string): Promise<string> => {
     const response = await fetch(`${API_URL}${BASE}/${id}/download`, {
       method: "POST",

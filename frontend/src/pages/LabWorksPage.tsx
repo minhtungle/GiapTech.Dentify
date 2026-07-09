@@ -1,6 +1,6 @@
 import { useEffect, useState } from "react"
 import type { DragEvent, FormEvent } from "react"
-import { FlaskConical, Pencil, Plus, Trash2 } from "lucide-react"
+import { CalendarClock, FlaskConical, Pencil, Plus, Trash2 } from "lucide-react"
 import { toast } from "sonner"
 import { Button } from "@/components/ui/button"
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
@@ -295,6 +295,12 @@ export function LabWorksPage() {
                         <span>Răng: {card.toothNumberList.join(", ")}</span>
                       )}
                       <span>{formatCurrency(card.cost)}</span>
+                      {card.appointmentScheduledDateTime && (
+                        <span className="flex items-center gap-1">
+                          <CalendarClock className="size-3.5" />
+                          {new Date(card.appointmentScheduledDateTime).toLocaleString("vi-VN")}
+                        </span>
+                      )}
 
                       <Select
                         value={LAB_WORK_BOARD_COLUMNS.find((c) => LabWorkStatus[c] === card.status)}

@@ -295,26 +295,30 @@ AppService ảnh không cần load kèm Appointment mỗi lần query.
 Giới hạn: JPEG/PNG/WEBP, tối đa 10MB (`AppointmentPhotoConsts`). Lưu blob trong PostgreSQL
 qua `IBlobContainer<AppointmentPhotoContainer>` (ABP BlobStoring, provider Database — không
 dùng filesystem/S3). `Caption` set được ngay lúc upload (qua `UploadAppointmentPhotoInput
-{ Caption, File }`, đúng pattern `UploadConsentFormInput` — không phải 2 tham số rời như
-trước khi dọn dẹp tồn đọng), cũng sửa được sau qua domain method `SetCaption` (chưa có UI
-gọi riêng, chỉ set được lúc upload).
+{ Caption, File }`, đúng pattern `UploadConsentFormInput`), và sửa được sau qua
+`UpdateCaptionAsync(id, UpdateAppointmentPhotoCaptionInput { Caption? })` — route
+`PUT .../appointment-photo/{id}/caption` (ABP tự bỏ tiền tố `Update` khi sinh route, đã
+verify qua Swagger spec thật, không đoán).
 
 ### AppService (`IAppointmentAppService`)
 | Method | Ghi chú |
 |---|---|
 | `GetAsync(id)` | dùng `GetWithDetailsAsync` (custom repository) — include đầy đủ `PrescriptionItems`, `Payments` |
-| `GetListAsync(GetAppointmentListDto)` | filter server-side: `PatientId`, `DoctorId`, `Status`, `FromDate`, `ToDate`. **Không filter theo tên bệnh nhân/ServiceId ở server** — frontend tự lọc client-side sau khi tải về |
+| `GetListAsync(GetAppointmentListDto)` | filter server-side: `PatientId`, `DoctorId`, `ServiceId`, `ChairId`, `Status`, `PaymentStatus`, `FromDate`, `ToDate`. `PaymentStatus` là cột thật trong DB (ghi qua `RecalculatePaymentStatus()` mỗi lần `SetPrice`/`AddPayment`/`RemovePayment`, không phải field tính runtime `[NotMapped]`) nên lọc được trực tiếp ở SQL. **Không filter theo tên bệnh nhân ở server** — frontend tự lọc client-side sau khi tải về (không có field free-text tương ứng trong DTO) |
 | `GetCalendarViewAsync(fromDate, toDate)` | cho view Lịch |
 | `CreateAsync` / `UpdateAsync` / `DeleteAsync` | |
 | `AddPaymentAsync(id, CreatePaymentDto)` | route ABP convention: `POST .../appointment/{id}/payment` |
 | `RemovePaymentAsync(id, paymentId)` | route: `DELETE .../appointment/{id}/payment?paymentId=...` |
 
 `IAppointmentPhotoAppService`: `GetListAsync(appointmentId)`, `UploadAsync(appointmentId,
-UploadAppointmentPhotoInput { Caption?, File })`, `DownloadAsync(id)`, `DeleteAsync(id)`.
+UploadAppointmentPhotoInput { Caption?, File })`, `UpdateCaptionAsync(id,
+UpdateAppointmentPhotoCaptionInput)`, `DownloadAsync(id)`, `DeleteAsync(id)`.
 
 ### UI
-- **AppointmentsPage** (`/appointments`): Tabs "Bảng"/"Lịch". Bảng có bộ lọc đầy đủ (tên,
-  trạng thái, dịch vụ, khoảng ngày — Select dịch vụ gọi `servicesApi.getActiveList()`).
+- **AppointmentsPage** (`/appointments`): Tabs "Bảng"/"Lịch". Bảng có bộ lọc đầy đủ (tên
+  — client-side, trạng thái, dịch vụ, ghế, trạng thái thanh toán, khoảng ngày — tất cả trừ
+  tên đều gửi server-side qua `GetAppointmentListDto`, Select dịch vụ/ghế gọi
+  `servicesApi.getActiveList()`/`chairsApi.getActiveList()`).
   Dialog tạo/sửa gồm Select "Bác sĩ phụ trách" (`doctorsApi.getActiveList()`), Select
   "Dịch vụ" (`servicesApi.getActiveList()`), Select "Ghế" (`chairsApi.getActiveList()`),
   và quản lý đơn thuốc động (thêm/xoá dòng — mỗi dòng có Select chọn thuốc từ danh mục
@@ -335,8 +339,9 @@ UploadAppointmentPhotoInput { Caption?, File })`, `DownloadAsync(id)`, `DeleteAs
 - **PaymentHistoryDialog** (component dùng chung, không phải trang riêng): xem/thêm/xoá
   lịch sử thanh toán, nút "In hoá đơn" mở `/appointments/:id/invoice` ở tab mới.
 - **AppointmentPhotosDialog**: ô nhập "Chú thích" (tuỳ chọn) trước khi chọn file để
-  upload/xem/xoá ảnh, chú thích hiển thị dưới mỗi thumbnail, preview lớn, tự
-  `revokeObjectURL` để tránh leak memory.
+  upload/xem/xoá ảnh, chú thích hiển thị dưới mỗi thumbnail (có thể sửa lại sau qua nút
+  Pencil → ô inline Lưu/Huỷ, gọi `UpdateCaptionAsync`), preview lớn, tự `revokeObjectURL`
+  để tránh leak memory. Input caption tự reset về rỗng khi đổi sang appointment khác.
 - **InvoicePage** (`/appointments/:id/invoice`): route không có `AppLayout` (in sạch,
   không sidebar). Hiển thị thông tin phòng khám (từ ClinicSettings), đơn thuốc, lịch sử
   thanh toán, tổng kết giá/đã trả/còn lại. Nút "In hoá đơn" chỉ gọi `window.print()` —
@@ -661,7 +666,7 @@ sách lịch hẹn của bệnh nhân qua `appointmentsApi.getList`) — set `ap
 | Field | Ghi chú |
 |---|---|
 | `PatientId` | bắt buộc |
-| `AppointmentId` | optional — **không hiển thị link ngược lại từ UI** |
+| `AppointmentId` | optional — `LabWorkDto.AppointmentScheduledDateTime` (backend join sẵn trong `MapToDtosAsync`, không lưu DB) hiển thị ngày giờ hẹn liên quan trên Card board, không click-through sang trang Appointment |
 | `LabName`, `WorkType` | bắt buộc, tối đa 256 mỗi field |
 | `ToothNumberList` | List\<int\>, validate qua `ToothNumbers.IsValid`, lưu JSON |
 | `SentDate` | UTC |

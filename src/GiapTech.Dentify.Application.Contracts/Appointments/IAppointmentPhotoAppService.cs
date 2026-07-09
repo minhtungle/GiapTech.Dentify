@@ -12,6 +12,8 @@ public interface IAppointmentPhotoAppService : IApplicationService
 
     Task<AppointmentPhotoDto> UploadAsync(Guid appointmentId, UploadAppointmentPhotoInput input);
 
+    Task<AppointmentPhotoDto> UpdateCaptionAsync(Guid id, UpdateAppointmentPhotoCaptionInput input);
+
     Task<IRemoteStreamContent> DownloadAsync(Guid id);
 
     Task DeleteAsync(Guid id);
