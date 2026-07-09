@@ -19,6 +19,8 @@ import { DoctorsPage } from "@/pages/DoctorsPage"
 import { ServicesPage } from "@/pages/ServicesPage"
 import { DrugsPage } from "@/pages/DrugsPage"
 import { ChairsPage } from "@/pages/ChairsPage"
+import { UsersPage } from "@/pages/UsersPage"
+import { RolesPage } from "@/pages/RolesPage"
 import { PatientPortalAuthProvider } from "@/auth/PatientPortalAuthProvider"
 import { PortalProtectedRoute } from "@/components/portal/PortalProtectedRoute"
 import { PortalAuthCallbackPage } from "@/pages/portal/PortalAuthCallbackPage"
@@ -217,6 +219,26 @@ function App() {
             <ProtectedRoute>
               <AppLayout>
                 <StatisticsPage />
+              </AppLayout>
+            </ProtectedRoute>
+          }
+        />
+        <Route
+          path="/users"
+          element={
+            <ProtectedRoute>
+              <AppLayout>
+                <UsersPage />
+              </AppLayout>
+            </ProtectedRoute>
+          }
+        />
+        <Route
+          path="/roles"
+          element={
+            <ProtectedRoute>
+              <AppLayout>
+                <RolesPage />
               </AppLayout>
             </ProtectedRoute>
           }

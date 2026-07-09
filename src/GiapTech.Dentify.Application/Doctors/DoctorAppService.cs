@@ -8,6 +8,7 @@ using GiapTech.Dentify.Permissions;
 using Microsoft.AspNetCore.Authorization;
 using Volo.Abp;
 using Volo.Abp.Application.Services;
+using Volo.Abp.DistributedLocking;
 using Volo.Abp.Domain.Repositories;
 using Volo.Abp.Identity;
 
@@ -19,15 +20,18 @@ public class DoctorAppService : ApplicationService, IDoctorAppService
     private readonly IRepository<Doctor, Guid> _doctorRepository;
     private readonly IRepository<IdentityUser, Guid> _identityUserRepository;
     private readonly DoctorMapper _doctorMapper;
+    private readonly IAbpDistributedLock _distributedLock;
 
     public DoctorAppService(
         IRepository<Doctor, Guid> doctorRepository,
         IRepository<IdentityUser, Guid> identityUserRepository,
-        DoctorMapper doctorMapper)
+        DoctorMapper doctorMapper,
+        IAbpDistributedLock distributedLock)
     {
         _doctorRepository = doctorRepository;
         _identityUserRepository = identityUserRepository;
         _doctorMapper = doctorMapper;
+        _distributedLock = distributedLock;
     }
 
     public virtual async Task<DoctorDto> GetAsync(Guid id)
@@ -47,6 +51,17 @@ public class DoctorAppService : ApplicationService, IDoctorAppService
     public virtual async Task<DoctorDto> CreateAsync(CreateUpdateDoctorDto input)
     {
         await EnsureIdentityUserExistsAsync(input.IdentityUserId);
+
+        // Khoá theo IdentityUserId để loại bỏ khoảng hở TOCTOU giữa kiểm tra và insert khi
+        // 2 request đồng thời cùng tạo Doctor cho cùng 1 tài khoản — unique index DB
+        // (Doctor.IdentityUserId) vẫn là lưới an toàn cuối nếu lock hết hạn/miss.
+        await using var lockHandle = await _distributedLock.TryAcquireAsync(
+            $"doctor-identity-{input.IdentityUserId}", TimeSpan.FromSeconds(10));
+        if (lockHandle == null)
+        {
+            throw new BusinessException(DentifyDomainErrorCodes.ConcurrentBookingInProgress);
+        }
+
         await EnsureIdentityUserNotLinkedAsync(input.IdentityUserId, excludeDoctorId: null);
 
         var doctor = new Doctor(GuidGenerator.Create(), input.IdentityUserId, input.Specialization);

@@ -52,6 +52,11 @@ public class InsurancePolicy : FullAuditedAggregateRoot<Guid>
 
     public void SetDates(DateTime effectiveDate, DateTime? expiryDate)
     {
+        if (expiryDate.HasValue && expiryDate.Value < effectiveDate)
+        {
+            throw new BusinessException(DentifyDomainErrorCodes.InsurancePolicyExpiryBeforeEffective);
+        }
+
         // PostgreSQL's "timestamp with time zone" only accepts UTC DateTimes.
         EffectiveDate = DateTime.SpecifyKind(effectiveDate, DateTimeKind.Utc);
         ExpiryDate = expiryDate.HasValue ? DateTime.SpecifyKind(expiryDate.Value, DateTimeKind.Utc) : null;

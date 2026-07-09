@@ -130,7 +130,9 @@ public class PatientAppService : ApplicationService, IPatientAppService
             .Select(a => (DateTime?)a.ScheduledDateTime)
             .FirstOrDefault();
 
-        var totalDebt = patientAppointments.Sum(a => a.Price - a.PaidAmount);
+        var totalDebt = patientAppointments
+            .Where(a => a.Status != AppointmentStatus.Cancelled)
+            .Sum(a => a.Price - a.PaidAmount);
         var noShowCount = patientAppointments.Count(a => a.Status == AppointmentStatus.NoShow);
 
         return new PatientDetailDto

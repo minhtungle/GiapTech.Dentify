@@ -65,8 +65,12 @@
 
 ## Verify tính năng mới — luôn qua 3 bước
 
-1. **`dotnet build` + `dotnet test`** (in-memory, không cần Postgres/Docker — xem
-   `04-kien-truc-ky-thuat.md`).
+1. **`docker compose up -d postgres` rồi `dotnet build` + `dotnet test`** — từ khi có
+   Distributed Locking (`IAbpDistributedLock`, xem `04-kien-truc-ky-thuat.md` mục
+   "Distributed Locking"), `dotnet test` **không còn hoàn toàn in-memory**: dữ liệu
+   nghiệp vụ vẫn SQLite in-memory, nhưng advisory lock cần Postgres thật đang chạy qua
+   `ConnectionStrings:Default`. Quên bước này sẽ fail ngay lúc khởi động module
+   (`DentifyApplicationModule.ConfigureServices`), không phải lỗi test case cụ thể.
 2. **`npx tsc -b` + `npx oxlint` + `npm run build`** (frontend).
 3. **Verify UI thật bằng Playwright** — cài tạm, xoá ngay sau khi verify xong:
    ```bash
@@ -91,6 +95,10 @@
   chạy lại `docker compose up -d postgres` (tạo container mới) rồi **chạy lại
   DbMigrator** để tái tạo schema + seed — dữ liệu test cũ sẽ mất theo, cần tạo lại qua UI
   nếu cần verify.
+- Postgres không chạy → `dotnet test` fail ngay ở bước khởi động module
+  (`IAbpDistributedLock.TryAcquireAsync` không kết nối được), kể cả khi đang sửa code
+  hoàn toàn không liên quan tới DB/lock — luôn `docker compose up -d postgres` trước khi
+  `dotnet test`, không chỉ trước khi chạy app thật.
 
 ## Quy trình làm việc theo giai đoạn (cách dự án đã vận hành, tiếp tục áp dụng)
 

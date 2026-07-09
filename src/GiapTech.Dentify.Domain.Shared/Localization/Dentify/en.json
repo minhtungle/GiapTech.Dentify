@@ -210,6 +210,8 @@
     "Dentify:00026": "This appointment belongs to a different patient than the treatment plan.",
     "Dentify:00027": "Unsupported logo format (only JPEG, PNG, WEBP are allowed).",
     "Dentify:00028": "Logo size exceeds the allowed limit (max 2MB).",
+    "Dentify:00029": "Another request is currently booking this doctor or chair. Please try again.",
+    "Dentify:00030": "Expiry date cannot be earlier than the effective date.",
 
     "ClinicSettings": "Clinic Settings",
     "ClinicSettings:Name": "Clinic name",

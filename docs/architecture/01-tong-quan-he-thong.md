@@ -83,6 +83,14 @@ Roadmap 13 mục đã **hoàn tất toàn bộ 5 đợt**. Các module nghiệp 
 | Invoice (trang) | In hoá đơn HTML qua `window.print()`, không sinh PDF |
 | Dashboard (trang) | Tổng quan: doanh thu, cảnh báo công nợ/labo trễ/task quá hạn/nhắc tái khám |
 
+Ngoài các module trên, dự án còn có hạ tầng kỹ thuật **Distributed Locking** (Postgres
+advisory lock qua `IAbpDistributedLock`) — không phải module nghiệp vụ, nhưng bảo vệ 3
+điểm race condition thật đã tìm thấy qua review đối kháng: double-booking bác sĩ/ghế khi
+tạo lịch hẹn, tạo trùng Doctor cho 1 tài khoản, gửi trùng email nhắc hẹn nếu chạy nhiều
+instance. Ảnh hưởng quan trọng cần biết: `dotnet test` từ đây **cần Postgres đang chạy**
+(không còn hoàn toàn in-memory) — xem `04-kien-truc-ky-thuat.md` mục "Distributed
+Locking" và "Testing".
+
 ## Roadmap 13 mục — đã hoàn tất
 
 5 đợt đã lên kế hoạch và triển khai xong (đối chiếu chuẩn ngành PMS — Dentrix/Open

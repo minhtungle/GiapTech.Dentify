@@ -171,6 +171,28 @@ public abstract class PatientAppServiceTests<TStartupModule> : DentifyApplicatio
     }
 
     [Fact]
+    public async Task Should_Exclude_Cancelled_Appointments_From_Total_Debt()
+    {
+        var patient = await _patientAppService.CreateAsync(new CreateUpdatePatientDto
+        {
+            FullName = "Cancelled Debt Patient",
+            DateOfBirth = new DateTime(1992, 1, 1)
+        });
+
+        await _appointmentAppService.CreateAsync(new CreateUpdateAppointmentDto
+        {
+            PatientId = patient.Id,
+            ScheduledDateTime = DateTime.Now.AddDays(-1),
+            Status = AppointmentStatus.Cancelled,
+            Price = 500000
+        });
+
+        var detail = await _patientAppService.GetPatientDetailAsync(patient.Id);
+
+        detail.TotalDebt.ShouldBe(0);
+    }
+
+    [Fact]
     public async Task Should_Create_Patient_With_Allergies_And_Medical_Conditions()
     {
         var result = await _patientAppService.CreateAsync(new CreateUpdatePatientDto

@@ -2,6 +2,7 @@ using System;
 using System.Threading.Tasks;
 using GiapTech.Dentify.Application.Contracts.Patients;
 using Shouldly;
+using Volo.Abp;
 using Volo.Abp.Modularity;
 using Xunit;
 
@@ -48,6 +49,26 @@ public abstract class InsurancePolicyAppServiceTests<TStartupModule> : DentifyAp
         result.PatientId.ShouldBe(patientId);
         result.ProviderName.ShouldBe("Bảo Việt");
         result.PolicyNumber.ShouldBe("BV123456789");
+    }
+
+    [Fact]
+    public async Task Should_Throw_When_ExpiryDate_Before_EffectiveDate()
+    {
+        var patientId = await CreateTestPatientAsync();
+
+        var exception = await Should.ThrowAsync<BusinessException>(async () =>
+        {
+            await _insurancePolicyAppService.CreateAsync(new CreateUpdateInsurancePolicyDto
+            {
+                PatientId = patientId,
+                ProviderName = "Bảo Việt",
+                PolicyNumber = "BV123456789",
+                EffectiveDate = new DateTime(2026, 8, 1),
+                ExpiryDate = new DateTime(2026, 1, 1)
+            });
+        });
+
+        exception.Code.ShouldBe(DentifyDomainErrorCodes.InsurancePolicyExpiryBeforeEffective);
     }
 
     [Fact]

@@ -44,9 +44,15 @@ Hoặc toàn bộ qua Docker: `docker compose up -d --build`. Admin mặc địn
 / `1q2w3E*`. Chi tiết đầy đủ + các lỗi thường gặp: `docs/architecture/05-trien-khai-van-hanh.md`.
 
 ```bash
+docker compose up -d postgres                                             # bắt buộc trước khi test — xem lưu ý dưới
 dotnet build GiapTech.Dentify.slnx && dotnet test GiapTech.Dentify.slnx   # backend
 cd frontend && npm run build && npx oxlint                                # frontend
 ```
+
+**Lưu ý**: `dotnet test` cần Postgres đang chạy (không còn hoàn toàn in-memory) — dữ liệu
+nghiệp vụ trong test vẫn dùng SQLite in-memory, nhưng Distributed Locking
+(`IAbpDistributedLock`, xem `04-kien-truc-ky-thuat.md`) dùng Postgres advisory lock qua
+`ConnectionStrings:Default` thật. Không cần schema đúng, chỉ cần kết nối được.
 
 ## Đồng bộ giữa các máy
 

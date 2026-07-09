@@ -148,6 +148,26 @@ public abstract class PatientPortalAppServiceTests<TStartupModule> : DentifyAppl
     }
 
     [Fact]
+    public async Task Should_Exclude_Cancelled_Appointments_From_Balance()
+    {
+        var (patientId, userId) = await CreateLinkedPatientAsync("portal.balance.cancelled", "Cancelled Balance Patient");
+
+        await _appointmentAppService.CreateAsync(new CreateUpdateAppointmentDto
+        {
+            PatientId = patientId,
+            ScheduledDateTime = DateTime.UtcNow.AddDays(-1),
+            Status = AppointmentStatus.Cancelled,
+            Price = 500000
+        });
+
+        using (ActAsUser(userId))
+        {
+            var balance = await _patientPortalAppService.GetMyBalanceAsync();
+            balance.TotalDebt.ShouldBe(0);
+        }
+    }
+
+    [Fact]
     public async Task Should_List_Only_Completed_Appointments_In_Treatment_History()
     {
         var (patientId, userId) = await CreateLinkedPatientAsync("portal.history", "History Patient");

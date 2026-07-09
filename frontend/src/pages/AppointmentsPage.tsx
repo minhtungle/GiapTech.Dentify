@@ -485,6 +485,18 @@ export function AppointmentsPage() {
       const serviceResult = resolveEntityId(services, row["ServiceId"], row["Dịch vụ"], (s) => s.name)
       const chairResult = resolveEntityId(chairs, row["ChairId"], row["Ghế"], (c) => c.name)
 
+      // Doctor/Service/Chair là optional — chỉ cảnh báo (không chặn dòng) khi người dùng
+      // CÓ ghi tên nhưng không resolve được (không tìm thấy/trùng nhiều); ô để trống hợp
+      // lệ (error === null, id === null) thì vẫn tạo appointment không có field đó.
+      const optionalFieldWarnings = [
+        doctorResult.error && `Bác sĩ ${doctorResult.error}`,
+        serviceResult.error && `Dịch vụ ${serviceResult.error}`,
+        chairResult.error && `Ghế ${chairResult.error}`,
+      ].filter((w): w is string => Boolean(w))
+      if (optionalFieldWarnings.length > 0) {
+        errors.push(`Dòng ${i + 2}: ${optionalFieldWarnings.join("; ")} (đã bỏ qua, vẫn tạo lịch hẹn)`)
+      }
+
       const statusLabel = row["Trạng thái"]?.trim()
       const statusName =
         STATUS_OPTIONS.find((s) => APPOINTMENT_STATUS_LABELS_VI[AppointmentStatus[s]] === statusLabel) ??

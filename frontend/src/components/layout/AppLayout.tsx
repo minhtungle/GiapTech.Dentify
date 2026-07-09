@@ -16,6 +16,7 @@ import {
   PillBottle,
   Receipt,
   Settings,
+  ShieldCheck,
   Smile,
   Stethoscope,
   Users,
@@ -42,10 +43,27 @@ const navItems = [
   { to: "/settings", label: "Cài đặt", icon: Settings },
 ]
 
-function SidebarNav({ onNavigate }: { onNavigate?: () => void }) {
+const adminNavItems: typeof navItems = [
+  { to: "/users", label: "Người dùng", icon: Users },
+  { to: "/roles", label: "Vai trò & phân quyền", icon: ShieldCheck },
+]
+
+function hasAdminRole(role: unknown): boolean {
+  if (Array.isArray(role)) return role.includes("admin")
+  return role === "admin"
+}
+
+function SidebarNav({
+  isAdmin,
+  onNavigate,
+}: {
+  isAdmin: boolean
+  onNavigate?: () => void
+}) {
+  const items = isAdmin ? [...navItems, ...adminNavItems] : navItems
   return (
     <nav className="flex flex-col gap-1 px-2">
-      {navItems.map(({ to, label, icon: Icon, end }) => (
+      {items.map(({ to, label, icon: Icon, end }) => (
         <NavLink
           key={to}
           to={to}
@@ -69,6 +87,7 @@ function SidebarNav({ onNavigate }: { onNavigate?: () => void }) {
 export function AppLayout({ children }: { children: ReactNode }) {
   const { user, signOut } = useAuth()
   const [mobileNavOpen, setMobileNavOpen] = useState(false)
+  const isAdmin = hasAdminRole(user?.profile.role)
 
   return (
     <div className="flex min-h-screen">
@@ -77,7 +96,7 @@ export function AppLayout({ children }: { children: ReactNode }) {
           <Smile className="size-6 text-primary" />
           Dentify
         </div>
-        <SidebarNav />
+        <SidebarNav isAdmin={isAdmin} />
         <div className="mt-auto flex flex-col gap-2 border-t p-4">
           <div className="truncate text-sm text-muted-foreground">
             {user?.profile.name ?? user?.profile.email}
@@ -116,7 +135,7 @@ export function AppLayout({ children }: { children: ReactNode }) {
               <Smile className="size-6 text-primary" />
               Dentify
             </div>
-            <SidebarNav onNavigate={() => setMobileNavOpen(false)} />
+            <SidebarNav isAdmin={isAdmin} onNavigate={() => setMobileNavOpen(false)} />
             <div className="mt-auto flex flex-col gap-2 border-t p-4">
               <div className="truncate text-sm text-muted-foreground">
                 {user?.profile.name ?? user?.profile.email}

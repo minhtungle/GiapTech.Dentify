@@ -1,4 +1,6 @@
 using System;
+using System.Collections.Generic;
+using System.Linq;
 using System.Threading;
 using System.Threading.Tasks;
 using GiapTech.Dentify.TreatmentPlans;
@@ -25,5 +27,15 @@ public class EfCoreTreatmentPlanRepository : EfCoreRepository<DentifyDbContext, 
             .FirstOrDefaultAsync(x => x.Id == id, GetCancellationToken(cancellationToken));
 
         return plan ?? throw new EntityNotFoundException(typeof(TreatmentPlan), id);
+    }
+
+    public async Task<List<TreatmentPlan>> GetListWithDetailsAsync(List<Guid> ids, CancellationToken cancellationToken = default)
+    {
+        var dbSet = await GetDbSetAsync();
+
+        return await dbSet
+            .Include(x => x.Items)
+            .Where(x => ids.Contains(x.Id))
+            .ToListAsync(GetCancellationToken(cancellationToken));
     }
 }

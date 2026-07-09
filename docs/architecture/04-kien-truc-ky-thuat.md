@@ -369,14 +369,47 @@ FullCalendar có theme tuỳ biến riêng (`.notion-calendar` trong `index.css`
 
 ## Testing
 
-- **Backend**: `dotnet test` chạy **hoàn toàn in-memory** (SQLite in-memory qua
-  `Microsoft.Data.Sqlite`, KHÔNG dùng Testcontainers/Postgres thật). Schema tạo trực tiếp
-  từ model (`CreateTables()`), không qua migration. Permission/Feature check bị tắt
-  trong test module (`AddAlwaysAllowAuthorization`). Không cần Docker/Postgres khi chạy
-  `dotnet test`.
+- **Backend**: `dotnet test` chạy dữ liệu nghiệp vụ **hoàn toàn in-memory** (SQLite
+  in-memory qua `Microsoft.Data.Sqlite`, KHÔNG dùng Testcontainers/Postgres thật cho
+  DbContext). Schema tạo trực tiếp từ model (`CreateTables()`), không qua migration.
+  Permission/Feature check bị tắt trong test module (`AddAlwaysAllowAuthorization`).
+  **Từ khi thêm Distributed Locking (mục "Distributed Locking" dưới đây): `dotnet test`
+  cần Postgres thật đang chạy** (`docker compose up -d postgres`) — `IAbpDistributedLock`
+  dùng Postgres advisory lock qua `ConnectionStrings:Default` đọc trong
+  `test/GiapTech.Dentify.TestBase/appsettings.json`, độc lập với SQLite in-memory dùng
+  cho entity data. Không cần schema `Dentify` đúng thật trên Postgres đó — advisory lock
+  không đụng tới bảng nào, chỉ cần kết nối được.
 - **Frontend**: **không có test tự động** (không Vitest/Jest/Playwright trong
   dependencies). Verify tính năng mới luôn qua Playwright cài tạm + xoá sau khi xong
   (quy ước xuyên suốt dự án, xem `06-quy-uoc-phat-trien.md`).
+
+## Distributed Locking
+
+Thêm sau đợt review đối kháng toàn hệ thống (khắc phục 3 race condition: double-booking
+bác sĩ/ghế, tạo trùng Doctor cho 1 tài khoản, gửi trùng email nhắc hẹn nếu chạy nhiều
+instance). Dùng `Volo.Abp.DistributedLocking` (wrapper `IAbpDistributedLock` của ABP) +
+provider `DistributedLock.Postgres` (namespace bên trong vẫn `Medallion.Threading.*` —
+tên thư viện gốc trước khi đổi tên package NuGet, đã verify qua giải nén DLL thật, không
+đoán) — dùng Postgres advisory lock (`pg_advisory_lock`), không cần thêm Redis/SQL Server
+vì dự án chỉ có Postgres.
+
+Đăng ký ở `DentifyApplicationModule.ConfigureServices` (đọc `ConnectionStrings:Default`,
+throw `InvalidOperationException` sớm nếu thiếu — lỗi cấu hình lộ ra ngay lúc khởi động
+module, không đợi tới lúc gọi `TryAcquireAsync` mới lỗi khó hiểu). `[DependsOn(typeof(
+AbpDistributedLockingModule))]` thêm vào cùng module.
+
+Cách dùng trong AppService: inject `IAbpDistributedLock`, gọi `await
+_distributedLock.TryAcquireAsync(key, timeout)` trả `IAbpDistributedLockHandle?` — `null`
+nghĩa là lock đang bị giữ, throw `BusinessException` phù hợp thay vì chờ vô hạn; dùng
+`await using` để tự release khi ra khỏi scope. 3 nơi đang dùng:
+- `AppointmentAppService.CreateAsync`/`UpdateAsync` — 2 lock riêng theo
+  `appointment-doctor-{doctorId}`/`appointment-chair-{chairId}`, bao trùm cả bước kiểm
+  tra double-booking và bước insert/update để loại bỏ khoảng hở TOCTOU.
+- `DoctorAppService.CreateAsync` — lock `doctor-identity-{identityUserId}`, bổ sung cho
+  unique index DB đã có sẵn (unique index vẫn là lưới an toàn cuối nếu lock hết hạn).
+- `AppointmentReminderAppService.SendDueRemindersAsync` — 1 lock cố định
+  `appointment-reminder-worker` cho toàn bộ method, chỉ 1 instance chạy được cùng lúc
+  (bỏ qua lượt quét nếu instance khác đang giữ lock).
 
 ## CI/CD
 

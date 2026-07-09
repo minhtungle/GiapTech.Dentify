@@ -71,9 +71,161 @@
 - [x] Bộ tài liệu kiến trúc `docs/architecture/*.md` (xong): 6 file tổng hợp toàn bộ
       chức năng/luồng nghiệp vụ/kiến trúc kỹ thuật/vận hành/quy ước hiện có, thay cho việc
       phải đọc lại toàn bộ nhật ký này để nắm trạng thái hệ thống.
+- [x] Module quản lý người dùng & phân quyền trong React SPA (xong): trang `/users`
+      (CRUD tài khoản qua ABP Identity API có sẵn) + `/roles` (ma trận quyền theo role qua
+      ABP PermissionManagement API có sẵn), gate 2 menu này theo claim role `admin`.
 - [ ] Giai đoạn 5 (tuỳ chọn): AI voice-to-note, AI scan hoá đơn
 
 ## Nhật ký
+
+### 2026-07-09 (6) — Module quản lý người dùng & phân quyền trong React SPA
+
+Người dùng yêu cầu "nhóm module quản lý tài khoản, phân quyền chuẩn cho các hệ thống
+tương tự" — admin không muốn phải rời khỏi SPA chính để vào Razor Pages `/Identity/Users`
+có sẵn của ABP mỗi khi cần tạo tài khoản nhân viên hoặc chỉnh quyền.
+
+Khảo sát xác nhận: **toàn bộ API backend đã có sẵn** từ `Volo.Abp.Identity` +
+`Volo.Abp.PermissionManagement` (đã depend đủ 3 layer từ trước) — không cần code backend
+mới, chỉ xây frontend gọi thẳng REST route tự động expose. Xác nhận cấu trúc field/route
+thật qua đọc `GET /swagger/v1/swagger.json` (không gọi API thật cần token, tránh in
+credential ra output) trước khi viết type, tránh đoán sai shape response.
+
+Phạm vi đã chốt với người dùng (qua AskUserQuestion + plan mode):
+- Chỉ sửa quyền theo **role có sẵn** (Doctor/Receptionist/Accountant/Patient + `admin`),
+  **không cho tạo role mới** — quy mô phòng khám nhỏ không cần role tự do.
+- Admin tự đặt mật khẩu tạm khi tạo tài khoản, **không tích hợp gửi email kích hoạt**
+  (dự án chưa có SMTP thật, `NullEmailSender` sẽ âm thầm không gửi được gì).
+- Gate 2 trang mới bằng permission ABP Identity chuẩn có sẵn (`AbpIdentity.Users.*`,
+  `AbpIdentity.Roles.*`, `PermissionManagement.*`) — không tạo permission Dentify riêng.
+  Hiện chỉ `admin@abp.io` có các quyền này.
+
+Đã tạo: `types/identityUser.ts` (mở rộng `IdentityUserDto` + Create/Update DTO),
+`types/permission.ts`, `lib/identity-users-api.ts` (mở rộng, giữ nguyên `search()` cũ để
+không phá `IdentityUserPicker` đang dùng), `lib/permissions-api.ts`, `pages/UsersPage.tsx`,
+`pages/RolesPage.tsx`. Sửa `App.tsx` (2 route mới), `AppLayout.tsx` (2 menu mới, chỉ hiện
+khi `user.profile.role` chứa `"admin"` — claim có sẵn từ id_token, `oidc-client-ts` tự
+decode, không cần code thêm để đọc).
+
+Gotcha nhỏ: dự án chưa có component `Checkbox` (không có `@radix-ui/react-checkbox`,
+14 file trong `components/ui/` không có checkbox) — dùng lại pattern `<input
+type="checkbox">` HTML thuần đã có sẵn ở `TasksPage.tsx` thay vì thêm dependency mới.
+
+Verify: `npx tsc -b && npx oxlint && npm run build` đều pass, rebuild + recreate container
+`giaptechdentify-frontend-1` qua `docker compose build frontend && docker compose up -d
+frontend` để đưa code mới vào (image cũ đang chạy trước đó). Verify UI thật qua đăng nhập
+`admin@abp.io` (tạo user, gán role, chỉnh quyền role) do người dùng tự thực hiện trong
+browser — không tự động hoá được vì cần credential thật.
+
+Đã cập nhật `02-dac-ta-chuc-nang.md` (mục mới "Quản lý người dùng & phân quyền") và
+`03-luong-nghiep-vu.md` (luồng mới "Tạo tài khoản nhân viên & gán quyền (admin)", sửa lại
+đoạn cũ về "không role nào được kiểm tra ở tầng route" cho đúng với ngoại lệ mới này).
+
+### 2026-07-09 (5) — Rà soát đồng bộ toàn bộ 6 file docs/architecture + CLAUDE.md
+
+Sau khi sửa 8 lỗi từ review đối kháng (mục (4) bên dưới), người dùng yêu cầu "cập nhật
+mọi tài liệu, cả danh sách chức năng, luồng công việc, tiến độ" — rà soát lại toàn bộ 6
+file `docs/architecture/*.md` (không chỉ 2 file `02`/`04` đã cập nhật lúc sửa lỗi) để tìm
+đoạn lỗi thời/thiếu so với code thực tế. Dùng 3 Explore agent song song (mỗi agent phụ
+trách 1-2 file, có bối cảnh đầy đủ về các thay đổi gần nhất) để đối chiếu trước khi tự sửa
+— không tự đoán nội dung cần sửa mà xác nhận qua đọc code thật trước.
+
+- **`06-quy-uoc-phat-trien.md`** — phát hiện **câu sai rõ ràng**: mục "Verify tính năng
+  mới" bước 1 vẫn ghi `dotnet test` "in-memory, không cần Postgres/Docker" — đã lỗi thời
+  từ khi thêm Distributed Locking. Sửa lại + thêm 1 gotcha mới trong mục "Gotcha môi
+  trường" (Postgres không chạy → test fail ngay lúc khởi động module).
+- **`05-trien-khai-van-hanh.md`** — cùng lỗi tương tự ở mục "Build & Test" (dòng comment
+  `# test — chạy hoàn toàn in-memory (SQLite), không cần Postgres/Docker`). Sửa lại +
+  thêm đoạn giải thích ngắn tại sao (đối chiếu văn phong với mục "Distributed Locking" đã
+  viết ở `04`). Xác nhận: `docker-compose.yml` đã set `ConnectionStrings__Default` đủ cho
+  `backend`/`db-migrator`, không cần sửa gì ở phần Docker Compose; checklist production
+  không cần thêm bước vì Postgres production luôn chạy sẵn.
+- **`01-tong-quan-he-thong.md`** — không có câu nào sai, chỉ **thiếu** 1 đoạn ghi nhận hạ
+  tầng Distributed Locking (không phải module nghiệp vụ nên không thêm vào bảng, mà thêm
+  1 đoạn văn ngắn ngay sau bảng, trỏ sang `04` để biết chi tiết).
+- **`03-luong-nghiep-vu.md`** — file lớn nhất cần sửa, vì đây mô tả luồng theo góc nhìn
+  người dùng (không phải theo module như `02`) nên mỗi thay đổi UI gần đây cần 1 đoạn
+  riêng. Sửa 2 mục có sẵn ("Cập nhật sơ đồ răng" thêm Select hệ đánh số + lịch hẹn liên
+  quan; "Theo dõi ca gửi labo" thêm filter WorkType + hiển thị ngày hẹn liên quan; "Nhập/
+  Xuất CSV" đổi tiêu đề thành "(Patient, Expense, Appointment)" + thêm đoạn riêng cho luồng
+  resolve tên→ID của CSV Appointment). Thêm 3 mục hoàn toàn mới trước đó chưa từng có:
+  "Quản lý ảnh lịch hẹn" (upload/sửa caption/xoá/race condition), "Lọc bảng lịch hẹn"
+  (server-side từ khi thêm Select Ghế/Thanh toán), "Tạo/sửa khoản chi (Expense)" (biểu đồ
+  + Select Ca labo liên quan).
+- **`02-dac-ta-chuc-nang.md`/`04-kien-truc-ky-thuat.md`** — đã cập nhật đầy đủ ở mục (4)
+  bên dưới lúc sửa 8 lỗi, chỉ đọc lại xác nhận không cần sửa thêm.
+
+Đọc lại toàn bộ 4 file đã sửa (`01`, `03`, `05`, `06`) sau khi hoàn tất để xác nhận không
+mâu thuẫn nội bộ — phát hiện 1 lỗi nhỏ tự gây ra lúc viết (đếm sai số module trong bảng ở
+`01`, "16 module" thực ra là 17) và sửa ngay.
+
+### 2026-07-09 (4) — Sửa 8 lỗi từ review đối kháng toàn hệ thống
+
+Sau đợt hoàn thiện thứ 2, chạy 1 workflow review đối kháng **toàn bộ hệ thống** (4
+dimension song song: backend correctness, frontend correctness, security/IDOR, đối chiếu
+tài liệu — mỗi finding được 3 agent xác minh độc lập, mặc định REFUTED nếu không tái hiện
+được). Kết quả: **8/8 finding CONFIRMED**, không có false positive. Sửa hết cả 8, chia
+thành Nhóm A (3 race condition dùng chung 1 hạ tầng mới) và Nhóm B (5 lỗi độc lập).
+
+**Hạ tầng mới — Distributed Locking dựa trên Postgres:** dự án chưa từng có cơ chế
+distributed lock. Thêm `Volo.Abp.DistributedLocking` (wrapper `IAbpDistributedLock` của
+ABP) + provider `DistributedLock.Postgres` v1.3.1 (namespace bên trong vẫn
+`Medallion.Threading.Postgres` — tên thư viện gốc trước khi đổi tên package NuGet, xác
+nhận qua giải nén DLL thật bằng `strings`, không đoán theo kiến thức cũ vì tên
+"Medallion.Threading.Postgres" trên NuGet không tồn tại). Dùng Postgres advisory lock,
+không cần thêm Redis/SQL Server. Đăng ký ở `DentifyApplicationModule.ConfigureServices`,
+đọc `ConnectionStrings:Default`, throw sớm nếu thiếu.
+
+**Phát hiện quan trọng lúc verify**: thêm hạ tầng này làm **toàn bộ `dotnet test` crash**
+— môi trường test trước đây hoàn toàn tự chứa (SQLite in-memory, không cần Postgres),
+nhưng `TryAcquireAsync` của Postgres provider thực sự mở connection Postgres khi gọi.
+Đã hỏi ý người dùng và **chấp nhận đánh đổi** (đúng thực tế dự án luôn cần Postgres chạy
+sẵn cho DbMigrator/Web, giờ mở rộng sang cả `dotnet test`) — thêm
+`ConnectionStrings:Default` trỏ Postgres thật vào `test/GiapTech.Dentify.TestBase/
+appsettings.json`. Ghi rõ trong `CLAUDE.md`/`04-kien-truc-ky-thuat.md` để máy khác không
+bị bất ngờ khi `dotnet test` fail vì thiếu Postgres.
+
+**Nhóm A — 3 race condition:**
+- **A1 [HIGH] Double-booking bác sĩ/ghế**: `AppointmentAppService.CreateAsync`/
+  `UpdateAsync` bọc 2 lock riêng (`appointment-doctor-{id}`/`appointment-chair-{id}`) bao
+  trùm cả bước kiểm tra double-booking và bước insert/update — loại bỏ khoảng hở TOCTOU.
+  Timeout 10s → throw `ConcurrentBookingInProgress` (mã lỗi mới `Dentify:00029`).
+- **A2 [LOW] Race tạo Doctor trùng IdentityUserId**: `DoctorAppService.CreateAsync` bọc
+  lock `doctor-identity-{id}`. Không thêm catch `DbUpdateException`/`PostgresException`
+  như dự tính ban đầu trong plan (mục A2b) — phát hiện lúc code rằng `Application` layer
+  không có quyền truy cập `Microsoft.EntityFrameworkCore`/`Npgsql` theo đúng kiến trúc DDD
+  của dự án (chỉ `EntityFrameworkCore` layer mới có), và lock đã đủ đóng race window theo
+  đúng finding gốc — thêm try/catch sẽ phải phá layering để đổi lợi ích nhỏ (chỉ còn hữu
+  ích nếu lock timeout, một tình huống hiếm).
+- **A3 [LOW] Nhắc hẹn email trùng lặp**: `AppointmentReminderAppService.
+  SendDueRemindersAsync` bọc 1 lock cố định `appointment-reminder-worker` — instance nào
+  không giữ được lock thì bỏ qua lượt quét đó luôn (không đợi).
+
+**Nhóm B — 5 lỗi độc lập:**
+- **B1 [HIGH] Công nợ tính cả appointment đã Cancelled**: `PatientPortalAppService.
+  GetMyBalanceAsync` và `PatientAppService.GetPatientDetailAsync` (2 nơi cùng bug lặp lại)
+  đều thêm `Where(Status != Cancelled)` trước khi tính `Price - PaidAmount` — appointment
+  huỷ chưa thu tiền không còn tính là công nợ.
+- **B2 [HIGH] CSV import Appointment âm thầm bỏ qua lỗi Doctor/Service/Chair**:
+  `AppointmentsPage.tsx` trước đây chỉ check `.error` của `patientResult`, bỏ qua
+  `.error` của `doctorResult`/`serviceResult`/`chairResult` — giờ thêm cảnh báo (không
+  chặn dòng, vì 3 field này optional) khi người dùng có ghi tên mà không resolve được.
+- **B3 [HIGH] Race condition tải ảnh appointment**: `AppointmentPhotosDialog.tsx` áp dụng
+  đúng pattern `latestQueryRef` đã có ở `IdentityUserPicker.tsx` — thêm
+  `latestAppointmentIdRef`, bỏ qua response cũ nếu đổi appointment trước khi request
+  trước hoàn tất (tránh revoke blob URL đang hiển thị/hiển thị nhầm ảnh appointment cũ).
+- **B4 [MEDIUM] N+1 query TreatmentPlanAppService.GetListAsync**: thêm
+  `ITreatmentPlanRepository.GetListWithDetailsAsync(ids)` (1 query `Include(Items).
+  Where(Contains(ids))`) thay cho loop gọi `GetWithDetailsAsync` từng id — 1 trang 20 kế
+  hoạch trước đây chạy 20+ query riêng lẻ. Sắp lại kết quả đúng thứ tự `ids` ban đầu vì
+  `Where(Contains)` không đảm bảo thứ tự.
+- **B5 [MEDIUM] InsurancePolicy thiếu validate ExpiryDate >= EffectiveDate**:
+  `InsurancePolicy.SetDates` throw `BusinessException(InsurancePolicyExpiryBeforeEffective`
+  = mã lỗi mới `Dentify:00030`) nếu `expiryDate < effectiveDate`.
+
+Build/test riêng sau mỗi nhóm, cuối cùng chạy lại toàn bộ backend test suite: 144 EF Core
+test + 1 Web test pass (tăng từ 141 — 3 test mới của Nhóm B; Nhóm A không thêm test race
+condition thật vì cần multi-thread giả lập, rủi ro flaky cao hơn giá trị, chỉ verify qua
+build/chạy được ở luồng bình thường). Không có regression.
 
 ### 2026-07-09 (3) — Đợt hoàn thiện thứ 2: Caption ảnh, LabWork→Appointment, filter Appointment, 2 leak LOW
 

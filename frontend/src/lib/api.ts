@@ -21,6 +21,7 @@ async function request<T>(
 
   const headers = new Headers(options.headers)
   headers.set("Content-Type", "application/json")
+  headers.set("Accept-Language", "vi")
   if (user?.access_token) {
     headers.set("Authorization", `Bearer ${user.access_token}`)
   }

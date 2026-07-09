@@ -8,6 +8,7 @@ using GiapTech.Dentify.Settings;
 using Microsoft.Extensions.Logging;
 using Volo.Abp;
 using Volo.Abp.Application.Services;
+using Volo.Abp.DistributedLocking;
 using Volo.Abp.Domain.Repositories;
 using Volo.Abp.Emailing;
 
@@ -22,22 +23,36 @@ namespace GiapTech.Dentify.Application.Appointments;
 [RemoteService(IsEnabled = false)]
 public class AppointmentReminderAppService : ApplicationService, IAppointmentReminderAppService
 {
+    private const string ReminderLockKey = "appointment-reminder-worker";
+
     private readonly IRepository<Appointment, Guid> _appointmentRepository;
     private readonly IRepository<Patient, Guid> _patientRepository;
     private readonly IEmailSender _emailSender;
+    private readonly IAbpDistributedLock _distributedLock;
 
     public AppointmentReminderAppService(
         IRepository<Appointment, Guid> appointmentRepository,
         IRepository<Patient, Guid> patientRepository,
-        IEmailSender emailSender)
+        IEmailSender emailSender,
+        IAbpDistributedLock distributedLock)
     {
         _appointmentRepository = appointmentRepository;
         _patientRepository = patientRepository;
         _emailSender = emailSender;
+        _distributedLock = distributedLock;
     }
 
     public virtual async Task<int> SendDueRemindersAsync()
     {
+        // Chỉ 1 lượt quét được chạy cùng lúc trên toàn hệ thống — nếu chạy nhiều instance
+        // (rolling deploy/scale ngang), instance khác đang quét thì bỏ qua lượt này thay vì
+        // cùng chọn trùng appointment và gửi email nhắc hẹn 2 lần.
+        await using var lockHandle = await _distributedLock.TryAcquireAsync(ReminderLockKey, TimeSpan.FromSeconds(5));
+        if (lockHandle == null)
+        {
+            return 0;
+        }
+
         var now = Clock.Now;
         var windowStart = now.AddHours(AppointmentReminderConsts.ReminderWindowStartHours);
         var windowEnd = now.AddHours(AppointmentReminderConsts.ReminderWindowEndHours);

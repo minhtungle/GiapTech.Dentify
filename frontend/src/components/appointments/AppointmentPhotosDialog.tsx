@@ -46,6 +46,7 @@ export function AppointmentPhotosDialog({
   const [editingCaptionValue, setEditingCaptionValue] = useState("")
   const [isSavingCaption, setIsSavingCaption] = useState(false)
   const fileInputRef = useRef<HTMLInputElement>(null)
+  const latestAppointmentIdRef = useRef<string | null>(null)
 
   const revokeAllBlobUrls = (list: PhotoWithUrl[]) => {
     list.forEach((p) => URL.revokeObjectURL(p.blobUrl))
@@ -61,18 +62,27 @@ export function AppointmentPhotosDialog({
           blobUrl: await appointmentPhotoApi.getDownloadBlobUrl(photo.id),
         })),
       )
+      // Bỏ qua response cũ nếu người dùng đã đổi sang appointment khác từ lúc request
+      // này bắt đầu — tránh revoke blob URL đang hiển thị của appointment mới và ghi đè
+      // bằng ảnh của appointment cũ.
+      if (latestAppointmentIdRef.current !== id) {
+        revokeAllBlobUrls(withUrls)
+        return
+      }
       setPhotos((prev) => {
         revokeAllBlobUrls(prev)
         return withUrls
       })
     } catch (err) {
+      if (latestAppointmentIdRef.current !== id) return
       toast.error(err instanceof ApiError ? err.message : "Không tải được danh sách ảnh")
     } finally {
-      setIsLoading(false)
+      if (latestAppointmentIdRef.current === id) setIsLoading(false)
     }
   }
 
   useEffect(() => {
+    latestAppointmentIdRef.current = appointmentId
     setCaption("")
     setEditingCaptionId(null)
     if (appointmentId) {

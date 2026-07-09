@@ -32,4 +32,6 @@ public static class DentifyDomainErrorCodes
     public const string AppointmentBelongsToDifferentPatient = "Dentify:00026";
     public const string UnsupportedLogoContentType = "Dentify:00027";
     public const string LogoSizeTooLarge = "Dentify:00028";
+    public const string ConcurrentBookingInProgress = "Dentify:00029";
+    public const string InsurancePolicyExpiryBeforeEffective = "Dentify:00030";
 }

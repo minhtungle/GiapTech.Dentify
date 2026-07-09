@@ -66,11 +66,11 @@ public class TreatmentPlanAppService : ApplicationService, ITreatmentPlanAppServ
         var ids = await AsyncExecuter.ToListAsync(
             queryable.Skip(input.SkipCount).Take(input.MaxResultCount).Select(x => x.Id));
 
-        var plans = new List<TreatmentPlan>();
-        foreach (var id in ids)
-        {
-            plans.Add(await _treatmentPlanRepository.GetWithDetailsAsync(id));
-        }
+        var plansById = (await _treatmentPlanRepository.GetListWithDetailsAsync(ids))
+            .ToDictionary(x => x.Id);
+        // Where(Contains) không đảm bảo thứ tự trả về khớp ids (đã OrderByDescending theo
+        // CreationTime ở trên) — sắp lại đúng thứ tự đó.
+        var plans = ids.Select(id => plansById[id]).ToList();
 
         return new PagedResultDto<TreatmentPlanDto>(totalCount, await MapToDtosAsync(plans));
     }

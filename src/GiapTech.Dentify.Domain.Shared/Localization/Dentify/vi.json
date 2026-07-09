@@ -210,6 +210,8 @@
     "Dentify:00026": "Lịch hẹn này thuộc về bệnh nhân khác với kế hoạch điều trị.",
     "Dentify:00027": "Định dạng logo không được hỗ trợ (chỉ chấp nhận JPEG, PNG, WEBP).",
     "Dentify:00028": "Kích thước logo vượt quá giới hạn cho phép (tối đa 2MB).",
+    "Dentify:00029": "Đang có yêu cầu khác xử lý lịch cho bác sĩ hoặc ghế này. Vui lòng thử lại.",
+    "Dentify:00030": "Ngày hết hạn không được sớm hơn ngày có hiệu lực.",
 
     "ClinicSettings": "Cài đặt phòng khám",
     "ClinicSettings:Name": "Tên phòng khám",

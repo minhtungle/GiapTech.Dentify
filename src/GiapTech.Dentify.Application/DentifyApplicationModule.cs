@@ -1,4 +1,5 @@
-﻿using GiapTech.Dentify.Application.Appointments;
+﻿using System;
+using GiapTech.Dentify.Application.Appointments;
 using GiapTech.Dentify.Application.Chairs;
 using GiapTech.Dentify.Application.Doctors;
 using GiapTech.Dentify.Application.Drugs;
@@ -10,13 +11,17 @@ using GiapTech.Dentify.Application.Supplies;
 using GiapTech.Dentify.Application.Tasks;
 using GiapTech.Dentify.Application.TreatmentPlans;
 using GiapTech.Dentify.Application.Waitlist;
+using Medallion.Threading;
+using Medallion.Threading.Postgres;
 using Volo.Abp.PermissionManagement;
 using Volo.Abp.SettingManagement;
 using Volo.Abp.Account;
+using Volo.Abp.DistributedLocking;
 using Volo.Abp.Identity;
 using Volo.Abp.Mapperly;
 using Volo.Abp.FeatureManagement;
 using Volo.Abp.Modularity;
+using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.DependencyInjection;
 using Volo.Abp.TenantManagement;
 
@@ -30,7 +35,8 @@ namespace GiapTech.Dentify;
     typeof(AbpIdentityApplicationModule),
     typeof(AbpAccountApplicationModule),
     typeof(AbpTenantManagementApplicationModule),
-    typeof(AbpSettingManagementApplicationModule)
+    typeof(AbpSettingManagementApplicationModule),
+    typeof(AbpDistributedLockingModule)
     )]
 public class DentifyApplicationModule : AbpModule
 {
@@ -49,5 +55,11 @@ public class DentifyApplicationModule : AbpModule
         context.Services.AddSingleton<TreatmentPlanMapper>();
         context.Services.AddSingleton<SupplyMapper>();
         context.Services.AddSingleton<InsurancePolicyMapper>();
+
+        var configuration = context.Services.GetConfiguration();
+        var connectionString = configuration.GetConnectionString("Default")
+            ?? throw new InvalidOperationException("ConnectionStrings:Default is required for distributed locking.");
+        context.Services.AddSingleton<IDistributedLockProvider>(
+            new PostgresDistributedSynchronizationProvider(connectionString));
     }
 }

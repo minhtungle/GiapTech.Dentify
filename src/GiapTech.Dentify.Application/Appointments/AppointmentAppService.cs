@@ -12,6 +12,7 @@ using Microsoft.AspNetCore.Authorization;
 using Volo.Abp;
 using Volo.Abp.Application.Dtos;
 using Volo.Abp.Application.Services;
+using Volo.Abp.DistributedLocking;
 using Volo.Abp.Domain.Repositories;
 using Volo.Abp.Identity;
 using ServiceEntity = GiapTech.Dentify.Services.Service;
@@ -28,6 +29,7 @@ public class AppointmentAppService : ApplicationService, IAppointmentAppService
     private readonly IRepository<Chair, Guid> _chairRepository;
     private readonly IRepository<IdentityUser, Guid> _identityUserRepository;
     private readonly AppointmentMapper _appointmentMapper;
+    private readonly IAbpDistributedLock _distributedLock;
 
     public AppointmentAppService(
         IAppointmentRepository appointmentRepository,
@@ -36,7 +38,8 @@ public class AppointmentAppService : ApplicationService, IAppointmentAppService
         IRepository<ServiceEntity, Guid> serviceRepository,
         IRepository<Chair, Guid> chairRepository,
         IRepository<IdentityUser, Guid> identityUserRepository,
-        AppointmentMapper appointmentMapper)
+        AppointmentMapper appointmentMapper,
+        IAbpDistributedLock distributedLock)
     {
         _appointmentRepository = appointmentRepository;
         _patientRepository = patientRepository;
@@ -45,6 +48,7 @@ public class AppointmentAppService : ApplicationService, IAppointmentAppService
         _chairRepository = chairRepository;
         _identityUserRepository = identityUserRepository;
         _appointmentMapper = appointmentMapper;
+        _distributedLock = distributedLock;
     }
 
     public virtual async Task<AppointmentDto> GetAsync(Guid id)
@@ -97,6 +101,10 @@ public class AppointmentAppService : ApplicationService, IAppointmentAppService
     {
         await EnsurePatientExistsAsync(input.PatientId);
         await EnsureClinicalNotesPermissionAsync(input.PreOpNotes, input.PostOpNotes, existingPreOpNotes: null, existingPostOpNotes: null);
+
+        await using var doctorLock = await AcquireDoubleBookingLockAsync("doctor", input.DoctorId);
+        await using var chairLock = await AcquireDoubleBookingLockAsync("chair", input.ChairId);
+
         await EnsureDoctorNotDoubleBookedAsync(input.DoctorId, input.ScheduledDateTime, input.DurationMinutes, excludeAppointmentId: null);
         await EnsureChairNotDoubleBookedAsync(input.ChairId, input.ScheduledDateTime, input.DurationMinutes, excludeAppointmentId: null);
 
@@ -126,6 +134,10 @@ public class AppointmentAppService : ApplicationService, IAppointmentAppService
 
         await EnsurePatientExistsAsync(input.PatientId);
         await EnsureClinicalNotesPermissionAsync(input.PreOpNotes, input.PostOpNotes, appointment.PreOpNotes, appointment.PostOpNotes);
+
+        await using var doctorLock = await AcquireDoubleBookingLockAsync("doctor", input.DoctorId);
+        await using var chairLock = await AcquireDoubleBookingLockAsync("chair", input.ChairId);
+
         await EnsureDoctorNotDoubleBookedAsync(input.DoctorId, input.ScheduledDateTime, input.DurationMinutes, excludeAppointmentId: id);
         await EnsureChairNotDoubleBookedAsync(input.ChairId, input.ScheduledDateTime, input.DurationMinutes, excludeAppointmentId: id);
 
@@ -143,6 +155,25 @@ public class AppointmentAppService : ApplicationService, IAppointmentAppService
         await _appointmentRepository.UpdateAsync(appointment);
 
         return (await MapToDtosAsync(new List<Appointment> { appointment })).Single();
+    }
+
+    // Bọc kiểm tra double-booking + insert/update trong 1 distributed lock theo Doctor/Chair
+    // để loại bỏ khoảng hở TOCTOU giữa lúc kiểm tra và lúc ghi (2 request đồng thời cho
+    // cùng bác sĩ/ghế trùng giờ có thể cùng qua được kiểm tra trước khi bên nào insert xong).
+    private async Task<IAbpDistributedLockHandle?> AcquireDoubleBookingLockAsync(string resourceType, Guid? resourceId)
+    {
+        if (!resourceId.HasValue)
+        {
+            return null;
+        }
+
+        var handle = await _distributedLock.TryAcquireAsync($"appointment-{resourceType}-{resourceId.Value}", TimeSpan.FromSeconds(10));
+        if (handle == null)
+        {
+            throw new BusinessException(DentifyDomainErrorCodes.ConcurrentBookingInProgress);
+        }
+
+        return handle;
     }
 
     private async Task EnsureClinicalNotesPermissionAsync(

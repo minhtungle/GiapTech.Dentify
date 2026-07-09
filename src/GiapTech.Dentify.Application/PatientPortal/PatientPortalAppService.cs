@@ -92,7 +92,7 @@ public class PatientPortalAppService : ApplicationService, IPatientPortalAppServ
 
         var queryable = await _appointmentRepository.GetQueryableAsync();
         var appointments = await AsyncExecuter.ToListAsync(
-            queryable.Where(a => a.PatientId == patient.Id));
+            queryable.Where(a => a.PatientId == patient.Id && a.Status != AppointmentStatus.Cancelled));
 
         var totalDebt = appointments.Sum(a => a.Price - a.PaidAmount);
 
