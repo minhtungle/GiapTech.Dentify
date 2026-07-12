@@ -34,4 +34,8 @@ public static class DentifyDomainErrorCodes
     public const string LogoSizeTooLarge = "Dentify:00028";
     public const string ConcurrentBookingInProgress = "Dentify:00029";
     public const string InsurancePolicyExpiryBeforeEffective = "Dentify:00030";
+    public const string ResourceLockTimeout = "Dentify:00031";
+    public const string DoctorHasAppointments = "Dentify:00032";
+    public const string ServiceHasAppointments = "Dentify:00033";
+    public const string ChairHasAppointments = "Dentify:00034";
 }

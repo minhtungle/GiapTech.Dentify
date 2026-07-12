@@ -1,16 +1,32 @@
 import { useEffect, useState } from "react"
 import type { FormEvent } from "react"
-import { Ban, CheckCircle2, Pencil, Plus, Stethoscope, Trash2 } from "lucide-react"
+import {
+  Ban,
+  CheckCircle2,
+  MoreVertical,
+  Pencil,
+  Plus,
+  Stethoscope,
+  Trash2,
+} from "lucide-react"
 import { toast } from "sonner"
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
 import { Label } from "@/components/ui/label"
 import { Skeleton } from "@/components/ui/skeleton"
 import { Badge } from "@/components/ui/badge"
+import {
+  DropdownMenu,
+  DropdownMenuContent,
+  DropdownMenuItem,
+  DropdownMenuSeparator,
+  DropdownMenuTrigger,
+} from "@/components/ui/dropdown-menu"
 import { ConfirmDialog } from "@/components/ConfirmDialog"
 import { IdentityUserPicker } from "@/components/IdentityUserPicker"
 import {
   Dialog,
+  DialogBody,
   DialogContent,
   DialogFooter,
   DialogHeader,
@@ -188,37 +204,39 @@ export function DoctorsPage() {
                     </Badge>
                   </TableCell>
                   <TableCell className="text-right">
-                    <Button
-                      variant="ghost"
-                      size="icon"
-                      title="Sửa"
-                      aria-label={`Sửa bác sĩ ${doctor.fullName}`}
-                      onClick={() => openEditDialog(doctor)}
-                    >
-                      <Pencil className="size-4" />
-                    </Button>
-                    <Button
-                      variant="ghost"
-                      size="icon"
-                      title={doctor.isActive ? "Ngừng hoạt động" : "Kích hoạt lại"}
-                      aria-label={`${doctor.isActive ? "Ngừng hoạt động" : "Kích hoạt lại"} ${doctor.fullName}`}
-                      onClick={() => void handleToggleActive(doctor)}
-                    >
-                      {doctor.isActive ? (
-                        <Ban className="size-4" />
-                      ) : (
-                        <CheckCircle2 className="size-4" />
-                      )}
-                    </Button>
-                    <Button
-                      variant="ghost"
-                      size="icon"
-                      title="Xoá"
-                      aria-label={`Xoá bác sĩ ${doctor.fullName}`}
-                      onClick={() => setDeletingDoctor(doctor)}
-                    >
-                      <Trash2 className="size-4" />
-                    </Button>
+                    <DropdownMenu>
+                      <DropdownMenuTrigger asChild>
+                        <Button
+                          variant="ghost"
+                          size="icon"
+                          aria-label={`Hành động cho ${doctor.fullName}`}
+                        >
+                          <MoreVertical className="size-4" />
+                        </Button>
+                      </DropdownMenuTrigger>
+                      <DropdownMenuContent align="end">
+                        <DropdownMenuItem onClick={() => openEditDialog(doctor)}>
+                          <Pencil className="size-4" />
+                          Sửa
+                        </DropdownMenuItem>
+                        <DropdownMenuItem onClick={() => void handleToggleActive(doctor)}>
+                          {doctor.isActive ? (
+                            <Ban className="size-4" />
+                          ) : (
+                            <CheckCircle2 className="size-4" />
+                          )}
+                          {doctor.isActive ? "Ngừng hoạt động" : "Kích hoạt lại"}
+                        </DropdownMenuItem>
+                        <DropdownMenuSeparator />
+                        <DropdownMenuItem
+                          onClick={() => setDeletingDoctor(doctor)}
+                          className="text-destructive focus:text-destructive"
+                        >
+                          <Trash2 className="size-4" />
+                          Xoá
+                        </DropdownMenuItem>
+                      </DropdownMenuContent>
+                    </DropdownMenu>
                   </TableCell>
                 </TableRow>
               ))}
@@ -228,11 +246,12 @@ export function DoctorsPage() {
 
       <Dialog open={dialogOpen} onOpenChange={setDialogOpen}>
         <DialogContent>
-          <form onSubmit={handleSubmit} className="flex flex-col gap-4">
+          <form onSubmit={handleSubmit} className="flex min-h-0 flex-1 flex-col gap-4">
             <DialogHeader>
               <DialogTitle>{editingId ? "Sửa bác sĩ" : "Thêm bác sĩ"}</DialogTitle>
             </DialogHeader>
 
+            <DialogBody className="flex flex-col gap-4">
             {!editingId && (
               <IdentityUserPicker
                 value={form.identityUserId || null}
@@ -249,6 +268,7 @@ export function DoctorsPage() {
                 onChange={(e) => setForm({ ...form, specialization: e.target.value })}
               />
             </div>
+            </DialogBody>
 
             <DialogFooter>
               <Button type="submit" disabled={isSaving}>

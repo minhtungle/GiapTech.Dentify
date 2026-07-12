@@ -4,6 +4,7 @@ import {
   Ban,
   CheckCircle2,
   ClipboardPlus,
+  MoreVertical,
   Package,
   PackagePlus,
   Pencil,
@@ -20,11 +21,19 @@ import { Badge } from "@/components/ui/badge"
 import { ConfirmDialog } from "@/components/ConfirmDialog"
 import {
   Dialog,
+  DialogBody,
   DialogContent,
   DialogFooter,
   DialogHeader,
   DialogTitle,
 } from "@/components/ui/dialog"
+import {
+  DropdownMenu,
+  DropdownMenuContent,
+  DropdownMenuItem,
+  DropdownMenuSeparator,
+  DropdownMenuTrigger,
+} from "@/components/ui/dropdown-menu"
 import {
   Select,
   SelectContent,
@@ -309,46 +318,43 @@ export function SuppliesPage() {
                     </Badge>
                   </TableCell>
                   <TableCell className="text-right">
-                    <Button
-                      variant="ghost"
-                      size="icon"
-                      title="Nhập kho"
-                      aria-label={`Nhập kho cho ${supply.name}`}
-                      onClick={() => openRestockDialog(supply)}
-                    >
-                      <PackagePlus className="size-4" />
-                    </Button>
-                    <Button
-                      variant="ghost"
-                      size="icon"
-                      title="Sửa"
-                      aria-label={`Sửa vật tư ${supply.name}`}
-                      onClick={() => openEditDialog(supply)}
-                    >
-                      <Pencil className="size-4" />
-                    </Button>
-                    <Button
-                      variant="ghost"
-                      size="icon"
-                      title={supply.isActive ? "Ngừng sử dụng" : "Kích hoạt lại"}
-                      aria-label={`${supply.isActive ? "Ngừng sử dụng" : "Kích hoạt lại"} ${supply.name}`}
-                      onClick={() => void handleToggleActive(supply)}
-                    >
-                      {supply.isActive ? (
-                        <Ban className="size-4" />
-                      ) : (
-                        <CheckCircle2 className="size-4" />
-                      )}
-                    </Button>
-                    <Button
-                      variant="ghost"
-                      size="icon"
-                      title="Xoá"
-                      aria-label={`Xoá vật tư ${supply.name}`}
-                      onClick={() => setDeletingSupply(supply)}
-                    >
-                      <Trash2 className="size-4" />
-                    </Button>
+                    <DropdownMenu>
+                      <DropdownMenuTrigger asChild>
+                        <Button
+                          variant="ghost"
+                          size="icon"
+                          aria-label={`Hành động cho ${supply.name}`}
+                        >
+                          <MoreVertical className="size-4" />
+                        </Button>
+                      </DropdownMenuTrigger>
+                      <DropdownMenuContent align="end">
+                        <DropdownMenuItem onClick={() => openRestockDialog(supply)}>
+                          <PackagePlus className="size-4" />
+                          Nhập kho
+                        </DropdownMenuItem>
+                        <DropdownMenuItem onClick={() => openEditDialog(supply)}>
+                          <Pencil className="size-4" />
+                          Sửa
+                        </DropdownMenuItem>
+                        <DropdownMenuItem onClick={() => void handleToggleActive(supply)}>
+                          {supply.isActive ? (
+                            <Ban className="size-4" />
+                          ) : (
+                            <CheckCircle2 className="size-4" />
+                          )}
+                          {supply.isActive ? "Ngừng sử dụng" : "Kích hoạt lại"}
+                        </DropdownMenuItem>
+                        <DropdownMenuSeparator />
+                        <DropdownMenuItem
+                          onClick={() => setDeletingSupply(supply)}
+                          className="text-destructive focus:text-destructive"
+                        >
+                          <Trash2 className="size-4" />
+                          Xoá
+                        </DropdownMenuItem>
+                      </DropdownMenuContent>
+                    </DropdownMenu>
                   </TableCell>
                 </TableRow>
               ))}
@@ -358,11 +364,12 @@ export function SuppliesPage() {
 
       <Dialog open={dialogOpen} onOpenChange={setDialogOpen}>
         <DialogContent>
-          <form onSubmit={handleSubmit} className="flex flex-col gap-4">
+          <form onSubmit={handleSubmit} className="flex min-h-0 flex-1 flex-col gap-4">
             <DialogHeader>
               <DialogTitle>{editingId ? "Sửa vật tư" : "Thêm vật tư"}</DialogTitle>
             </DialogHeader>
 
+            <DialogBody className="flex flex-col gap-4">
             <div className="grid gap-2">
               <Label htmlFor="name">Tên vật tư</Label>
               <Input
@@ -400,6 +407,7 @@ export function SuppliesPage() {
                 />
               </div>
             </div>
+            </DialogBody>
 
             <DialogFooter>
               <Button type="submit" disabled={isSaving}>
@@ -412,11 +420,12 @@ export function SuppliesPage() {
 
       <Dialog open={restockSupply !== null} onOpenChange={(open) => !open && setRestockSupply(null)}>
         <DialogContent>
-          <form onSubmit={handleRestockSubmit} className="flex flex-col gap-4">
+          <form onSubmit={handleRestockSubmit} className="flex min-h-0 flex-1 flex-col gap-4">
             <DialogHeader>
               <DialogTitle>Nhập kho — {restockSupply?.name}</DialogTitle>
             </DialogHeader>
 
+            <DialogBody className="flex flex-col gap-4">
             <div className="grid gap-2">
               <Label htmlFor="restockQuantity">Số lượng nhập thêm</Label>
               <Input
@@ -429,6 +438,7 @@ export function SuppliesPage() {
                 onChange={(e) => setRestockForm({ quantity: Number(e.target.value) })}
               />
             </div>
+            </DialogBody>
 
             <DialogFooter>
               <Button type="submit" disabled={isRestocking}>
@@ -441,11 +451,12 @@ export function SuppliesPage() {
 
       <Dialog open={usageDialogOpen} onOpenChange={setUsageDialogOpen}>
         <DialogContent>
-          <form onSubmit={handleUsageSubmit} className="flex flex-col gap-4">
+          <form onSubmit={handleUsageSubmit} className="flex min-h-0 flex-1 flex-col gap-4">
             <DialogHeader>
               <DialogTitle>Ghi nhận sử dụng vật tư</DialogTitle>
             </DialogHeader>
 
+            <DialogBody className="flex flex-col gap-4">
             <div className="grid gap-2">
               <Label htmlFor="usageSupplyId">Vật tư</Label>
               <Select
@@ -521,6 +532,7 @@ export function SuppliesPage() {
                 onChange={(e) => setUsageForm({ ...usageForm, notes: e.target.value })}
               />
             </div>
+            </DialogBody>
 
             <DialogFooter>
               <Button type="submit" disabled={isSavingUsage}>

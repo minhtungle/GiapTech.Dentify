@@ -10,6 +10,7 @@ using Microsoft.AspNetCore.Authorization;
 using Volo.Abp;
 using Volo.Abp.Application.Dtos;
 using Volo.Abp.Application.Services;
+using Volo.Abp.DistributedLocking;
 using Volo.Abp.Domain.Repositories;
 using Volo.Abp.Identity;
 
@@ -22,17 +23,20 @@ public class PatientAppService : ApplicationService, IPatientAppService
     private readonly IRepository<Appointment, Guid> _appointmentRepository;
     private readonly IRepository<IdentityUser, Guid> _identityUserRepository;
     private readonly PatientMapper _patientMapper;
+    private readonly IAbpDistributedLock _distributedLock;
 
     public PatientAppService(
         IRepository<Patient, Guid> patientRepository,
         IRepository<Appointment, Guid> appointmentRepository,
         IRepository<IdentityUser, Guid> identityUserRepository,
-        PatientMapper patientMapper)
+        PatientMapper patientMapper,
+        IAbpDistributedLock distributedLock)
     {
         _patientRepository = patientRepository;
         _appointmentRepository = appointmentRepository;
         _identityUserRepository = identityUserRepository;
         _patientMapper = patientMapper;
+        _distributedLock = distributedLock;
     }
 
     public virtual async Task<PatientDto> GetAsync(Guid id)
@@ -194,6 +198,18 @@ public class PatientAppService : ApplicationService, IPatientAppService
         var patient = await GetPatientOrThrowAsync(id);
 
         await EnsureIdentityUserExistsAsync(input.IdentityUserId);
+
+        // Khoá theo IdentityUserId để loại bỏ khoảng hở TOCTOU giữa kiểm tra và update khi
+        // 2 request đồng thời cùng liên kết 1 tài khoản cho 2 Patient khác nhau — cùng
+        // pattern với DoctorAppService.CreateAsync. Unique index DB (Patient.IdentityUserId)
+        // vẫn là lưới an toàn cuối nếu lock hết hạn/miss.
+        await using var lockHandle = await _distributedLock.TryAcquireAsync(
+            $"patient-identity-{input.IdentityUserId}", TimeSpan.FromSeconds(10));
+        if (lockHandle == null)
+        {
+            throw new BusinessException(DentifyDomainErrorCodes.ResourceLockTimeout);
+        }
+
         await EnsureIdentityUserNotLinkedAsync(input.IdentityUserId, excludePatientId: id);
 
         patient.LinkToIdentityUser(input.IdentityUserId);
@@ -213,6 +229,26 @@ public class PatientAppService : ApplicationService, IPatientAppService
         await _patientRepository.UpdateAsync(patient);
 
         return _patientMapper.MapToDto(patient);
+    }
+
+    public virtual async Task<List<PatientDto>> GetDuplicatesAsync(string fullName, string? phoneNumber = null, Guid? excludeId = null)
+    {
+        var trimmedName = fullName.Trim().ToLowerInvariant();
+        var trimmedPhone = phoneNumber?.Trim();
+
+        var queryable = await _patientRepository.GetQueryableAsync();
+        queryable = queryable.Where(p =>
+            p.FullName.ToLower() == trimmedName ||
+            (!string.IsNullOrEmpty(trimmedPhone) && p.PhoneNumber == trimmedPhone));
+
+        if (excludeId.HasValue)
+        {
+            queryable = queryable.Where(p => p.Id != excludeId.Value);
+        }
+
+        var duplicates = await AsyncExecuter.ToListAsync(queryable.Take(5));
+
+        return duplicates.Select(_patientMapper.MapToDto).ToList();
     }
 
     private async Task EnsureIdentityUserExistsAsync(Guid identityUserId)

@@ -1,6 +1,8 @@
 using System;
 using System.Threading.Tasks;
+using GiapTech.Dentify.Application.Contracts.Appointments;
 using GiapTech.Dentify.Application.Contracts.Doctors;
+using GiapTech.Dentify.Application.Contracts.Patients;
 using Shouldly;
 using Volo.Abp;
 using Volo.Abp.Identity;
@@ -13,11 +15,15 @@ public abstract class DoctorAppServiceTests<TStartupModule> : DentifyApplication
     where TStartupModule : IAbpModule
 {
     private readonly IDoctorAppService _doctorAppService;
+    private readonly IPatientAppService _patientAppService;
+    private readonly IAppointmentAppService _appointmentAppService;
     private readonly IdentityUserManager _identityUserManager;
 
     protected DoctorAppServiceTests()
     {
         _doctorAppService = GetRequiredService<IDoctorAppService>();
+        _patientAppService = GetRequiredService<IPatientAppService>();
+        _appointmentAppService = GetRequiredService<IAppointmentAppService>();
         _identityUserManager = GetRequiredService<IdentityUserManager>();
     }
 
@@ -112,5 +118,28 @@ public abstract class DoctorAppServiceTests<TStartupModule> : DentifyApplication
         await _doctorAppService.DeleteAsync(doctor.Id);
 
         await Should.ThrowAsync<Exception>(async () => await _doctorAppService.GetAsync(doctor.Id));
+    }
+
+    [Fact]
+    public async Task Should_Not_Delete_Doctor_With_Existing_Appointments()
+    {
+        var userId = await CreateTestUserAsync("doctor.hasappointments");
+        var doctor = await _doctorAppService.CreateAsync(new CreateUpdateDoctorDto { IdentityUserId = userId });
+
+        var patient = await _patientAppService.CreateAsync(new CreateUpdatePatientDto
+        {
+            FullName = "Doctor Delete Test Patient",
+            DateOfBirth = new DateTime(1990, 1, 1)
+        });
+
+        await _appointmentAppService.CreateAsync(new CreateUpdateAppointmentDto
+        {
+            PatientId = patient.Id,
+            DoctorId = doctor.Id,
+            ScheduledDateTime = DateTime.Now.AddDays(1),
+            Price = 100000
+        });
+
+        await Should.ThrowAsync<BusinessException>(async () => await _doctorAppService.DeleteAsync(doctor.Id));
     }
 }

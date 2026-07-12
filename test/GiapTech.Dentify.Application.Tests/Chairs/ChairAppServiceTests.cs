@@ -1,7 +1,10 @@
 using System;
 using System.Threading.Tasks;
+using GiapTech.Dentify.Application.Contracts.Appointments;
 using GiapTech.Dentify.Application.Contracts.Chairs;
+using GiapTech.Dentify.Application.Contracts.Patients;
 using Shouldly;
+using Volo.Abp;
 using Volo.Abp.Modularity;
 using Xunit;
 
@@ -11,10 +14,14 @@ public abstract class ChairAppServiceTests<TStartupModule> : DentifyApplicationT
     where TStartupModule : IAbpModule
 {
     private readonly IChairAppService _chairAppService;
+    private readonly IPatientAppService _patientAppService;
+    private readonly IAppointmentAppService _appointmentAppService;
 
     protected ChairAppServiceTests()
     {
         _chairAppService = GetRequiredService<IChairAppService>();
+        _patientAppService = GetRequiredService<IPatientAppService>();
+        _appointmentAppService = GetRequiredService<IAppointmentAppService>();
     }
 
     [Fact]
@@ -70,5 +77,27 @@ public abstract class ChairAppServiceTests<TStartupModule> : DentifyApplicationT
         await _chairAppService.DeleteAsync(chair.Id);
 
         await Should.ThrowAsync<Exception>(async () => await _chairAppService.GetAsync(chair.Id));
+    }
+
+    [Fact]
+    public async Task Should_Not_Delete_Chair_With_Existing_Appointments()
+    {
+        var chair = await _chairAppService.CreateAsync(new CreateUpdateChairDto { Name = "Ghế có lịch hẹn" });
+
+        var patient = await _patientAppService.CreateAsync(new CreateUpdatePatientDto
+        {
+            FullName = "Chair Delete Test Patient",
+            DateOfBirth = new DateTime(1990, 1, 1)
+        });
+
+        await _appointmentAppService.CreateAsync(new CreateUpdateAppointmentDto
+        {
+            PatientId = patient.Id,
+            ChairId = chair.Id,
+            ScheduledDateTime = DateTime.Now.AddDays(1),
+            Price = 100000
+        });
+
+        await Should.ThrowAsync<BusinessException>(async () => await _chairAppService.DeleteAsync(chair.Id));
     }
 }

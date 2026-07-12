@@ -1,6 +1,16 @@
 import { useEffect, useRef, useState } from "react"
 import type { ChangeEvent, FormEvent } from "react"
-import { Download, Pencil, Plus, Receipt, Trash2, Upload } from "lucide-react"
+import {
+  ChevronDown,
+  Download,
+  Filter,
+  MoreVertical,
+  Pencil,
+  Plus,
+  Receipt,
+  Trash2,
+  Upload,
+} from "lucide-react"
 import {
   Bar,
   BarChart,
@@ -19,13 +29,22 @@ import { Textarea } from "@/components/ui/textarea"
 import { Badge } from "@/components/ui/badge"
 import { ConfirmDialog } from "@/components/ConfirmDialog"
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
+import { Collapsible, CollapsibleContent, CollapsibleTrigger } from "@/components/ui/collapsible"
 import {
   Dialog,
+  DialogBody,
   DialogContent,
   DialogFooter,
   DialogHeader,
   DialogTitle,
 } from "@/components/ui/dialog"
+import {
+  DropdownMenu,
+  DropdownMenuContent,
+  DropdownMenuItem,
+  DropdownMenuSeparator,
+  DropdownMenuTrigger,
+} from "@/components/ui/dropdown-menu"
 import {
   Select,
   SelectContent,
@@ -84,9 +103,12 @@ export function ExpensesPage() {
   const [deletingExpense, setDeletingExpense] = useState<ExpenseDto | null>(null)
   const [isDeleting, setIsDeleting] = useState(false)
 
+  const [isFiltersOpen, setIsFiltersOpen] = useState(false)
   const [categoryFilter, setCategoryFilter] = useState<ExpenseCategoryName | "">("")
   const [fromDateFilter, setFromDateFilter] = useState("")
   const [toDateFilter, setToDateFilter] = useState("")
+
+  const activeFilterCount = [categoryFilter, fromDateFilter, toDateFilter].filter(Boolean).length
 
   const loadData = async () => {
     setIsLoading(true)
@@ -341,43 +363,62 @@ export function ExpensesPage() {
         </Card>
       )}
 
-      <div className="flex flex-wrap items-end gap-2">
-        <Select
-          value={categoryFilter || "all"}
-          onValueChange={(value: string) =>
-            setCategoryFilter(value === "all" ? "" : (value as ExpenseCategoryName))
-          }
-        >
-          <SelectTrigger className="w-44">
-            <SelectValue placeholder="Danh mục" />
-          </SelectTrigger>
-          <SelectContent>
-            <SelectItem value="all">Mọi danh mục</SelectItem>
-            {EXPENSE_CATEGORY_NAMES.map((category) => (
-              <SelectItem key={category} value={category}>
-                {EXPENSE_CATEGORY_LABELS_VI[ExpenseCategory[category]]}
-              </SelectItem>
-            ))}
-          </SelectContent>
-        </Select>
-        <Input
-          type="date"
-          aria-label="Từ ngày"
-          value={fromDateFilter}
-          onChange={(e) => setFromDateFilter(e.target.value)}
-          className="w-40"
-        />
-        <Input
-          type="date"
-          aria-label="Đến ngày"
-          value={toDateFilter}
-          onChange={(e) => setToDateFilter(e.target.value)}
-          className="w-40"
-        />
-        <Button variant="outline" onClick={() => void loadData()}>
-          Lọc
-        </Button>
-      </div>
+      <Collapsible open={isFiltersOpen} onOpenChange={setIsFiltersOpen}>
+        <CollapsibleTrigger asChild>
+          <Button variant="outline" type="button">
+            <Filter className="size-4" />
+            Bộ lọc
+            {activeFilterCount > 0 && (
+              <Badge variant="secondary" className="ml-1">
+                {activeFilterCount}
+              </Badge>
+            )}
+            <ChevronDown
+              className={`size-4 transition-transform ${isFiltersOpen ? "rotate-180" : ""}`}
+            />
+          </Button>
+        </CollapsibleTrigger>
+
+        <CollapsibleContent>
+          <div className="mt-2 flex flex-wrap items-end gap-2">
+            <Select
+              value={categoryFilter || "all"}
+              onValueChange={(value: string) =>
+                setCategoryFilter(value === "all" ? "" : (value as ExpenseCategoryName))
+              }
+            >
+              <SelectTrigger className="w-44">
+                <SelectValue placeholder="Danh mục" />
+              </SelectTrigger>
+              <SelectContent>
+                <SelectItem value="all">Mọi danh mục</SelectItem>
+                {EXPENSE_CATEGORY_NAMES.map((category) => (
+                  <SelectItem key={category} value={category}>
+                    {EXPENSE_CATEGORY_LABELS_VI[ExpenseCategory[category]]}
+                  </SelectItem>
+                ))}
+              </SelectContent>
+            </Select>
+            <Input
+              type="date"
+              aria-label="Từ ngày"
+              value={fromDateFilter}
+              onChange={(e) => setFromDateFilter(e.target.value)}
+              className="w-40"
+            />
+            <Input
+              type="date"
+              aria-label="Đến ngày"
+              value={toDateFilter}
+              onChange={(e) => setToDateFilter(e.target.value)}
+              className="w-40"
+            />
+            <Button variant="outline" onClick={() => void loadData()}>
+              Lọc
+            </Button>
+          </div>
+        </CollapsibleContent>
+      </Collapsible>
 
       <div className="rounded-lg border">
         <Table>
@@ -428,24 +469,31 @@ export function ExpensesPage() {
                   {expense.labWorkId ? labWorkById.get(expense.labWorkId)?.labName ?? "—" : "—"}
                 </TableCell>
                 <TableCell className="text-right">
-                  <Button
-                    variant="ghost"
-                    size="icon"
-                    title="Sửa"
-                    aria-label={`Sửa khoản chi ${expense.description || EXPENSE_CATEGORY_LABELS_VI[expense.category]}`}
-                    onClick={() => openEditDialog(expense)}
-                  >
-                    <Pencil className="size-4" />
-                  </Button>
-                  <Button
-                    variant="ghost"
-                    size="icon"
-                    title="Xoá"
-                    aria-label={`Xoá khoản chi ${expense.description || EXPENSE_CATEGORY_LABELS_VI[expense.category]}`}
-                    onClick={() => setDeletingExpense(expense)}
-                  >
-                    <Trash2 className="size-4" />
-                  </Button>
+                  <DropdownMenu>
+                    <DropdownMenuTrigger asChild>
+                      <Button
+                        variant="ghost"
+                        size="icon"
+                        aria-label={`Hành động cho ${expense.description || EXPENSE_CATEGORY_LABELS_VI[expense.category]}`}
+                      >
+                        <MoreVertical className="size-4" />
+                      </Button>
+                    </DropdownMenuTrigger>
+                    <DropdownMenuContent align="end">
+                      <DropdownMenuItem onClick={() => openEditDialog(expense)}>
+                        <Pencil className="size-4" />
+                        Sửa
+                      </DropdownMenuItem>
+                      <DropdownMenuSeparator />
+                      <DropdownMenuItem
+                        onClick={() => setDeletingExpense(expense)}
+                        className="text-destructive focus:text-destructive"
+                      >
+                        <Trash2 className="size-4" />
+                        Xoá
+                      </DropdownMenuItem>
+                    </DropdownMenuContent>
+                  </DropdownMenu>
                 </TableCell>
               </TableRow>
             ))}
@@ -455,11 +503,12 @@ export function ExpensesPage() {
 
       <Dialog open={dialogOpen} onOpenChange={setDialogOpen}>
         <DialogContent>
-          <form onSubmit={handleSubmit} className="flex flex-col gap-4">
+          <form onSubmit={handleSubmit} className="flex min-h-0 flex-1 flex-col gap-4">
             <DialogHeader>
               <DialogTitle>{editingId ? "Sửa chi phí" : "Thêm chi phí"}</DialogTitle>
             </DialogHeader>
 
+            <DialogBody className="flex flex-col gap-4">
             <div className="grid grid-cols-2 gap-4">
               <div className="grid gap-2">
                 <Label htmlFor="expenseDate">Ngày chi</Label>
@@ -532,6 +581,7 @@ export function ExpensesPage() {
                 </SelectContent>
               </Select>
             </div>
+            </DialogBody>
 
             <DialogFooter>
               <Button type="submit" disabled={isSaving}>

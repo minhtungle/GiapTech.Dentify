@@ -1,15 +1,31 @@
 import { useEffect, useState } from "react"
 import type { FormEvent } from "react"
-import { Ban, CheckCircle2, ClipboardList, Pencil, Plus, Trash2 } from "lucide-react"
+import {
+  Ban,
+  CheckCircle2,
+  ClipboardList,
+  MoreVertical,
+  Pencil,
+  Plus,
+  Trash2,
+} from "lucide-react"
 import { toast } from "sonner"
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
 import { Label } from "@/components/ui/label"
 import { Skeleton } from "@/components/ui/skeleton"
 import { Badge } from "@/components/ui/badge"
+import {
+  DropdownMenu,
+  DropdownMenuContent,
+  DropdownMenuItem,
+  DropdownMenuSeparator,
+  DropdownMenuTrigger,
+} from "@/components/ui/dropdown-menu"
 import { ConfirmDialog } from "@/components/ConfirmDialog"
 import {
   Dialog,
+  DialogBody,
   DialogContent,
   DialogFooter,
   DialogHeader,
@@ -181,37 +197,39 @@ export function ServicesPage() {
                     </Badge>
                   </TableCell>
                   <TableCell className="text-right">
-                    <Button
-                      variant="ghost"
-                      size="icon"
-                      title="Sửa"
-                      aria-label={`Sửa dịch vụ ${service.name}`}
-                      onClick={() => openEditDialog(service)}
-                    >
-                      <Pencil className="size-4" />
-                    </Button>
-                    <Button
-                      variant="ghost"
-                      size="icon"
-                      title={service.isActive ? "Ngừng cung cấp" : "Kích hoạt lại"}
-                      aria-label={`${service.isActive ? "Ngừng cung cấp" : "Kích hoạt lại"} ${service.name}`}
-                      onClick={() => void handleToggleActive(service)}
-                    >
-                      {service.isActive ? (
-                        <Ban className="size-4" />
-                      ) : (
-                        <CheckCircle2 className="size-4" />
-                      )}
-                    </Button>
-                    <Button
-                      variant="ghost"
-                      size="icon"
-                      title="Xoá"
-                      aria-label={`Xoá dịch vụ ${service.name}`}
-                      onClick={() => setDeletingService(service)}
-                    >
-                      <Trash2 className="size-4" />
-                    </Button>
+                    <DropdownMenu>
+                      <DropdownMenuTrigger asChild>
+                        <Button
+                          variant="ghost"
+                          size="icon"
+                          aria-label={`Hành động cho ${service.name}`}
+                        >
+                          <MoreVertical className="size-4" />
+                        </Button>
+                      </DropdownMenuTrigger>
+                      <DropdownMenuContent align="end">
+                        <DropdownMenuItem onClick={() => openEditDialog(service)}>
+                          <Pencil className="size-4" />
+                          Sửa
+                        </DropdownMenuItem>
+                        <DropdownMenuItem onClick={() => void handleToggleActive(service)}>
+                          {service.isActive ? (
+                            <Ban className="size-4" />
+                          ) : (
+                            <CheckCircle2 className="size-4" />
+                          )}
+                          {service.isActive ? "Ngừng cung cấp" : "Kích hoạt lại"}
+                        </DropdownMenuItem>
+                        <DropdownMenuSeparator />
+                        <DropdownMenuItem
+                          onClick={() => setDeletingService(service)}
+                          className="text-destructive focus:text-destructive"
+                        >
+                          <Trash2 className="size-4" />
+                          Xoá
+                        </DropdownMenuItem>
+                      </DropdownMenuContent>
+                    </DropdownMenu>
                   </TableCell>
                 </TableRow>
               ))}
@@ -221,11 +239,12 @@ export function ServicesPage() {
 
       <Dialog open={dialogOpen} onOpenChange={setDialogOpen}>
         <DialogContent>
-          <form onSubmit={handleSubmit} className="flex flex-col gap-4">
+          <form onSubmit={handleSubmit} className="flex min-h-0 flex-1 flex-col gap-4">
             <DialogHeader>
               <DialogTitle>{editingId ? "Sửa dịch vụ" : "Thêm dịch vụ"}</DialogTitle>
             </DialogHeader>
 
+            <DialogBody className="flex flex-col gap-4">
             <div className="grid gap-2">
               <Label htmlFor="name">Tên dịch vụ</Label>
               <Input
@@ -248,6 +267,7 @@ export function ServicesPage() {
                 onChange={(e) => setForm({ ...form, price: Number(e.target.value) })}
               />
             </div>
+            </DialogBody>
 
             <DialogFooter>
               <Button type="submit" disabled={isSaving}>

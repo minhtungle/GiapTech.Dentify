@@ -1,15 +1,31 @@
 import { useEffect, useState } from "react"
 import type { FormEvent } from "react"
-import { Armchair, Ban, CheckCircle2, Pencil, Plus, Trash2 } from "lucide-react"
+import {
+  Armchair,
+  Ban,
+  CheckCircle2,
+  MoreVertical,
+  Pencil,
+  Plus,
+  Trash2,
+} from "lucide-react"
 import { toast } from "sonner"
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
 import { Label } from "@/components/ui/label"
 import { Skeleton } from "@/components/ui/skeleton"
 import { Badge } from "@/components/ui/badge"
+import {
+  DropdownMenu,
+  DropdownMenuContent,
+  DropdownMenuItem,
+  DropdownMenuSeparator,
+  DropdownMenuTrigger,
+} from "@/components/ui/dropdown-menu"
 import { ConfirmDialog } from "@/components/ConfirmDialog"
 import {
   Dialog,
+  DialogBody,
   DialogContent,
   DialogFooter,
   DialogHeader,
@@ -178,37 +194,39 @@ export function ChairsPage() {
                     </Badge>
                   </TableCell>
                   <TableCell className="text-right">
-                    <Button
-                      variant="ghost"
-                      size="icon"
-                      title="Sửa"
-                      aria-label={`Sửa ghế ${chair.name}`}
-                      onClick={() => openEditDialog(chair)}
-                    >
-                      <Pencil className="size-4" />
-                    </Button>
-                    <Button
-                      variant="ghost"
-                      size="icon"
-                      title={chair.isActive ? "Ngừng sử dụng" : "Kích hoạt lại"}
-                      aria-label={`${chair.isActive ? "Ngừng sử dụng" : "Kích hoạt lại"} ${chair.name}`}
-                      onClick={() => void handleToggleActive(chair)}
-                    >
-                      {chair.isActive ? (
-                        <Ban className="size-4" />
-                      ) : (
-                        <CheckCircle2 className="size-4" />
-                      )}
-                    </Button>
-                    <Button
-                      variant="ghost"
-                      size="icon"
-                      title="Xoá"
-                      aria-label={`Xoá ghế ${chair.name}`}
-                      onClick={() => setDeletingChair(chair)}
-                    >
-                      <Trash2 className="size-4" />
-                    </Button>
+                    <DropdownMenu>
+                      <DropdownMenuTrigger asChild>
+                        <Button
+                          variant="ghost"
+                          size="icon"
+                          aria-label={`Hành động cho ${chair.name}`}
+                        >
+                          <MoreVertical className="size-4" />
+                        </Button>
+                      </DropdownMenuTrigger>
+                      <DropdownMenuContent align="end">
+                        <DropdownMenuItem onClick={() => openEditDialog(chair)}>
+                          <Pencil className="size-4" />
+                          Sửa
+                        </DropdownMenuItem>
+                        <DropdownMenuItem onClick={() => void handleToggleActive(chair)}>
+                          {chair.isActive ? (
+                            <Ban className="size-4" />
+                          ) : (
+                            <CheckCircle2 className="size-4" />
+                          )}
+                          {chair.isActive ? "Ngừng sử dụng" : "Kích hoạt lại"}
+                        </DropdownMenuItem>
+                        <DropdownMenuSeparator />
+                        <DropdownMenuItem
+                          onClick={() => setDeletingChair(chair)}
+                          className="text-destructive focus:text-destructive"
+                        >
+                          <Trash2 className="size-4" />
+                          Xoá
+                        </DropdownMenuItem>
+                      </DropdownMenuContent>
+                    </DropdownMenu>
                   </TableCell>
                 </TableRow>
               ))}
@@ -218,11 +236,12 @@ export function ChairsPage() {
 
       <Dialog open={dialogOpen} onOpenChange={setDialogOpen}>
         <DialogContent>
-          <form onSubmit={handleSubmit} className="flex flex-col gap-4">
+          <form onSubmit={handleSubmit} className="flex min-h-0 flex-1 flex-col gap-4">
             <DialogHeader>
               <DialogTitle>{editingId ? "Sửa ghế" : "Thêm ghế"}</DialogTitle>
             </DialogHeader>
 
+            <DialogBody className="flex flex-col gap-4">
             <div className="grid gap-2">
               <Label htmlFor="name">Tên ghế</Label>
               <Input
@@ -233,6 +252,7 @@ export function ChairsPage() {
                 onChange={(e) => setForm({ ...form, name: e.target.value })}
               />
             </div>
+            </DialogBody>
 
             <DialogFooter>
               <Button type="submit" disabled={isSaving}>

@@ -7,6 +7,7 @@ import { Input } from "@/components/ui/input"
 import { Label } from "@/components/ui/label"
 import {
   Dialog,
+  DialogBody,
   DialogContent,
   DialogFooter,
   DialogHeader,
@@ -151,7 +152,7 @@ export function ConsentFormsDialog({
           <DialogTitle>Phiếu đồng ý{patientName ? ` — ${patientName}` : ""}</DialogTitle>
         </DialogHeader>
 
-        <div className="flex flex-col gap-4">
+        <DialogBody className="flex flex-col gap-4">
           <form onSubmit={handleUploadSubmit} className="grid grid-cols-2 gap-2 rounded-md border p-3">
             <div className="col-span-2 grid gap-2 sm:col-span-1">
               <Label htmlFor="formTitle">Tiêu đề phiếu</Label>
@@ -244,7 +245,7 @@ export function ConsentFormsDialog({
               ))}
             </div>
           )}
-        </div>
+        </DialogBody>
 
         <DialogFooter />
       </DialogContent>

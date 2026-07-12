@@ -1,6 +1,6 @@
 import { useEffect, useState } from "react"
 import type { DragEvent, FormEvent } from "react"
-import { CalendarClock, FlaskConical, Pencil, Plus, Trash2 } from "lucide-react"
+import { CalendarClock, FlaskConical, MoreVertical, Pencil, Plus, Trash2 } from "lucide-react"
 import { toast } from "sonner"
 import { Button } from "@/components/ui/button"
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
@@ -12,11 +12,19 @@ import { Badge } from "@/components/ui/badge"
 import { ConfirmDialog } from "@/components/ConfirmDialog"
 import {
   Dialog,
+  DialogBody,
   DialogContent,
   DialogFooter,
   DialogHeader,
   DialogTitle,
 } from "@/components/ui/dialog"
+import {
+  DropdownMenu,
+  DropdownMenuContent,
+  DropdownMenuItem,
+  DropdownMenuSeparator,
+  DropdownMenuTrigger,
+} from "@/components/ui/dropdown-menu"
 import {
   Select,
   SelectContent,
@@ -318,27 +326,33 @@ export function LabWorksPage() {
                         </SelectContent>
                       </Select>
 
-                      <div className="mt-1 flex justify-end gap-1">
-                        <Button
-                          variant="ghost"
-                          size="icon"
-                          className="size-8"
-                          title="Sửa"
-                          aria-label={`Sửa ca labo của ${card.patientFullName}`}
-                          onClick={() => openEditDialog(card)}
-                        >
-                          <Pencil className="size-3.5" />
-                        </Button>
-                        <Button
-                          variant="ghost"
-                          size="icon"
-                          className="size-8"
-                          title="Xoá"
-                          aria-label={`Xoá ca labo của ${card.patientFullName}`}
-                          onClick={() => setDeletingLabWork(card)}
-                        >
-                          <Trash2 className="size-3.5" />
-                        </Button>
+                      <div className="mt-1 flex justify-end">
+                        <DropdownMenu>
+                          <DropdownMenuTrigger asChild>
+                            <Button
+                              variant="ghost"
+                              size="icon"
+                              className="size-8"
+                              aria-label={`Hành động cho ca labo của ${card.patientFullName}`}
+                            >
+                              <MoreVertical className="size-3.5" />
+                            </Button>
+                          </DropdownMenuTrigger>
+                          <DropdownMenuContent align="end">
+                            <DropdownMenuItem onClick={() => openEditDialog(card)}>
+                              <Pencil className="size-4" />
+                              Sửa
+                            </DropdownMenuItem>
+                            <DropdownMenuSeparator />
+                            <DropdownMenuItem
+                              onClick={() => setDeletingLabWork(card)}
+                              className="text-destructive focus:text-destructive"
+                            >
+                              <Trash2 className="size-4" />
+                              Xoá
+                            </DropdownMenuItem>
+                          </DropdownMenuContent>
+                        </DropdownMenu>
                       </div>
                     </CardContent>
                   </Card>
@@ -351,11 +365,12 @@ export function LabWorksPage() {
 
       <Dialog open={dialogOpen} onOpenChange={setDialogOpen}>
         <DialogContent>
-          <form onSubmit={handleSubmit} className="flex flex-col gap-4">
+          <form onSubmit={handleSubmit} className="flex min-h-0 flex-1 flex-col gap-4">
             <DialogHeader>
               <DialogTitle>{editingId ? "Sửa ca labo" : "Thêm ca labo"}</DialogTitle>
             </DialogHeader>
 
+            <DialogBody className="flex flex-col gap-4">
             <div className="grid gap-2">
               <Label htmlFor="labWorkPatientId">Bệnh nhân</Label>
               <Select
@@ -448,6 +463,7 @@ export function LabWorksPage() {
                 onChange={(e) => setForm({ ...form, notes: e.target.value })}
               />
             </div>
+            </DialogBody>
 
             <DialogFooter>
               <Button type="submit" disabled={isSaving}>

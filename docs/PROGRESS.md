@@ -74,9 +74,230 @@
 - [x] Module quản lý người dùng & phân quyền trong React SPA (xong): trang `/users`
       (CRUD tài khoản qua ABP Identity API có sẵn) + `/roles` (ma trận quyền theo role qua
       ABP PermissionManagement API có sẵn), gate 2 menu này theo claim role `admin`.
+- [x] Chuẩn hoá UI toàn hệ thống + cảnh báo trùng bệnh nhân (xong): Dialog cố định
+      Header/Footer + không đóng khi click ngoài, cột "Hành động" gộp Dropdown menu ở mọi
+      bảng, filter nhiều điều kiện bọc Collapsible (Appointments/Expenses), Tags/Dị ứng/
+      Bệnh nền đổi sang TagInput có gợi ý, thêm `GetDuplicatesAsync` cảnh báo trùng tên/SĐT
+      khi thêm/sửa bệnh nhân.
+- [x] Audit toàn hệ thống (xong): sửa 1 lỗi build blocking (file đổi tên sai từ đợt
+      trước), thêm Distributed Lock cho Patient/Supply (thiếu bảo vệ race condition),
+      thêm kiểm tra FK trước khi xoá Doctor/Service/Chair, sửa `ConfirmDialog` hỗ trợ
+      variant/label tuỳ chỉnh, verify toàn bộ 16 trang + luồng chính qua Playwright.
 - [ ] Giai đoạn 5 (tuỳ chọn): AI voice-to-note, AI scan hoá đơn
 
 ## Nhật ký
+
+### 2026-07-12 (9) — Audit toàn hệ thống: ổn định, logic nghiệp vụ, lỗi thao tác, bố cục
+
+Người dùng yêu cầu kiểm tra tổng thể hệ thống trước khi tiếp tục phát triển thêm — "còn
+hoạt động của các chức năng đã ổn định chưa, luồng hoạt động đã logic chặt chẽ chưa, các
+thao tác có lỗi không, bố trí layout có dễ nhìn không". Đã lập plan qua plan mode, dùng 3
+Explore agent song song khảo sát: (1) tổng quan 24 trang frontend + 21 module backend +
+xác nhận backend có 47 file test nhưng frontend không có test tự động nào, (2) logic
+nghiệp vụ liên module (công nợ, double-booking, tồn kho, cascade delete, liên kết Patient
+Portal), (3) rà soát chéo tính nhất quán của đợt sửa UI (7) vừa xong.
+
+**Phát hiện nghiêm trọng nhất — lỗi build blocking**: agent 3 phát hiện
+`AppointmentPhotosDialog.tsx` đã bị 1 agent trong đợt (7) ghi nhầm ra file
+`AppointmentPhotosDialog.cb741ec6eeb2` (thiếu đuôi, có hậu tố hash lạ — nghi do lỗi
+encode path của Write tool), trong khi `AppointmentsPage.tsx` vẫn import đường dẫn `.tsx`
+cũ. Lỗi này KHÔNG bị phát hiện ở đợt (7) vì `tsc -b` chạy có cache (`.tsbuildinfo`) — chỉ
+lộ ra khi xoá cache chạy lại `tsc -b --force`. Bài học: sau mỗi đợt sửa lớn dùng nhiều
+agent song song, phải xoá `.tsbuildinfo` và chạy lại typecheck sạch, không tin cache. Sửa
+bằng cách đổi tên file lại (nội dung bên trong đã đúng, đã diff xác nhận không mất gì).
+Trong lúc rà soát cùng cách, còn tìm thấy 1 file rác khác không liên quan tới session này
+— `vi 2.json` (bản copy cũ của `vi.json`, kiểu đặt tên trùng của macOS) nằm cùng thư mục
+Localization, làm `dotnet build` lỗi `CS1566` (đọc resource trùng tên) — đã xoá (untracked
+trong git, an toàn).
+
+**Phát hiện qua đọc code (agent 2), đã sửa**:
+- `PatientAppService.LinkIdentityUserAsync` chỉ có unique index DB
+  (`IX_AppPatients_IdentityUserId`), không có `IAbpDistributedLock` như `DoctorAppService`
+  làm cho cùng nghiệp vụ — 2 request đồng thời liên kết cùng 1 tài khoản có thể gặp
+  `DbUpdateException` thô. Đã thêm lock `patient-identity-{id}` đúng pattern Doctor.
+- `SupplyUsageAppService.CreateAsync`/`DeleteAsync` đọc-sửa-ghi `Supply.Quantity` không
+  có lock nào (so với Appointment/Doctor đều có) — chỉ dựa vào optimistic concurrency mặc
+  định của ABP (`ConcurrencyStamp` qua `ConfigureByConvention()`), ngăn được lost-update
+  nhưng ném lỗi DB thô khi conflict. Đã thêm lock `supply-{supplyId}`.
+- Thêm mã lỗi mới `ResourceLockTimeout` (Dentify:00031) dùng chung cho 2 lock mới — không
+  tái dùng `ConcurrentBookingInProgress` (đã bị `DoctorAppService` dùng sai ngữ cảnh từ
+  trước cho việc liên kết tài khoản, message tiếng Việt/Anh chỉ nói về "lịch cho bác sĩ
+  hoặc ghế") để tránh làm sai thêm ngữ nghĩa.
+- `DoctorAppService`/`ServiceAppService`/`ChairAppService.DeleteAsync` xoá thẳng không
+  kiểm tra gì — các FK `Appointment.DoctorId`/`ServiceId`/`ChairId` là optional nên EF Core
+  không tự sinh `onDelete` tường minh trong migration (mặc định `NO ACTION`/`RESTRICT` ở
+  Postgres). Xoá 1 Doctor/Service/Chair còn Appointment tham chiếu trước đây sẽ ném lỗi FK
+  constraint thô (500 chung chung). Hỏi ý người dùng qua AskUserQuestion trước khi sửa
+  (phạm vi thêm dependency mới + method mới cho cả 3 module) — được xác nhận sửa cả 3.
+  Thêm 3 mã lỗi mới (`DoctorHasAppointments`/`ServiceHasAppointments`/
+  `ChairHasAppointments`) + check `AnyAsync` trước `DeleteAsync` + 3 test mới xác nhận
+  (`Should_Not_Delete_{Doctor,Service,Chair}_With_Existing_Appointments`).
+
+**Không sửa** (rủi ro thấp, chỉ ghi nhận): cascade delete cho các FK bắt buộc (Payment/
+PrescriptionItem/ConsentForm/TreatmentPlan/InsurancePolicy/ToothChart/AppointmentPhoto)
+đã đúng `Cascade` qua EF Core convention — không cần sửa. `LabWork.AppointmentId` là liên
+kết 1 chiều thuần (LabWork biết Appointment, không ngược lại), đọc trực tiếp mỗi lần map
+DTO nên luôn nhất quán — xác nhận đúng thiết kế, không phải bug.
+
+**Build/test baseline**: máy chỉ có .NET SDK tối đa 8.0.203 (dự án dùng .NET 10) — chạy
+`dotnet test` qua container `mcr.microsoft.com/dotnet/sdk:10.0` nối cùng network
+`giaptechdentify_default` với Postgres. Gotcha: `test/GiapTech.Dentify.TestBase/
+appsettings.json` cứng `Host=localhost` không đọc biến môi trường (`AddJsonFile` không có
+`AddEnvironmentVariables()` sau) — phải tạm ghi đè qua `appsettings.secrets.json` (file
+optional có sẵn, nội dung gốc `{}` rỗng) trỏ `Host=postgres`, rồi khôi phục lại `{}` sau
+khi xong để không để lại thay đổi thừa trong git. Bài học nhỏ: luôn `git diff` để xem nội
+dung gốc TRƯỚC khi ghi đè 1 file đã track, dù chỉ định ghi tạm. Baseline 145/145 test pass
+trước khi sửa gì; sau khi thêm Supply/Patient lock + 3 test Doctor/Service/Chair mới, vẫn
+0 lỗi, 3 test mới đều pass.
+
+**Sửa UI nhỏ theo yêu cầu người dùng** (qua AskUserQuestion): `PatientDetailPage.tsx` tab
+Thanh toán đổi nút đơn "Thanh toán" sang `DropdownMenu` (đồng nhất tuyệt đối với 12 bảng
+khác dù chỉ có 1 hành động); `LabWorksPage.tsx` thêm `DropdownMenuSeparator` còn thiếu
+giữa Sửa/Xoá.
+
+**Phát hiện thêm qua Playwright verify** (không có trong khảo sát ban đầu): dialog cảnh
+báo trùng bệnh nhân (đợt 7) dùng `ConfirmDialog` mặc định — nút xác nhận cứng hiện "Xoá"
+màu đỏ dù ngữ cảnh là "vẫn lưu tiếp tục", vì `ConfirmDialog`/`AlertDialogAction` trước đó
+không cho tuỳ biến variant/label lúc đang xử lý. Sửa `AlertDialogAction` nhận thêm prop
+`variant` (mặc định `"destructive"`, không đổi hành vi các nơi khác đang dùng), thêm
+`ConfirmDialog` prop `destructive`/`confirmingLabel`. Áp dụng cho dialog cảnh báo trùng:
+`confirmLabel="Vẫn lưu"`, `destructive={false}`, `confirmingLabel="Đang lưu..."`. Verify
+lại: dialog Xoá ở nơi khác (ví dụ Chairs) vẫn đúng màu đỏ + "Xoá" như cũ.
+
+**Verify toàn diện qua Playwright** (cài lại qua npx với cache riêng `/tmp/npm-cache-
+dentify` do `~/.npm/_cacache` có file sở hữu `root` từ trước — không đụng quyền thư mục
+hệ thống): đăng nhập, duyệt cả 16 trang chính (Dashboard, Patients, Appointments, Waitlist,
+Doctors, Services, Drugs, Chairs, LabWorks, Expenses, Supplies, Tasks, Settings,
+Statistics, Users, Roles) — không lỗi console, không tràn ngang trang nào. Verify riêng:
+dropdown Hành động ở Appointments mở đúng 5 mục theo thứ tự; cảnh báo trùng bệnh nhân hiện
+đúng khi tạo trùng tên/SĐT; TagInput hiện đúng placeholder gợi ý; dialog không đóng khi
+click ra ngoài; điều hướng vẫn hoạt động bình thường sau khi đóng dialog (xác nhận bug
+pointer-events ở đợt (8) đã fix triệt để, không tái phát qua nhiều luồng dialog khác
+nhau). Dọn sạch dữ liệu test tạo trong lúc verify (ghế/bệnh nhân) bằng chính Playwright.
+
+Gotcha môi trường gặp trong lúc verify: Docker Desktop có lúc bị lỗi mạng tạm thời khi
+pull image (`DeadlineExceeded: context deadline exceeded` với `nginx:1.27-alpine` và
+`node:22-alpine`) — `docker compose build` báo "hoàn tất" (exit code của wrapper) dù build
+thật bên trong thất bại, vì container cũ vẫn "Running" nên Compose coi là không có gì
+thay đổi. Bài học: sau `docker compose build`, luôn xác nhận có **image/hash mới thật**
+(so tên file `dist/assets/*.js` hoặc kiểm tra nội dung file trong container đang chạy)
+trước khi tin "deploy thành công" — không chỉ dựa vào exit code 0. Khắc phục bằng
+`docker pull <image>` thủ công trước khi build lại.
+
+Đã cập nhật `04-kien-truc-ky-thuat.md` (mục "Distributed Locking" — bổ sung 2 nơi dùng
+lock mới + mục mới "Kiểm tra ràng buộc tham chiếu trước khi xoá entity danh mục").
+
+### 2026-07-11 (8) — Fix bug: toàn màn hình bị khoá thao tác sau khi đóng dialog mở từ Dropdown
+
+Sau đợt (7), người dùng báo lỗi "bấm X tắt modal thì bị 1 lớp phủ toàn màn hình khiến
+không thao tác được", nói xảy ra "trang nào cũng bị". Sửa 2 lần dựa trên suy đoán (bỏ
+`onInteractOutside`, chỉ giữ `onPointerDownOutside`) đều không dứt điểm vì chưa tái hiện
+được lỗi thật trước khi sửa — bài học: phải verify bằng cách chạy thật trước khi kết luận
+nguyên nhân.
+
+Cài Playwright qua npx (dùng `--cache /tmp/npm-cache-dentify` vì `~/.npm/_cacache` có file
+sở hữu bởi `root` từ lần chạy `sudo npm` trước đó, gây `EACCES` — không sửa quyền thư mục
+hệ thống, chỉ tránh dùng cache đó) để tự động hoá tái hiện lỗi. Test đầu tiên (mở dialog
+từ nút "Thêm", đóng bằng X ở `ChairsPage`) — **không tái hiện được**. Hỏi lại người dùng
+xác nhận: lỗi chỉ xảy ra khi mở dialog **từ menu Dropdown "Hành động"** (nút Sửa trong
+`DropdownMenuItem`), không phải từ nút "Thêm" gốc — đây là chi tiết quyết định, khác hẳn
+kịch bản đã thử.
+
+Viết lại test theo đúng luồng: mở `DropdownMenu` → click "Sửa" → dialog mở → đóng bằng X
+→ tái hiện thành công. Dùng `MutationObserver` bơm vào page để log trực tiếp thời điểm
+`document.body.style` đổi, phát hiện: đóng dialog trước hết dọn `pointer-events: none` về
+rỗng (đúng), nhưng ngay sau đó có 1 lần set lại `pointer-events: none` lần nữa mà không ai
+gỡ — đây là race condition đã biết của Radix UI khi 1 `Dialog` được mở từ bên trong 1
+`DropdownMenu` đang đóng: cả 2 component cùng dùng cơ chế khoá `pointer-events` trên
+`<body>` để chặn tương tác nền, và thứ tự cleanup giữa 2 Portal khác nhau không đảm bảo
+(xem `radix-ui/primitives#1241`).
+
+Thử fix bằng `useEffect` cleanup trong `DialogContent` (2 lần, kể cả trì hoãn bằng
+`setTimeout(0)`) — vẫn không đủ tin cậy vì phụ thuộc đúng thứ tự effect cleanup giữa các
+component, đã verify KHÔNG hết bằng Playwright trước khi bỏ hướng này. Fix cuối cùng dùng
+`MutationObserver` toàn cục (`lib/radixBodyLockFix.ts`, gọi 1 lần ở `main.tsx` lúc khởi
+động app): theo dõi thay đổi `style` trên `body`, bất cứ khi nào phát hiện
+`pointer-events: none` nhưng không còn phần tử `[role="dialog"]`/`[role="menu"]`/
+`[role="alertdialog"]`/`[role="listbox"]` nào trong DOM, tự động gỡ ngay — không phụ thuộc
+thứ tự cleanup của React/Radix, chỉ dựa vào trạng thái DOM thực tế.
+
+Verify: chạy lại kịch bản tái hiện qua Playwright 3 lần liên tiếp, đều thành công (không
+còn bị khoá, click sidebar hoạt động bình thường sau khi đóng dialog mở từ dropdown). Dọn
+dữ liệu test (3 bản ghi "Ghế test..." tạo trong lúc tái hiện lỗi) bằng chính Playwright.
+
+**Bài học quan trọng**: khi user báo lỗi UI mơ hồ ("trang nào cũng bị"), đừng sửa dựa trên
+suy đoán nguyên nhân — cài Playwright (qua npx, dùng cache riêng nếu `~/.npm` có vấn đề
+quyền) để tự lái trình duyệt, tái hiện lỗi thật bằng đúng thao tác user mô tả, xác nhận
+nguyên nhân bằng công cụ (MutationObserver/console log) trước khi viết fix, rồi verify lại
+đúng kịch bản đó sau khi sửa — không chỉ dựa vào `tsc`/build sạch.
+
+### 2026-07-11 (7) — Chuẩn hoá UI toàn hệ thống + cảnh báo trùng bệnh nhân
+
+Sau khi hoàn tất module Users/Roles, người dùng phản hồi 6 vấn đề UX áp dụng rộng khắp
+ứng dụng (không riêng 2 trang mới) và 2 vấn đề riêng module Patients — yêu cầu bằng tiếng
+Việt: modal cần cố định header/footer + không tự tắt khi click ra ngoài, khu vực tìm kiếm/
+filter cần gọn hơn (có thể collapse), cột hành động cần gộp dropdown thay vì dàn trải,
+Tags/Dị ứng/Bệnh nền cần đổi sang dạng chọn thay vì nhập cách dấu phẩy, và cảnh báo khi
+bệnh nhân trùng tên + SĐT.
+
+Khảo sát qua Explore agent xác nhận quy mô: 19 file dùng `Dialog`, 12 trang có cột "Hành
+động", chưa có component `Checkbox`/`DropdownMenu`/`Collapsible` nào trong dự án, chưa có
+API kiểm tra trùng bệnh nhân ở cả backend lẫn frontend. Đã lập plan chi tiết qua plan mode,
+chốt 3 quyết định với người dùng qua AskUserQuestion: (1) gộp dropdown cho TẤT CẢ bảng kể
+cả chỉ có 2 nút (đồng nhất tuyệt đối, không phân biệt ngưỡng số nút), (2) đồng ý cài mới
+`@radix-ui/react-dropdown-menu` + `@radix-ui/react-collapsible` (cùng họ Radix UI đã dùng
+cho Dialog/Select), (3) cảnh báo trùng bệnh nhân theo hướng "chặn lưu, bắt xác nhận lại"
+(không throw exception ở backend — chỉ cảnh báo và bắt xác nhận ở frontend trước khi gọi
+API lưu thật).
+
+**Hạ tầng UI mới**: `components/ui/dropdown-menu.tsx`, `components/ui/collapsible.tsx`
+(wrapper mỏng theo đúng pattern các file `ui/*.tsx` khác), `components/TagInput.tsx`
+(input tự do + Enter/dấu phẩy chốt chip + gợi ý autocomplete từ dữ liệu client, không có
+Radix Popover — dùng div định vị tuyệt đối + onBlur đóng cho đơn giản). Sửa
+`components/ui/dialog.tsx`: `DialogContent` mặc định chặn `onPointerDownOutside`/
+`onInteractOutside` (cho phép override qua props nếu cần), thêm export `DialogBody`
+(`flex-1 overflow-y-auto`) để tách vùng cuộn khỏi `DialogHeader`/`DialogFooter` (giờ
+`shrink-0` cố định, Footer có thêm border-top).
+
+**Áp dụng đồng loạt**: dùng 4 Agent chạy song song (mỗi agent nhận 1 nhóm file độc lập +
+đọc `UsersPage.tsx` làm mẫu đã sửa sẵn) để bọc `DialogBody` + đổi cột Hành động sang
+Dropdown cho toàn bộ 19 file Dialog / 12 bảng — cách này nhanh hơn nhiều so với sửa tuần
+tự từng file, mỗi agent tự chạy `tsc -b` xác nhận sạch trước khi báo cáo xong. Phát hiện
+sau đó `AppointmentsPage.tsx` bị bỏ sót khỏi cả 4 nhóm agent (không thuộc nhóm nào được
+giao) — tự bổ sung thủ công (DialogBody + Dropdown 5 hành động + Collapsible 7 filter).
+`ExpensesPage.tsx` cũng được bọc Collapsible cho 3 filter còn lại (không có ô tìm kiếm
+text riêng nên toàn bộ khối filter nằm trong Collapsible, không giữ gì lộ ra ngoài như
+Appointments).
+
+**Cảnh báo trùng bệnh nhân**: thêm `IPatientAppService.GetDuplicatesAsync(fullName,
+phoneNumber?, excludeId?)` — query `FullName` (so sánh qua `ToLower()`, không dùng
+`EF.Functions.ILike` để tránh Application layer phụ thuộc trực tiếp EF Core, giữ đúng
+layering ABP) HOẶC `PhoneNumber` khớp, loại trừ `excludeId`, trả tối đa 5 bản ghi, không
+throw exception. Đặt tên method bắt đầu bằng `Get` (không phải `CheckDuplicate`) để khớp
+ABP conventional routing tự map thành `GET` — ban đầu thử thêm `[HttpGet]` tường minh
+nhưng Application layer chưa reference `Microsoft.AspNetCore.Mvc`, đổi tên method là cách
+đúng chuẩn ABP hơn thay vì thêm package mới phá layering. Gotcha thứ 2: tham số cuối
+`excludeId` (kiểu `Guid?`) bị ABP route thành **path segment bắt buộc**
+(`/duplicates/{excludeId}`) khi không có giá trị mặc định trong C# signature — sửa bằng
+cách thêm `= null` cho `phoneNumber`/`excludeId` ở cả interface lẫn implementation, route
+đúng lại thành toàn bộ query string optional (`/api/app/patient/duplicates?fullName=...`).
+Frontend (`PatientsPage.tsx`): gọi `getDuplicates` trong `handleSubmit` trước khi lưu thật
+— nếu có kết quả, mở `ConfirmDialog` liệt kê tên+SĐT trùng, chỉ gọi `create`/`update` sau
+khi xác nhận; nếu API lỗi thì bỏ qua bước cảnh báo và lưu thẳng (không chặn nghiệp vụ vì
+tính năng hỗ trợ bị lỗi). 3 field Tags/Allergies/MedicalConditions đổi từ input dấu phẩy
+sang `TagInput`, gợi ý lấy từ toàn bộ giá trị đã dùng trong `patients` đã tải trên client.
+
+**Môi trường build**: máy chỉ có .NET SDK tối đa 8.0.203 nhưng dự án dùng `.NET 10` — build
+backend chỉ thực hiện được qua Docker (`docker compose build backend`), không chạy được
+`dotnet build` trực tiếp trên máy. Đã build + `docker compose up -d` lại cả backend lẫn
+frontend, xác nhận route mới qua `GET /swagger/v1/swagger.json` (không dùng token thật).
+
+Verify: `tsc -b`/`oxlint`/`npm run build` sạch toàn bộ; UI thật qua browser cần người dùng
+tự thao tác (không tự động hoá được vì cần đăng nhập credential thật).
+
+Đã cập nhật `02-dac-ta-chuc-nang.md` (mục mới "Quy ước UI chung" ngay sau "Quy ước đọc" +
+cập nhật mục Patient: `GetDuplicatesAsync`, `TagInput`, luồng cảnh báo trùng) và
+`03-luong-nghiep-vu.md` (luồng mới "Cảnh báo trùng bệnh nhân khi thêm/sửa").
 
 ### 2026-07-09 (6) — Module quản lý người dùng & phân quyền trong React SPA
 

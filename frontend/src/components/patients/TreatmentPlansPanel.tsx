@@ -11,6 +11,7 @@ import { Badge } from "@/components/ui/badge"
 import { ConfirmDialog } from "@/components/ConfirmDialog"
 import {
   Dialog,
+  DialogBody,
   DialogContent,
   DialogFooter,
   DialogHeader,
@@ -423,108 +424,110 @@ export function TreatmentPlansPanel({ patientId }: TreatmentPlansPanelProps) {
 
       <Dialog open={dialogOpen} onOpenChange={setDialogOpen}>
         <DialogContent className="sm:max-w-2xl">
-          <form onSubmit={handleSubmit} className="flex flex-col gap-4">
+          <form onSubmit={handleSubmit} className="flex min-h-0 flex-1 flex-col gap-4">
             <DialogHeader>
               <DialogTitle>{editingId ? "Sửa kế hoạch điều trị" : "Thêm kế hoạch điều trị"}</DialogTitle>
             </DialogHeader>
 
-            <div className="grid gap-2">
-              <Label htmlFor="title">Tiêu đề</Label>
-              <Input
-                id="title"
-                required
-                value={form.title}
-                onChange={(e) => setForm({ ...form, title: e.target.value })}
-              />
-            </div>
-
-            <div className="grid gap-2">
-              <Label htmlFor="notes">Ghi chú</Label>
-              <Textarea
-                id="notes"
-                value={form.notes ?? ""}
-                onChange={(e) => setForm({ ...form, notes: e.target.value })}
-              />
-            </div>
-
-            <div className="grid gap-2">
-              <div className="flex items-center justify-between">
-                <Label className="flex items-center gap-1.5">
-                  <ClipboardList className="size-4" />
-                  Các bước điều trị
-                </Label>
-                <Button type="button" variant="outline" size="sm" onClick={addItemRow}>
-                  <Plus className="size-3.5" />
-                  Thêm bước
-                </Button>
+            <DialogBody className="flex flex-col gap-4">
+              <div className="grid gap-2">
+                <Label htmlFor="title">Tiêu đề</Label>
+                <Input
+                  id="title"
+                  required
+                  value={form.title}
+                  onChange={(e) => setForm({ ...form, title: e.target.value })}
+                />
               </div>
 
-              {itemRows.length === 0 && (
-                <p className="text-sm text-muted-foreground">Chưa có bước điều trị nào.</p>
-              )}
+              <div className="grid gap-2">
+                <Label htmlFor="notes">Ghi chú</Label>
+                <Textarea
+                  id="notes"
+                  value={form.notes ?? ""}
+                  onChange={(e) => setForm({ ...form, notes: e.target.value })}
+                />
+              </div>
 
-              {itemRows.map((row) => (
-                <div
-                  key={row.key}
-                  className="grid grid-cols-2 gap-2 rounded-md border p-2 sm:grid-cols-[3.5rem_2fr_2fr_7rem_auto] sm:items-start sm:border-0 sm:p-0"
-                >
-                  <Input
-                    type="number"
-                    min={1}
-                    placeholder="STT"
-                    aria-label="Thứ tự bước"
-                    value={row.data.stepOrder}
-                    onChange={(e) => updateItemRow(row.key, { stepOrder: Number(e.target.value) })}
-                  />
-                  <Input
-                    placeholder="Nội dung"
-                    aria-label="Nội dung bước điều trị"
-                    className="col-span-2 sm:col-span-1"
-                    value={row.data.description}
-                    onChange={(e) => updateItemRow(row.key, { description: e.target.value })}
-                  />
-                  <Select
-                    value={row.data.serviceId ?? "none"}
-                    onValueChange={(value: string) =>
-                      updateItemRow(row.key, { serviceId: value === "none" ? null : value })
-                    }
-                  >
-                    <SelectTrigger aria-label="Chọn dịch vụ">
-                      <SelectValue placeholder="Dịch vụ" />
-                    </SelectTrigger>
-                    <SelectContent>
-                      <SelectItem value="none">Không liên kết</SelectItem>
-                      {services.map((service) => (
-                        <SelectItem key={service.id} value={service.id}>
-                          {service.name}
-                        </SelectItem>
-                      ))}
-                    </SelectContent>
-                  </Select>
-                  <Input
-                    type="number"
-                    min={0}
-                    placeholder="Chi phí"
-                    aria-label="Chi phí dự kiến"
-                    value={row.data.estimatedCost}
-                    onChange={(e) =>
-                      updateItemRow(row.key, { estimatedCost: Number(e.target.value) })
-                    }
-                  />
-                  <Button
-                    type="button"
-                    variant="ghost"
-                    size="icon"
-                    className="col-span-2 justify-self-end sm:col-span-1"
-                    title="Xoá bước"
-                    aria-label="Xoá bước điều trị"
-                    onClick={() => removeItemRow(row.key)}
-                  >
-                    <X className="size-4" />
+              <div className="grid gap-2">
+                <div className="flex items-center justify-between">
+                  <Label className="flex items-center gap-1.5">
+                    <ClipboardList className="size-4" />
+                    Các bước điều trị
+                  </Label>
+                  <Button type="button" variant="outline" size="sm" onClick={addItemRow}>
+                    <Plus className="size-3.5" />
+                    Thêm bước
                   </Button>
                 </div>
-              ))}
-            </div>
+
+                {itemRows.length === 0 && (
+                  <p className="text-sm text-muted-foreground">Chưa có bước điều trị nào.</p>
+                )}
+
+                {itemRows.map((row) => (
+                  <div
+                    key={row.key}
+                    className="grid grid-cols-2 gap-2 rounded-md border p-2 sm:grid-cols-[3.5rem_2fr_2fr_7rem_auto] sm:items-start sm:border-0 sm:p-0"
+                  >
+                    <Input
+                      type="number"
+                      min={1}
+                      placeholder="STT"
+                      aria-label="Thứ tự bước"
+                      value={row.data.stepOrder}
+                      onChange={(e) => updateItemRow(row.key, { stepOrder: Number(e.target.value) })}
+                    />
+                    <Input
+                      placeholder="Nội dung"
+                      aria-label="Nội dung bước điều trị"
+                      className="col-span-2 sm:col-span-1"
+                      value={row.data.description}
+                      onChange={(e) => updateItemRow(row.key, { description: e.target.value })}
+                    />
+                    <Select
+                      value={row.data.serviceId ?? "none"}
+                      onValueChange={(value: string) =>
+                        updateItemRow(row.key, { serviceId: value === "none" ? null : value })
+                      }
+                    >
+                      <SelectTrigger aria-label="Chọn dịch vụ">
+                        <SelectValue placeholder="Dịch vụ" />
+                      </SelectTrigger>
+                      <SelectContent>
+                        <SelectItem value="none">Không liên kết</SelectItem>
+                        {services.map((service) => (
+                          <SelectItem key={service.id} value={service.id}>
+                            {service.name}
+                          </SelectItem>
+                        ))}
+                      </SelectContent>
+                    </Select>
+                    <Input
+                      type="number"
+                      min={0}
+                      placeholder="Chi phí"
+                      aria-label="Chi phí dự kiến"
+                      value={row.data.estimatedCost}
+                      onChange={(e) =>
+                        updateItemRow(row.key, { estimatedCost: Number(e.target.value) })
+                      }
+                    />
+                    <Button
+                      type="button"
+                      variant="ghost"
+                      size="icon"
+                      className="col-span-2 justify-self-end sm:col-span-1"
+                      title="Xoá bước"
+                      aria-label="Xoá bước điều trị"
+                      onClick={() => removeItemRow(row.key)}
+                    >
+                      <X className="size-4" />
+                    </Button>
+                  </div>
+                ))}
+              </div>
+            </DialogBody>
 
             <DialogFooter>
               <Button type="submit" disabled={isSaving}>
@@ -552,22 +555,24 @@ export function TreatmentPlansPanel({ patientId }: TreatmentPlansPanelProps) {
           <DialogHeader>
             <DialogTitle>Gắn lịch hẹn cho bước điều trị</DialogTitle>
           </DialogHeader>
-          <Select
-            value={linkAppointmentTarget?.currentAppointmentId ?? "none"}
-            onValueChange={(value: string) => void handleLinkAppointment(value === "none" ? null : value)}
-          >
-            <SelectTrigger aria-label="Chọn lịch hẹn">
-              <SelectValue placeholder="Chọn lịch hẹn" />
-            </SelectTrigger>
-            <SelectContent>
-              <SelectItem value="none">Không liên kết</SelectItem>
-              {patientAppointments.map((appointment) => (
-                <SelectItem key={appointment.id} value={appointment.id}>
-                  {new Date(appointment.scheduledDateTime).toLocaleString("vi-VN")}
-                </SelectItem>
-              ))}
-            </SelectContent>
-          </Select>
+          <DialogBody>
+            <Select
+              value={linkAppointmentTarget?.currentAppointmentId ?? "none"}
+              onValueChange={(value: string) => void handleLinkAppointment(value === "none" ? null : value)}
+            >
+              <SelectTrigger aria-label="Chọn lịch hẹn">
+                <SelectValue placeholder="Chọn lịch hẹn" />
+              </SelectTrigger>
+              <SelectContent>
+                <SelectItem value="none">Không liên kết</SelectItem>
+                {patientAppointments.map((appointment) => (
+                  <SelectItem key={appointment.id} value={appointment.id}>
+                    {new Date(appointment.scheduledDateTime).toLocaleString("vi-VN")}
+                  </SelectItem>
+                ))}
+              </SelectContent>
+            </Select>
+          </DialogBody>
         </DialogContent>
       </Dialog>
     </div>

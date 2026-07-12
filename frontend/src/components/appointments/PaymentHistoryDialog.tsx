@@ -11,6 +11,7 @@ import { Badge } from "@/components/ui/badge"
 import { ConfirmDialog } from "@/components/ConfirmDialog"
 import {
   Dialog,
+  DialogBody,
   DialogContent,
   DialogFooter,
   DialogHeader,
@@ -112,7 +113,7 @@ export function PaymentHistoryDialog({
         </DialogHeader>
 
         {appointment && (
-          <div className="flex flex-col gap-4">
+          <DialogBody className="flex flex-col gap-4">
             <div className="grid grid-cols-3 gap-2 rounded-lg border p-3 text-sm">
               <div>
                 <p className="text-muted-foreground">Giá dịch vụ</p>
@@ -191,74 +192,74 @@ export function PaymentHistoryDialog({
                 </div>
               )}
             </div>
+          </DialogBody>
+        )}
 
-            {remaining > 0 && (
-              <form onSubmit={handleAddPayment} className="flex flex-col gap-3 rounded-lg border p-3">
-                <Label className="text-sm font-medium">Thêm lần thanh toán mới</Label>
-                <div className="grid grid-cols-2 gap-3">
-                  <div className="grid gap-1.5">
-                    <Label htmlFor="paymentAmount">Số tiền</Label>
-                    <Input
-                      id="paymentAmount"
-                      type="number"
-                      min={0.01}
-                      max={remaining}
-                      step="0.01"
-                      required
-                      value={form.amount || ""}
-                      onChange={(e) => setForm({ ...form, amount: Number(e.target.value) })}
-                    />
-                  </div>
-                  <div className="grid gap-1.5">
-                    <Label htmlFor="paymentDate">Ngày thanh toán</Label>
-                    <Input
-                      id="paymentDate"
-                      type="datetime-local"
-                      required
-                      value={form.paymentDate}
-                      onChange={(e) => setForm({ ...form, paymentDate: e.target.value })}
-                    />
-                  </div>
-                </div>
-                <div className="grid gap-1.5">
-                  <Label htmlFor="paymentMethod">Phương thức</Label>
-                  <Select
-                    value={form.method}
-                    onValueChange={(value: PaymentMethodName) => setForm({ ...form, method: value })}
-                  >
-                    <SelectTrigger id="paymentMethod">
-                      <SelectValue />
-                    </SelectTrigger>
-                    <SelectContent>
-                      {PAYMENT_METHOD_OPTIONS.map((method) => (
-                        <SelectItem key={method} value={method}>
-                          {PAYMENT_METHOD_LABELS_VI[PaymentMethod[method]]}
-                        </SelectItem>
-                      ))}
-                    </SelectContent>
-                  </Select>
-                </div>
-                <div className="grid gap-1.5">
-                  <Label htmlFor="paymentNotes">Ghi chú</Label>
-                  <Textarea
-                    id="paymentNotes"
-                    value={form.notes ?? ""}
-                    onChange={(e) => setForm({ ...form, notes: e.target.value })}
-                  />
-                </div>
-                {form.amount > remaining && (
-                  <p className="text-sm text-destructive">
-                    Số tiền không được vượt quá số còn lại ({formatCurrency(remaining)}).
-                  </p>
-                )}
-                <DialogFooter>
-                  <Button type="submit" disabled={isSaving || form.amount <= 0 || form.amount > remaining}>
-                    {isSaving ? "Đang lưu..." : "Ghi nhận thanh toán"}
-                  </Button>
-                </DialogFooter>
-              </form>
+        {appointment && remaining > 0 && (
+          <form onSubmit={handleAddPayment} className="flex flex-col gap-3 rounded-lg border p-3">
+            <Label className="text-sm font-medium">Thêm lần thanh toán mới</Label>
+            <div className="grid grid-cols-2 gap-3">
+              <div className="grid gap-1.5">
+                <Label htmlFor="paymentAmount">Số tiền</Label>
+                <Input
+                  id="paymentAmount"
+                  type="number"
+                  min={0.01}
+                  max={remaining}
+                  step="0.01"
+                  required
+                  value={form.amount || ""}
+                  onChange={(e) => setForm({ ...form, amount: Number(e.target.value) })}
+                />
+              </div>
+              <div className="grid gap-1.5">
+                <Label htmlFor="paymentDate">Ngày thanh toán</Label>
+                <Input
+                  id="paymentDate"
+                  type="datetime-local"
+                  required
+                  value={form.paymentDate}
+                  onChange={(e) => setForm({ ...form, paymentDate: e.target.value })}
+                />
+              </div>
+            </div>
+            <div className="grid gap-1.5">
+              <Label htmlFor="paymentMethod">Phương thức</Label>
+              <Select
+                value={form.method}
+                onValueChange={(value: PaymentMethodName) => setForm({ ...form, method: value })}
+              >
+                <SelectTrigger id="paymentMethod">
+                  <SelectValue />
+                </SelectTrigger>
+                <SelectContent>
+                  {PAYMENT_METHOD_OPTIONS.map((method) => (
+                    <SelectItem key={method} value={method}>
+                      {PAYMENT_METHOD_LABELS_VI[PaymentMethod[method]]}
+                    </SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+            </div>
+            <div className="grid gap-1.5">
+              <Label htmlFor="paymentNotes">Ghi chú</Label>
+              <Textarea
+                id="paymentNotes"
+                value={form.notes ?? ""}
+                onChange={(e) => setForm({ ...form, notes: e.target.value })}
+              />
+            </div>
+            {form.amount > remaining && (
+              <p className="text-sm text-destructive">
+                Số tiền không được vượt quá số còn lại ({formatCurrency(remaining)}).
+              </p>
             )}
-          </div>
+            <DialogFooter>
+              <Button type="submit" disabled={isSaving || form.amount <= 0 || form.amount > remaining}>
+                {isSaving ? "Đang lưu..." : "Ghi nhận thanh toán"}
+              </Button>
+            </DialogFooter>
+          </form>
         )}
       </DialogContent>
 

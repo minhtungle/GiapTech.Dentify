@@ -3,9 +3,11 @@ using System.Collections.Generic;
 using System.Linq;
 using System.Threading.Tasks;
 using GiapTech.Dentify.Application.Contracts.Chairs;
+using GiapTech.Dentify.Appointments;
 using GiapTech.Dentify.Chairs;
 using GiapTech.Dentify.Permissions;
 using Microsoft.AspNetCore.Authorization;
+using Volo.Abp;
 using Volo.Abp.Application.Services;
 using Volo.Abp.Domain.Repositories;
 
@@ -15,13 +17,16 @@ namespace GiapTech.Dentify.Application.Chairs;
 public class ChairAppService : ApplicationService, IChairAppService
 {
     private readonly IRepository<Chair, Guid> _chairRepository;
+    private readonly IRepository<Appointment, Guid> _appointmentRepository;
     private readonly ChairMapper _chairMapper;
 
     public ChairAppService(
         IRepository<Chair, Guid> chairRepository,
+        IRepository<Appointment, Guid> appointmentRepository,
         ChairMapper chairMapper)
     {
         _chairRepository = chairRepository;
+        _appointmentRepository = appointmentRepository;
         _chairMapper = chairMapper;
     }
 
@@ -79,6 +84,14 @@ public class ChairAppService : ApplicationService, IChairAppService
     [Authorize(DentifyPermissions.Chairs.Delete)]
     public virtual async Task DeleteAsync(Guid id)
     {
+        var appointmentQueryable = await _appointmentRepository.GetQueryableAsync();
+        var hasAppointments = await AsyncExecuter.AnyAsync(
+            appointmentQueryable.Where(a => a.ChairId == id));
+        if (hasAppointments)
+        {
+            throw new BusinessException(DentifyDomainErrorCodes.ChairHasAppointments);
+        }
+
         await _chairRepository.DeleteAsync(id);
     }
 }

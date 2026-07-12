@@ -400,16 +400,40 @@ AbpDistributedLockingModule))]` thêm vào cùng module.
 
 Cách dùng trong AppService: inject `IAbpDistributedLock`, gọi `await
 _distributedLock.TryAcquireAsync(key, timeout)` trả `IAbpDistributedLockHandle?` — `null`
-nghĩa là lock đang bị giữ, throw `BusinessException` phù hợp thay vì chờ vô hạn; dùng
-`await using` để tự release khi ra khỏi scope. 3 nơi đang dùng:
+nghĩa là lock đang bị giữ, throw `BusinessException(DentifyDomainErrorCodes.
+ResourceLockTimeout)` thay vì chờ vô hạn (mã lỗi dùng chung cho mọi timeout loại này, xem
+`ConcurrentBookingInProgress` bên dưới là biến thể cũ hơn dành riêng ngữ cảnh
+booking/liên kết tài khoản — 2 mã lỗi cùng tồn tại vì lý do lịch sử, không hợp nhất để
+tránh đổi message đang hiển thị cho các luồng cũ); dùng `await using` để tự release khi ra
+khỏi scope. 5 nơi đang dùng (2 nơi cuối thêm ở đợt audit toàn hệ thống sau khi phát hiện
+cùng dạng race condition TOCTOU chưa được bảo vệ dù đã có unique index/optimistic
+concurrency DB):
 - `AppointmentAppService.CreateAsync`/`UpdateAsync` — 2 lock riêng theo
   `appointment-doctor-{doctorId}`/`appointment-chair-{chairId}`, bao trùm cả bước kiểm
   tra double-booking và bước insert/update để loại bỏ khoảng hở TOCTOU.
 - `DoctorAppService.CreateAsync` — lock `doctor-identity-{identityUserId}`, bổ sung cho
   unique index DB đã có sẵn (unique index vẫn là lưới an toàn cuối nếu lock hết hạn).
+- `PatientAppService.LinkIdentityUserAsync` — lock `patient-identity-{identityUserId}`,
+  cùng pattern với Doctor (trước đó chỉ có unique index DB
+  `IX_AppPatients_IdentityUserId`, không có lock — 2 request đồng thời có thể gặp
+  `DbUpdateException` thô thay vì `BusinessException` thân thiện).
+- `SupplyUsageAppService.CreateAsync`/`DeleteAsync` — lock `supply-{supplyId}`, bao trùm
+  đọc-sửa-ghi `Supply.Quantity` (trước đó không có lock nào, chỉ optimistic concurrency
+  mặc định của ABP qua `ConcurrencyStamp` — vẫn ngăn được lost-update nhưng ném lỗi DB thô
+  không thân thiện khi conflict).
 - `AppointmentReminderAppService.SendDueRemindersAsync` — 1 lock cố định
   `appointment-reminder-worker` cho toàn bộ method, chỉ 1 instance chạy được cùng lúc
   (bỏ qua lượt quét nếu instance khác đang giữ lock).
+
+**Kiểm tra ràng buộc tham chiếu trước khi xoá entity danh mục**: `DoctorAppService`/
+`ServiceAppService`/`ChairAppService.DeleteAsync` đều query
+`IRepository<Appointment, Guid>` xem còn `Appointment` nào tham chiếu `DoctorId`/
+`ServiceId`/`ChairId` không, throw `BusinessException` (`DoctorHasAppointments`/
+`ServiceHasAppointments`/`ChairHasAppointments`) nếu có — thêm ở đợt audit vì các FK này
+là optional (`IsRequired(false)`) nên EF Core migration không tự sinh `onDelete` tường
+minh, mặc định `NO ACTION`/`RESTRICT` ở Postgres: nếu không check trước, xoá 1 Doctor/
+Service/Chair còn Appointment tham chiếu sẽ ném lỗi FK constraint thô (HTTP 500 chung
+chung) thay vì thông báo nghiệp vụ rõ ràng.
 
 ## CI/CD
 

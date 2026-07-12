@@ -11,6 +11,7 @@ import { Badge } from "@/components/ui/badge"
 import { ConfirmDialog } from "@/components/ConfirmDialog"
 import {
   Dialog,
+  DialogBody,
   DialogContent,
   DialogFooter,
   DialogHeader,
@@ -222,63 +223,65 @@ export function InsurancePoliciesPanel({ patientId }: InsurancePoliciesPanelProp
 
       <Dialog open={dialogOpen} onOpenChange={setDialogOpen}>
         <DialogContent>
-          <form onSubmit={handleSubmit} className="flex flex-col gap-4">
+          <form onSubmit={handleSubmit} className="flex min-h-0 flex-1 flex-col gap-4">
             <DialogHeader>
               <DialogTitle>{editingId ? "Sửa bảo hiểm" : "Thêm bảo hiểm"}</DialogTitle>
             </DialogHeader>
 
-            <div className="grid gap-2">
-              <Label htmlFor="providerName">Nhà cung cấp</Label>
-              <Input
-                id="providerName"
-                required
-                value={form.providerName}
-                onChange={(e) => setForm({ ...form, providerName: e.target.value })}
-              />
-            </div>
-
-            <div className="grid gap-2">
-              <Label htmlFor="policyNumber">Số hợp đồng</Label>
-              <Input
-                id="policyNumber"
-                required
-                value={form.policyNumber}
-                onChange={(e) => setForm({ ...form, policyNumber: e.target.value })}
-              />
-            </div>
-
-            <div className="grid grid-cols-2 gap-4">
+            <DialogBody className="flex flex-col gap-4">
               <div className="grid gap-2">
-                <Label htmlFor="effectiveDate">Hiệu lực từ</Label>
+                <Label htmlFor="providerName">Nhà cung cấp</Label>
                 <Input
-                  id="effectiveDate"
-                  type="date"
+                  id="providerName"
                   required
-                  value={form.effectiveDate}
-                  onChange={(e) => setForm({ ...form, effectiveDate: e.target.value })}
+                  value={form.providerName}
+                  onChange={(e) => setForm({ ...form, providerName: e.target.value })}
                 />
               </div>
-              <div className="grid gap-2">
-                <Label htmlFor="expiryDate">Hết hạn</Label>
-                <Input
-                  id="expiryDate"
-                  type="date"
-                  value={form.expiryDate ?? ""}
-                  onChange={(e) =>
-                    setForm({ ...form, expiryDate: e.target.value === "" ? null : e.target.value })
-                  }
-                />
-              </div>
-            </div>
 
-            <div className="grid gap-2">
-              <Label htmlFor="notes">Ghi chú</Label>
-              <Textarea
-                id="notes"
-                value={form.notes ?? ""}
-                onChange={(e) => setForm({ ...form, notes: e.target.value })}
-              />
-            </div>
+              <div className="grid gap-2">
+                <Label htmlFor="policyNumber">Số hợp đồng</Label>
+                <Input
+                  id="policyNumber"
+                  required
+                  value={form.policyNumber}
+                  onChange={(e) => setForm({ ...form, policyNumber: e.target.value })}
+                />
+              </div>
+
+              <div className="grid grid-cols-2 gap-4">
+                <div className="grid gap-2">
+                  <Label htmlFor="effectiveDate">Hiệu lực từ</Label>
+                  <Input
+                    id="effectiveDate"
+                    type="date"
+                    required
+                    value={form.effectiveDate}
+                    onChange={(e) => setForm({ ...form, effectiveDate: e.target.value })}
+                  />
+                </div>
+                <div className="grid gap-2">
+                  <Label htmlFor="expiryDate">Hết hạn</Label>
+                  <Input
+                    id="expiryDate"
+                    type="date"
+                    value={form.expiryDate ?? ""}
+                    onChange={(e) =>
+                      setForm({ ...form, expiryDate: e.target.value === "" ? null : e.target.value })
+                    }
+                  />
+                </div>
+              </div>
+
+              <div className="grid gap-2">
+                <Label htmlFor="notes">Ghi chú</Label>
+                <Textarea
+                  id="notes"
+                  value={form.notes ?? ""}
+                  onChange={(e) => setForm({ ...form, notes: e.target.value })}
+                />
+              </div>
+            </DialogBody>
 
             <DialogFooter>
               <Button type="submit" disabled={isSaving}>

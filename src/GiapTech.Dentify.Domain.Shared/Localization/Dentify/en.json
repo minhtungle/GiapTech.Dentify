@@ -212,6 +212,10 @@
     "Dentify:00028": "Logo size exceeds the allowed limit (max 2MB).",
     "Dentify:00029": "Another request is currently booking this doctor or chair. Please try again.",
     "Dentify:00030": "Expiry date cannot be earlier than the effective date.",
+    "Dentify:00031": "Another request is currently processing this same data. Please try again shortly.",
+    "Dentify:00032": "Cannot delete this doctor because there are appointments referencing them. Please delete or reassign those appointments first.",
+    "Dentify:00033": "Cannot delete this service because there are appointments referencing it. Please delete or reassign those appointments first.",
+    "Dentify:00034": "Cannot delete this chair because there are appointments referencing it. Please delete or reassign those appointments first.",
 
     "ClinicSettings": "Clinic Settings",
     "ClinicSettings:Name": "Clinic name",

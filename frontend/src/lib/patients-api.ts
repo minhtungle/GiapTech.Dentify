@@ -19,6 +19,12 @@ export const patientsApi = {
     api.get<PatientDetailDto>(`${BASE}/${id}/patient-detail`),
   getRecallList: (monthsThreshold: number) =>
     api.get<RecallPatientDto[]>(`${BASE}/recall-list`, { monthsThreshold }),
+  getDuplicates: (fullName: string, phoneNumber?: string | null, excludeId?: string) =>
+    api.get<PatientDto[]>(`${BASE}/duplicates`, {
+      fullName,
+      phoneNumber: phoneNumber ?? undefined,
+      excludeId,
+    }),
   create: (input: CreateUpdatePatientDto) => api.post<PatientDto>(BASE, input),
   update: (id: string, input: CreateUpdatePatientDto) =>
     api.put<PatientDto>(`${BASE}/${id}`, input),

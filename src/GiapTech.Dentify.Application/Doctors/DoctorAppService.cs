@@ -3,6 +3,7 @@ using System.Collections.Generic;
 using System.Linq;
 using System.Threading.Tasks;
 using GiapTech.Dentify.Application.Contracts.Doctors;
+using GiapTech.Dentify.Appointments;
 using GiapTech.Dentify.Doctors;
 using GiapTech.Dentify.Permissions;
 using Microsoft.AspNetCore.Authorization;
@@ -19,17 +20,20 @@ public class DoctorAppService : ApplicationService, IDoctorAppService
 {
     private readonly IRepository<Doctor, Guid> _doctorRepository;
     private readonly IRepository<IdentityUser, Guid> _identityUserRepository;
+    private readonly IRepository<Appointment, Guid> _appointmentRepository;
     private readonly DoctorMapper _doctorMapper;
     private readonly IAbpDistributedLock _distributedLock;
 
     public DoctorAppService(
         IRepository<Doctor, Guid> doctorRepository,
         IRepository<IdentityUser, Guid> identityUserRepository,
+        IRepository<Appointment, Guid> appointmentRepository,
         DoctorMapper doctorMapper,
         IAbpDistributedLock distributedLock)
     {
         _doctorRepository = doctorRepository;
         _identityUserRepository = identityUserRepository;
+        _appointmentRepository = appointmentRepository;
         _doctorMapper = doctorMapper;
         _distributedLock = distributedLock;
     }
@@ -108,6 +112,14 @@ public class DoctorAppService : ApplicationService, IDoctorAppService
     [Authorize(DentifyPermissions.Doctors.Delete)]
     public virtual async Task DeleteAsync(Guid id)
     {
+        var appointmentQueryable = await _appointmentRepository.GetQueryableAsync();
+        var hasAppointments = await AsyncExecuter.AnyAsync(
+            appointmentQueryable.Where(a => a.DoctorId == id));
+        if (hasAppointments)
+        {
+            throw new BusinessException(DentifyDomainErrorCodes.DoctorHasAppointments);
+        }
+
         await _doctorRepository.DeleteAsync(id);
     }
 

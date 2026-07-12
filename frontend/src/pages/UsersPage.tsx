@@ -1,15 +1,31 @@
 import { useEffect, useState } from "react"
 import type { FormEvent } from "react"
-import { Ban, CheckCircle2, Pencil, Plus, Trash2, Users as UsersIcon } from "lucide-react"
+import {
+  Ban,
+  CheckCircle2,
+  MoreVertical,
+  Pencil,
+  Plus,
+  Trash2,
+  Users as UsersIcon,
+} from "lucide-react"
 import { toast } from "sonner"
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
 import { Label } from "@/components/ui/label"
 import { Skeleton } from "@/components/ui/skeleton"
 import { Badge } from "@/components/ui/badge"
+import {
+  DropdownMenu,
+  DropdownMenuContent,
+  DropdownMenuItem,
+  DropdownMenuSeparator,
+  DropdownMenuTrigger,
+} from "@/components/ui/dropdown-menu"
 import { ConfirmDialog } from "@/components/ConfirmDialog"
 import {
   Dialog,
+  DialogBody,
   DialogContent,
   DialogFooter,
   DialogHeader,
@@ -283,37 +299,39 @@ export function UsersPage() {
                     </Badge>
                   </TableCell>
                   <TableCell className="text-right">
-                    <Button
-                      variant="ghost"
-                      size="icon"
-                      title="Sửa"
-                      aria-label={`Sửa người dùng ${user.userName}`}
-                      onClick={() => void openEditDialog(user)}
-                    >
-                      <Pencil className="size-4" />
-                    </Button>
-                    <Button
-                      variant="ghost"
-                      size="icon"
-                      title={user.isActive ? "Khoá tài khoản" : "Mở khoá tài khoản"}
-                      aria-label={`${user.isActive ? "Khoá" : "Mở khoá"} tài khoản ${user.userName}`}
-                      onClick={() => void handleToggleLockout(user)}
-                    >
-                      {user.isActive ? (
-                        <Ban className="size-4" />
-                      ) : (
-                        <CheckCircle2 className="size-4" />
-                      )}
-                    </Button>
-                    <Button
-                      variant="ghost"
-                      size="icon"
-                      title="Xoá"
-                      aria-label={`Xoá người dùng ${user.userName}`}
-                      onClick={() => setDeletingUser(user)}
-                    >
-                      <Trash2 className="size-4" />
-                    </Button>
+                    <DropdownMenu>
+                      <DropdownMenuTrigger asChild>
+                        <Button
+                          variant="ghost"
+                          size="icon"
+                          aria-label={`Hành động cho ${user.userName}`}
+                        >
+                          <MoreVertical className="size-4" />
+                        </Button>
+                      </DropdownMenuTrigger>
+                      <DropdownMenuContent align="end">
+                        <DropdownMenuItem onClick={() => void openEditDialog(user)}>
+                          <Pencil className="size-4" />
+                          Sửa
+                        </DropdownMenuItem>
+                        <DropdownMenuItem onClick={() => void handleToggleLockout(user)}>
+                          {user.isActive ? (
+                            <Ban className="size-4" />
+                          ) : (
+                            <CheckCircle2 className="size-4" />
+                          )}
+                          {user.isActive ? "Khoá tài khoản" : "Mở khoá tài khoản"}
+                        </DropdownMenuItem>
+                        <DropdownMenuSeparator />
+                        <DropdownMenuItem
+                          onClick={() => setDeletingUser(user)}
+                          className="text-destructive focus:text-destructive"
+                        >
+                          <Trash2 className="size-4" />
+                          Xoá
+                        </DropdownMenuItem>
+                      </DropdownMenuContent>
+                    </DropdownMenu>
                   </TableCell>
                 </TableRow>
               ))}
@@ -323,11 +341,12 @@ export function UsersPage() {
 
       <Dialog open={dialogOpen} onOpenChange={setDialogOpen}>
         <DialogContent className="sm:max-w-lg">
-          <form onSubmit={handleSubmit} className="flex flex-col gap-4">
+          <form onSubmit={handleSubmit} className="flex min-h-0 flex-1 flex-col gap-4">
             <DialogHeader>
               <DialogTitle>{editingId ? "Sửa người dùng" : "Thêm người dùng"}</DialogTitle>
             </DialogHeader>
 
+            <DialogBody className="flex flex-col gap-4">
             <div className="grid grid-cols-2 gap-4">
               <div className="grid gap-2">
                 <Label htmlFor="userName">Username</Label>
@@ -439,6 +458,7 @@ export function UsersPage() {
               />
               Đang hoạt động
             </label>
+            </DialogBody>
 
             <DialogFooter>
               <Button type="submit" disabled={isSaving}>

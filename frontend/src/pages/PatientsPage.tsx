@@ -1,7 +1,7 @@
 import { useEffect, useRef, useState } from "react"
 import type { ChangeEvent, FormEvent } from "react"
 import { useNavigate } from "react-router-dom"
-import { Download, Eye, Pencil, Plus, Trash2, Upload, UserPlus } from "lucide-react"
+import { Download, Eye, MoreVertical, Pencil, Plus, Trash2, Upload, UserPlus } from "lucide-react"
 import { toast } from "sonner"
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
@@ -12,11 +12,19 @@ import { Badge } from "@/components/ui/badge"
 import { ConfirmDialog } from "@/components/ConfirmDialog"
 import {
   Dialog,
+  DialogBody,
   DialogContent,
   DialogFooter,
   DialogHeader,
   DialogTitle,
 } from "@/components/ui/dialog"
+import {
+  DropdownMenu,
+  DropdownMenuContent,
+  DropdownMenuItem,
+  DropdownMenuSeparator,
+  DropdownMenuTrigger,
+} from "@/components/ui/dropdown-menu"
 import {
   Select,
   SelectContent,
@@ -35,6 +43,7 @@ import {
 import { patientsApi } from "@/lib/patients-api"
 import { ApiError } from "@/lib/api"
 import { downloadCsv, parseCsvToObjects, toCsv } from "@/lib/csv"
+import { TagInput } from "@/components/TagInput"
 import type { CreateUpdatePatientDto, GenderName, PatientDto } from "@/types/patient"
 import { Gender, GENDER_LABELS_VI } from "@/types/patient"
 
@@ -52,19 +61,7 @@ const EMPTY_FORM: CreateUpdatePatientDto = {
   medicalConditions: [],
 }
 
-function splitCommaList(input: string): string[] {
-  return input
-    .split(",")
-    .map((t) => t.trim())
-    .filter(Boolean)
-}
-
-function toDto(
-  form: CreateUpdatePatientDto,
-  tagsInput: string,
-  allergiesInput: string,
-  medicalConditionsInput: string,
-): CreateUpdatePatientDto {
+function toDto(form: CreateUpdatePatientDto): CreateUpdatePatientDto {
   return {
     ...form,
     phoneNumber: form.phoneNumber?.trim() || undefined,
@@ -72,10 +69,17 @@ function toDto(
     address: form.address?.trim() || undefined,
     notes: form.notes?.trim() || undefined,
     referralSource: form.referralSource?.trim() || undefined,
-    tags: splitCommaList(tagsInput),
-    allergies: splitCommaList(allergiesInput),
-    medicalConditions: splitCommaList(medicalConditionsInput),
   }
+}
+
+function collectSuggestions(patients: PatientDto[], pick: (p: PatientDto) => string[]): string[] {
+  const values = new Set<string>()
+  for (const patient of patients) {
+    for (const value of pick(patient)) {
+      values.add(value)
+    }
+  }
+  return Array.from(values).sort()
 }
 
 export function PatientsPage() {
@@ -88,9 +92,6 @@ export function PatientsPage() {
   const [dialogOpen, setDialogOpen] = useState(false)
   const [editingId, setEditingId] = useState<string | null>(null)
   const [form, setForm] = useState<CreateUpdatePatientDto>(EMPTY_FORM)
-  const [tagsInput, setTagsInput] = useState("")
-  const [allergiesInput, setAllergiesInput] = useState("")
-  const [medicalConditionsInput, setMedicalConditionsInput] = useState("")
   const [isSaving, setIsSaving] = useState(false)
 
   const [isImporting, setIsImporting] = useState(false)
@@ -98,6 +99,13 @@ export function PatientsPage() {
 
   const [deletingPatient, setDeletingPatient] = useState<PatientDto | null>(null)
   const [isDeleting, setIsDeleting] = useState(false)
+
+  const [duplicateWarning, setDuplicateWarning] = useState<PatientDto[] | null>(null)
+  const [isCheckingDuplicate, setIsCheckingDuplicate] = useState(false)
+
+  const tagSuggestions = collectSuggestions(patients, (p) => p.tags)
+  const allergySuggestions = collectSuggestions(patients, (p) => p.allergies)
+  const medicalConditionSuggestions = collectSuggestions(patients, (p) => p.medicalConditions)
 
   const loadPatients = async () => {
     setIsLoading(true)
@@ -123,9 +131,6 @@ export function PatientsPage() {
   const openCreateDialog = () => {
     setEditingId(null)
     setForm(EMPTY_FORM)
-    setTagsInput("")
-    setAllergiesInput("")
-    setMedicalConditionsInput("")
     setDialogOpen(true)
   }
 
@@ -146,17 +151,12 @@ export function PatientsPage() {
       allergies: patient.allergies,
       medicalConditions: patient.medicalConditions,
     })
-    setTagsInput(patient.tags.join(", "))
-    setAllergiesInput(patient.allergies.join(", "))
-    setMedicalConditionsInput(patient.medicalConditions.join(", "))
     setDialogOpen(true)
   }
 
-  const handleSubmit = async (e: FormEvent) => {
-    e.preventDefault()
+  const performSave = async (dto: CreateUpdatePatientDto) => {
     setIsSaving(true)
     try {
-      const dto = toDto(form, tagsInput, allergiesInput, medicalConditionsInput)
       if (editingId) {
         await patientsApi.update(editingId, dto)
         toast.success("Đã cập nhật bệnh nhân")
@@ -165,12 +165,37 @@ export function PatientsPage() {
         toast.success("Đã thêm bệnh nhân mới")
       }
       setDialogOpen(false)
+      setDuplicateWarning(null)
       await loadPatients()
     } catch (err) {
       toast.error(err instanceof ApiError ? err.message : "Lưu thất bại")
     } finally {
       setIsSaving(false)
     }
+  }
+
+  const handleSubmit = async (e: FormEvent) => {
+    e.preventDefault()
+    const dto = toDto(form)
+
+    setIsCheckingDuplicate(true)
+    try {
+      const duplicates = await patientsApi.getDuplicates(
+        dto.fullName,
+        dto.phoneNumber,
+        editingId ?? undefined,
+      )
+      if (duplicates.length > 0) {
+        setDuplicateWarning(duplicates)
+        return
+      }
+    } catch {
+      // Không chặn lưu nếu API kiểm tra trùng lỗi — chỉ là cảnh báo hỗ trợ, không phải validation bắt buộc.
+    } finally {
+      setIsCheckingDuplicate(false)
+    }
+
+    await performSave(dto)
   }
 
   const handleDelete = async () => {
@@ -395,33 +420,35 @@ export function PatientsPage() {
                   </div>
                 </TableCell>
                 <TableCell className="text-right">
-                  <Button
-                    variant="ghost"
-                    size="icon"
-                    title="Xem chi tiết"
-                    aria-label={`Xem chi tiết ${patient.fullName}`}
-                    onClick={() => navigate(`/patients/${patient.id}`)}
-                  >
-                    <Eye className="size-4" />
-                  </Button>
-                  <Button
-                    variant="ghost"
-                    size="icon"
-                    title="Sửa"
-                    aria-label={`Sửa thông tin ${patient.fullName}`}
-                    onClick={() => openEditDialog(patient)}
-                  >
-                    <Pencil className="size-4" />
-                  </Button>
-                  <Button
-                    variant="ghost"
-                    size="icon"
-                    title="Xoá"
-                    aria-label={`Xoá bệnh nhân ${patient.fullName}`}
-                    onClick={() => setDeletingPatient(patient)}
-                  >
-                    <Trash2 className="size-4" />
-                  </Button>
+                  <DropdownMenu>
+                    <DropdownMenuTrigger asChild>
+                      <Button
+                        variant="ghost"
+                        size="icon"
+                        aria-label={`Hành động cho ${patient.fullName}`}
+                      >
+                        <MoreVertical className="size-4" />
+                      </Button>
+                    </DropdownMenuTrigger>
+                    <DropdownMenuContent align="end">
+                      <DropdownMenuItem onClick={() => navigate(`/patients/${patient.id}`)}>
+                        <Eye className="size-4" />
+                        Xem chi tiết
+                      </DropdownMenuItem>
+                      <DropdownMenuItem onClick={() => openEditDialog(patient)}>
+                        <Pencil className="size-4" />
+                        Sửa
+                      </DropdownMenuItem>
+                      <DropdownMenuSeparator />
+                      <DropdownMenuItem
+                        onClick={() => setDeletingPatient(patient)}
+                        className="text-destructive focus:text-destructive"
+                      >
+                        <Trash2 className="size-4" />
+                        Xoá
+                      </DropdownMenuItem>
+                    </DropdownMenuContent>
+                  </DropdownMenu>
                 </TableCell>
               </TableRow>
             ))}
@@ -431,11 +458,12 @@ export function PatientsPage() {
 
       <Dialog open={dialogOpen} onOpenChange={setDialogOpen}>
         <DialogContent>
-          <form onSubmit={handleSubmit} className="flex flex-col gap-4">
+          <form onSubmit={handleSubmit} className="flex min-h-0 flex-1 flex-col gap-4">
             <DialogHeader>
               <DialogTitle>{editingId ? "Sửa bệnh nhân" : "Thêm bệnh nhân"}</DialogTitle>
             </DialogHeader>
 
+            <DialogBody className="flex flex-col gap-4">
             <div className="grid gap-2">
               <Label htmlFor="fullName">Họ và tên</Label>
               <Input
@@ -516,32 +544,35 @@ export function PatientsPage() {
 
             <div className="grid grid-cols-2 gap-4">
               <div className="grid gap-2">
-                <Label htmlFor="allergies">Dị ứng (phân tách bằng dấu phẩy)</Label>
-                <Input
+                <Label htmlFor="allergies">Dị ứng</Label>
+                <TagInput
                   id="allergies"
-                  value={allergiesInput}
-                  onChange={(e) => setAllergiesInput(e.target.value)}
-                  placeholder="Penicillin, Latex"
+                  value={form.allergies}
+                  onChange={(allergies) => setForm({ ...form, allergies })}
+                  suggestions={allergySuggestions}
+                  placeholder="Penicillin, Latex..."
                 />
               </div>
               <div className="grid gap-2">
-                <Label htmlFor="medicalConditions">Bệnh nền (phân tách bằng dấu phẩy)</Label>
-                <Input
+                <Label htmlFor="medicalConditions">Bệnh nền</Label>
+                <TagInput
                   id="medicalConditions"
-                  value={medicalConditionsInput}
-                  onChange={(e) => setMedicalConditionsInput(e.target.value)}
-                  placeholder="Tăng huyết áp, Tiểu đường"
+                  value={form.medicalConditions}
+                  onChange={(medicalConditions) => setForm({ ...form, medicalConditions })}
+                  suggestions={medicalConditionSuggestions}
+                  placeholder="Tăng huyết áp, Tiểu đường..."
                 />
               </div>
             </div>
 
             <div className="grid gap-2">
-              <Label htmlFor="tags">Tags (phân tách bằng dấu phẩy)</Label>
-              <Input
+              <Label htmlFor="tags">Tags</Label>
+              <TagInput
                 id="tags"
-                value={tagsInput}
-                onChange={(e) => setTagsInput(e.target.value)}
-                placeholder="vip"
+                value={form.tags}
+                onChange={(tags) => setForm({ ...form, tags })}
+                suggestions={tagSuggestions}
+                placeholder="vip..."
               />
             </div>
 
@@ -553,10 +584,11 @@ export function PatientsPage() {
                 onChange={(e) => setForm({ ...form, notes: e.target.value })}
               />
             </div>
+            </DialogBody>
 
             <DialogFooter>
-              <Button type="submit" disabled={isSaving}>
-                {isSaving ? "Đang lưu..." : "Lưu"}
+              <Button type="submit" disabled={isSaving || isCheckingDuplicate}>
+                {isCheckingDuplicate ? "Đang kiểm tra..." : isSaving ? "Đang lưu..." : "Lưu"}
               </Button>
             </DialogFooter>
           </form>
@@ -570,6 +602,20 @@ export function PatientsPage() {
         description={`Bạn có chắc muốn xoá bệnh nhân "${deletingPatient?.fullName}"? Hành động này không thể hoàn tác.`}
         isConfirming={isDeleting}
         onConfirm={() => void handleDelete()}
+      />
+
+      <ConfirmDialog
+        open={duplicateWarning !== null}
+        onOpenChange={(open) => !open && setDuplicateWarning(null)}
+        title="Có thể trùng bệnh nhân đã tồn tại"
+        description={`Đã tìm thấy ${duplicateWarning?.length ?? 0} bệnh nhân trùng tên hoặc số điện thoại: ${duplicateWarning
+          ?.map((p) => `${p.fullName}${p.phoneNumber ? ` (${p.phoneNumber})` : ""}`)
+          .join(", ")}. Bạn có chắc muốn tiếp tục lưu bệnh nhân này?`}
+        confirmLabel="Vẫn lưu"
+        confirmingLabel="Đang lưu..."
+        destructive={false}
+        isConfirming={isSaving}
+        onConfirm={() => void performSave(toDto(form))}
       />
     </div>
   )

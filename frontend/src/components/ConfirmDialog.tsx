@@ -15,6 +15,8 @@ interface ConfirmDialogProps {
   title: string
   description: string
   confirmLabel?: string
+  confirmingLabel?: string
+  destructive?: boolean
   isConfirming?: boolean
   onConfirm: () => void
 }
@@ -25,6 +27,8 @@ export function ConfirmDialog({
   title,
   description,
   confirmLabel = "Xoá",
+  confirmingLabel,
+  destructive = true,
   isConfirming = false,
   onConfirm,
 }: ConfirmDialogProps) {
@@ -38,13 +42,14 @@ export function ConfirmDialog({
         <AlertDialogFooter>
           <AlertDialogCancel disabled={isConfirming}>Huỷ</AlertDialogCancel>
           <AlertDialogAction
+            variant={destructive ? "destructive" : "default"}
             disabled={isConfirming}
             onClick={(e) => {
               e.preventDefault()
               onConfirm()
             }}
           >
-            {isConfirming ? "Đang xoá..." : confirmLabel}
+            {isConfirming ? (confirmingLabel ?? "Đang xử lý...") : confirmLabel}
           </AlertDialogAction>
         </AlertDialogFooter>
       </AlertDialogContent>

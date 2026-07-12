@@ -9,6 +9,7 @@ import { Textarea } from "@/components/ui/textarea"
 import { Badge } from "@/components/ui/badge"
 import {
   Dialog,
+  DialogBody,
   DialogContent,
   DialogFooter,
   DialogHeader,
@@ -191,7 +192,7 @@ export function PatientToothChartPanel({ patientId }: PatientToothChartPanelProp
         onOpenChange={(open) => !open && setSelectedTooth(null)}
       >
         <DialogContent>
-          <form onSubmit={handleSave} className="flex flex-col gap-4">
+          <form onSubmit={handleSave} className="flex min-h-0 flex-1 flex-col gap-4">
             <DialogHeader>
               <DialogTitle>
                 Răng số{" "}
@@ -201,94 +202,96 @@ export function PatientToothChartPanel({ patientId }: PatientToothChartPanelProp
               </DialogTitle>
             </DialogHeader>
 
-            {selectedRecord && (
-              <p className="text-sm text-muted-foreground">
-                Cập nhật lần cuối:{" "}
-                {new Date(selectedRecord.lastUpdated).toLocaleString("vi-VN")}
-              </p>
-            )}
-
-            <div className="grid gap-2">
-              <Label htmlFor="tooth-status">Tình trạng</Label>
-              <Select
-                value={statusValue}
-                onValueChange={(value: ToothStatusName) => setStatusValue(value)}
-              >
-                <SelectTrigger id="tooth-status">
-                  <SelectValue />
-                </SelectTrigger>
-                <SelectContent>
-                  {TOOTH_STATUS_NAMES.map((name, value) => (
-                    <SelectItem key={name} value={name}>
-                      {TOOTH_STATUS_LABELS_VI[value as ToothStatus]}
-                    </SelectItem>
-                  ))}
-                </SelectContent>
-              </Select>
-            </div>
-
-            <div className="grid gap-2">
-              <Label htmlFor="tooth-appointment">Lịch hẹn liên quan</Label>
-              <Select value={appointmentIdValue} onValueChange={setAppointmentIdValue}>
-                <SelectTrigger id="tooth-appointment">
-                  <SelectValue />
-                </SelectTrigger>
-                <SelectContent>
-                  <SelectItem value="none">Không liên kết</SelectItem>
-                  {appointments.map((appointment) => (
-                    <SelectItem key={appointment.id} value={appointment.id}>
-                      {new Date(appointment.scheduledDateTime).toLocaleString("vi-VN")}
-                      {appointment.serviceName ? ` — ${appointment.serviceName}` : ""}
-                    </SelectItem>
-                  ))}
-                </SelectContent>
-              </Select>
-            </div>
-
-            <div className="grid gap-2">
-              <Label htmlFor="tooth-notes">Ghi chú</Label>
-              <Textarea
-                id="tooth-notes"
-                value={notesValue}
-                onChange={(e) => setNotesValue(e.target.value)}
-              />
-            </div>
-
-            <div className="flex flex-col gap-2 rounded-md border p-3">
-              <Button
-                type="button"
-                variant="outline"
-                size="sm"
-                onClick={() => void loadHistory()}
-                disabled={isLoadingHistory}
-              >
-                <History className="size-4" />
-                {isLoadingHistory ? "Đang tải..." : "Xem lịch sử"}
-              </Button>
-
-              {history !== null && (
-                <div className="flex max-h-48 flex-col gap-2 overflow-y-auto text-sm">
-                  {history.length === 0 && (
-                    <p className="text-muted-foreground">Răng này chưa có lịch sử.</p>
-                  )}
-                  {history.map((entry, index) => (
-                    <div key={index} className="border-b pb-2 last:border-0">
-                      <div className="flex items-center justify-between">
-                        <Badge variant="outline">
-                          {TOOTH_STATUS_LABELS_VI[entry.status]}
-                        </Badge>
-                        <span className="text-xs text-muted-foreground">
-                          {new Date(entry.recordedAt).toLocaleString("vi-VN")}
-                        </span>
-                      </div>
-                      {entry.notes && (
-                        <p className="mt-1 text-muted-foreground">{entry.notes}</p>
-                      )}
-                    </div>
-                  ))}
-                </div>
+            <DialogBody className="flex flex-col gap-4">
+              {selectedRecord && (
+                <p className="text-sm text-muted-foreground">
+                  Cập nhật lần cuối:{" "}
+                  {new Date(selectedRecord.lastUpdated).toLocaleString("vi-VN")}
+                </p>
               )}
-            </div>
+
+              <div className="grid gap-2">
+                <Label htmlFor="tooth-status">Tình trạng</Label>
+                <Select
+                  value={statusValue}
+                  onValueChange={(value: ToothStatusName) => setStatusValue(value)}
+                >
+                  <SelectTrigger id="tooth-status">
+                    <SelectValue />
+                  </SelectTrigger>
+                  <SelectContent>
+                    {TOOTH_STATUS_NAMES.map((name, value) => (
+                      <SelectItem key={name} value={name}>
+                        {TOOTH_STATUS_LABELS_VI[value as ToothStatus]}
+                      </SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+              </div>
+
+              <div className="grid gap-2">
+                <Label htmlFor="tooth-appointment">Lịch hẹn liên quan</Label>
+                <Select value={appointmentIdValue} onValueChange={setAppointmentIdValue}>
+                  <SelectTrigger id="tooth-appointment">
+                    <SelectValue />
+                  </SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="none">Không liên kết</SelectItem>
+                    {appointments.map((appointment) => (
+                      <SelectItem key={appointment.id} value={appointment.id}>
+                        {new Date(appointment.scheduledDateTime).toLocaleString("vi-VN")}
+                        {appointment.serviceName ? ` — ${appointment.serviceName}` : ""}
+                      </SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+              </div>
+
+              <div className="grid gap-2">
+                <Label htmlFor="tooth-notes">Ghi chú</Label>
+                <Textarea
+                  id="tooth-notes"
+                  value={notesValue}
+                  onChange={(e) => setNotesValue(e.target.value)}
+                />
+              </div>
+
+              <div className="flex flex-col gap-2 rounded-md border p-3">
+                <Button
+                  type="button"
+                  variant="outline"
+                  size="sm"
+                  onClick={() => void loadHistory()}
+                  disabled={isLoadingHistory}
+                >
+                  <History className="size-4" />
+                  {isLoadingHistory ? "Đang tải..." : "Xem lịch sử"}
+                </Button>
+
+                {history !== null && (
+                  <div className="flex max-h-48 flex-col gap-2 overflow-y-auto text-sm">
+                    {history.length === 0 && (
+                      <p className="text-muted-foreground">Răng này chưa có lịch sử.</p>
+                    )}
+                    {history.map((entry, index) => (
+                      <div key={index} className="border-b pb-2 last:border-0">
+                        <div className="flex items-center justify-between">
+                          <Badge variant="outline">
+                            {TOOTH_STATUS_LABELS_VI[entry.status]}
+                          </Badge>
+                          <span className="text-xs text-muted-foreground">
+                            {new Date(entry.recordedAt).toLocaleString("vi-VN")}
+                          </span>
+                        </div>
+                        {entry.notes && (
+                          <p className="mt-1 text-muted-foreground">{entry.notes}</p>
+                        )}
+                      </div>
+                    ))}
+                  </div>
+                )}
+              </div>
+            </DialogBody>
 
             <DialogFooter>
               <Button type="submit" disabled={isSaving}>

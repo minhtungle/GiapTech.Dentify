@@ -25,4 +25,6 @@ public interface IPatientAppService : IApplicationService
     Task<PatientDto> LinkIdentityUserAsync(Guid id, LinkPatientIdentityUserDto input);
 
     Task<PatientDto> UnlinkIdentityUserAsync(Guid id);
+
+    Task<List<PatientDto>> GetDuplicatesAsync(string fullName, string? phoneNumber = null, Guid? excludeId = null);
 }

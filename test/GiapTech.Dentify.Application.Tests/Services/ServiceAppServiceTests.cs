@@ -1,7 +1,10 @@
 using System;
 using System.Threading.Tasks;
+using GiapTech.Dentify.Application.Contracts.Appointments;
+using GiapTech.Dentify.Application.Contracts.Patients;
 using GiapTech.Dentify.Application.Contracts.Services;
 using Shouldly;
+using Volo.Abp;
 using Volo.Abp.Modularity;
 using Xunit;
 
@@ -11,10 +14,14 @@ public abstract class ServiceAppServiceTests<TStartupModule> : DentifyApplicatio
     where TStartupModule : IAbpModule
 {
     private readonly IServiceAppService _serviceAppService;
+    private readonly IPatientAppService _patientAppService;
+    private readonly IAppointmentAppService _appointmentAppService;
 
     protected ServiceAppServiceTests()
     {
         _serviceAppService = GetRequiredService<IServiceAppService>();
+        _patientAppService = GetRequiredService<IPatientAppService>();
+        _appointmentAppService = GetRequiredService<IAppointmentAppService>();
     }
 
     [Fact]
@@ -83,5 +90,27 @@ public abstract class ServiceAppServiceTests<TStartupModule> : DentifyApplicatio
         await _serviceAppService.DeleteAsync(service.Id);
 
         await Should.ThrowAsync<Exception>(async () => await _serviceAppService.GetAsync(service.Id));
+    }
+
+    [Fact]
+    public async Task Should_Not_Delete_Service_With_Existing_Appointments()
+    {
+        var service = await _serviceAppService.CreateAsync(new CreateUpdateServiceDto { Name = "Dịch vụ có lịch hẹn", Price = 100000 });
+
+        var patient = await _patientAppService.CreateAsync(new CreateUpdatePatientDto
+        {
+            FullName = "Service Delete Test Patient",
+            DateOfBirth = new DateTime(1990, 1, 1)
+        });
+
+        await _appointmentAppService.CreateAsync(new CreateUpdateAppointmentDto
+        {
+            PatientId = patient.Id,
+            ServiceId = service.Id,
+            ScheduledDateTime = DateTime.Now.AddDays(1),
+            Price = 100000
+        });
+
+        await Should.ThrowAsync<BusinessException>(async () => await _serviceAppService.DeleteAsync(service.Id));
     }
 }

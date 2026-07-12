@@ -3,8 +3,10 @@ using System.Collections.Generic;
 using System.Linq;
 using System.Threading.Tasks;
 using GiapTech.Dentify.Application.Contracts.Services;
+using GiapTech.Dentify.Appointments;
 using GiapTech.Dentify.Permissions;
 using Microsoft.AspNetCore.Authorization;
+using Volo.Abp;
 using Volo.Abp.Application.Services;
 using Volo.Abp.Domain.Repositories;
 using ServiceEntity = GiapTech.Dentify.Services.Service;
@@ -15,13 +17,16 @@ namespace GiapTech.Dentify.Application.Services;
 public class ServiceAppService : ApplicationService, IServiceAppService
 {
     private readonly IRepository<ServiceEntity, Guid> _serviceRepository;
+    private readonly IRepository<Appointment, Guid> _appointmentRepository;
     private readonly ServiceMapper _serviceMapper;
 
     public ServiceAppService(
         IRepository<ServiceEntity, Guid> serviceRepository,
+        IRepository<Appointment, Guid> appointmentRepository,
         ServiceMapper serviceMapper)
     {
         _serviceRepository = serviceRepository;
+        _appointmentRepository = appointmentRepository;
         _serviceMapper = serviceMapper;
     }
 
@@ -80,6 +85,14 @@ public class ServiceAppService : ApplicationService, IServiceAppService
     [Authorize(DentifyPermissions.Services.Delete)]
     public virtual async Task DeleteAsync(Guid id)
     {
+        var appointmentQueryable = await _appointmentRepository.GetQueryableAsync();
+        var hasAppointments = await AsyncExecuter.AnyAsync(
+            appointmentQueryable.Where(a => a.ServiceId == id));
+        if (hasAppointments)
+        {
+            throw new BusinessException(DentifyDomainErrorCodes.ServiceHasAppointments);
+        }
+
         await _serviceRepository.DeleteAsync(id);
     }
 }

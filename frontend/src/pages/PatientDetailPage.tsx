@@ -1,6 +1,6 @@
 import { useEffect, useState } from "react"
 import { useNavigate, useParams } from "react-router-dom"
-import { AlertCircle, ArrowLeft, KeyRound, Wallet } from "lucide-react"
+import { AlertCircle, ArrowLeft, KeyRound, MoreVertical, Wallet } from "lucide-react"
 import { toast } from "sonner"
 import { Button } from "@/components/ui/button"
 import { Badge } from "@/components/ui/badge"
@@ -8,6 +8,7 @@ import { Skeleton } from "@/components/ui/skeleton"
 import { Tabs, TabsList, TabsTrigger, TabsContent } from "@/components/ui/tabs"
 import {
   Dialog,
+  DialogBody,
   DialogContent,
   DialogFooter,
   DialogHeader,
@@ -21,6 +22,12 @@ import {
   TableHeader,
   TableRow,
 } from "@/components/ui/table"
+import {
+  DropdownMenu,
+  DropdownMenuContent,
+  DropdownMenuItem,
+  DropdownMenuTrigger,
+} from "@/components/ui/dropdown-menu"
 import { PatientToothChartPanel } from "@/components/tooth-chart/PatientToothChartPanel"
 import { TreatmentPlansPanel } from "@/components/patients/TreatmentPlansPanel"
 import { InsurancePoliciesPanel } from "@/components/patients/InsurancePoliciesPanel"
@@ -319,15 +326,23 @@ export function PatientDetailPage() {
                         {formatCurrency(a.price - a.paidAmount)}
                       </TableCell>
                       <TableCell className="text-right">
-                        <Button
-                          variant="ghost"
-                          size="icon"
-                          title="Thanh toán"
-                          aria-label={`Xem thanh toán lịch hẹn ngày ${new Date(a.scheduledDateTime).toLocaleDateString("vi-VN")}`}
-                          onClick={() => void openPaymentDialog(a)}
-                        >
-                          <Wallet className="size-4" />
-                        </Button>
+                        <DropdownMenu>
+                          <DropdownMenuTrigger asChild>
+                            <Button
+                              variant="ghost"
+                              size="icon"
+                              aria-label={`Hành động cho lịch hẹn ngày ${new Date(a.scheduledDateTime).toLocaleDateString("vi-VN")}`}
+                            >
+                              <MoreVertical className="size-4" />
+                            </Button>
+                          </DropdownMenuTrigger>
+                          <DropdownMenuContent align="end">
+                            <DropdownMenuItem onClick={() => void openPaymentDialog(a)}>
+                              <Wallet className="size-4" />
+                              Thanh toán
+                            </DropdownMenuItem>
+                          </DropdownMenuContent>
+                        </DropdownMenu>
                       </TableCell>
                     </TableRow>
                   ))}
@@ -409,10 +424,12 @@ export function PatientDetailPage() {
           <DialogHeader>
             <DialogTitle>Cấp tài khoản cổng bệnh nhân</DialogTitle>
           </DialogHeader>
-          <IdentityUserPicker
-            value={selectedIdentityUserId}
-            onChange={(identityUserId) => setSelectedIdentityUserId(identityUserId)}
-          />
+          <DialogBody className="flex flex-col gap-4">
+            <IdentityUserPicker
+              value={selectedIdentityUserId}
+              onChange={(identityUserId) => setSelectedIdentityUserId(identityUserId)}
+            />
+          </DialogBody>
           <DialogFooter>
             <Button
               disabled={!selectedIdentityUserId || isLinkingPortal}

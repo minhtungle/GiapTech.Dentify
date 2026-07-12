@@ -1,6 +1,22 @@
 import { useEffect, useRef, useState } from "react"
 import type { ChangeEvent, FormEvent } from "react"
-import { CalendarPlus, Download, FileText, Image, MailCheck, Pencil, Pill, Plus, Trash2, Upload, Wallet, X } from "lucide-react"
+import {
+  CalendarPlus,
+  ChevronDown,
+  Download,
+  FileText,
+  Filter,
+  Image,
+  MailCheck,
+  MoreVertical,
+  Pencil,
+  Pill,
+  Plus,
+  Trash2,
+  Upload,
+  Wallet,
+  X,
+} from "lucide-react"
 import { toast } from "sonner"
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
@@ -8,9 +24,18 @@ import { Label } from "@/components/ui/label"
 import { Skeleton } from "@/components/ui/skeleton"
 import { Textarea } from "@/components/ui/textarea"
 import { Badge } from "@/components/ui/badge"
+import {
+  DropdownMenu,
+  DropdownMenuContent,
+  DropdownMenuItem,
+  DropdownMenuSeparator,
+  DropdownMenuTrigger,
+} from "@/components/ui/dropdown-menu"
+import { Collapsible, CollapsibleContent, CollapsibleTrigger } from "@/components/ui/collapsible"
 import { ConfirmDialog } from "@/components/ConfirmDialog"
 import {
   Dialog,
+  DialogBody,
   DialogContent,
   DialogFooter,
   DialogHeader,
@@ -153,6 +178,7 @@ export function AppointmentsPage() {
   const [isImporting, setIsImporting] = useState(false)
   const importInputRef = useRef<HTMLInputElement>(null)
 
+  const [isFiltersOpen, setIsFiltersOpen] = useState(false)
   const [nameFilter, setNameFilter] = useState("")
   const [statusFilter, setStatusFilter] = useState<AppointmentStatusName | "">("")
   const [paymentStatusFilter, setPaymentStatusFilter] = useState<PaymentStatusName | "">("")
@@ -160,6 +186,15 @@ export function AppointmentsPage() {
   const [chairFilter, setChairFilter] = useState<string>("")
   const [fromDateFilter, setFromDateFilter] = useState("")
   const [toDateFilter, setToDateFilter] = useState("")
+
+  const activeAdvancedFilterCount = [
+    statusFilter,
+    serviceFilter,
+    chairFilter,
+    paymentStatusFilter,
+    fromDateFilter,
+    toDateFilter,
+  ].filter(Boolean).length
 
   const [selectedPatientNoShowCount, setSelectedPatientNoShowCount] = useState<number | null>(null)
   const selectedPatient = patients.find((p) => p.id === form.patientId) ?? null
@@ -597,100 +632,121 @@ export function AppointmentsPage() {
         </div>
       </div>
 
-      <div className="flex flex-wrap items-end gap-2">
-        <Input
-          placeholder="Tìm theo tên bệnh nhân..."
-          value={nameFilter}
-          onChange={(e) => setNameFilter(e.target.value)}
-          onKeyDown={(e) => e.key === "Enter" && void loadData()}
-          className="max-w-56"
-        />
-        <Select
-          value={statusFilter || "all"}
-          onValueChange={(value: string) =>
-            setStatusFilter(value === "all" ? "" : (value as AppointmentStatusName))
-          }
-        >
-          <SelectTrigger className="w-40">
-            <SelectValue placeholder="Trạng thái" />
-          </SelectTrigger>
-          <SelectContent>
-            <SelectItem value="all">Mọi trạng thái</SelectItem>
-            {STATUS_OPTIONS.map((status) => (
-              <SelectItem key={status} value={status}>
-                {APPOINTMENT_STATUS_LABELS_VI[AppointmentStatus[status]]}
-              </SelectItem>
-            ))}
-          </SelectContent>
-        </Select>
-        <Select
-          value={serviceFilter || "all"}
-          onValueChange={(value: string) => setServiceFilter(value === "all" ? "" : value)}
-        >
-          <SelectTrigger className="w-44">
-            <SelectValue placeholder="Dịch vụ" />
-          </SelectTrigger>
-          <SelectContent>
-            <SelectItem value="all">Mọi dịch vụ</SelectItem>
-            {services.map((service) => (
-              <SelectItem key={service.id} value={service.id}>
-                {service.name}
-              </SelectItem>
-            ))}
-          </SelectContent>
-        </Select>
-        <Select
-          value={chairFilter || "all"}
-          onValueChange={(value: string) => setChairFilter(value === "all" ? "" : value)}
-        >
-          <SelectTrigger className="w-36">
-            <SelectValue placeholder="Ghế" />
-          </SelectTrigger>
-          <SelectContent>
-            <SelectItem value="all">Mọi ghế</SelectItem>
-            {chairs.map((chair) => (
-              <SelectItem key={chair.id} value={chair.id}>
-                {chair.name}
-              </SelectItem>
-            ))}
-          </SelectContent>
-        </Select>
-        <Select
-          value={paymentStatusFilter || "all"}
-          onValueChange={(value: string) =>
-            setPaymentStatusFilter(value === "all" ? "" : (value as PaymentStatusName))
-          }
-        >
-          <SelectTrigger className="w-44">
-            <SelectValue placeholder="Thanh toán" />
-          </SelectTrigger>
-          <SelectContent>
-            <SelectItem value="all">Mọi trạng thái thanh toán</SelectItem>
-            {PAYMENT_STATUS_OPTIONS.map((status) => (
-              <SelectItem key={status} value={status}>
-                {PAYMENT_STATUS_LABELS_VI[PaymentStatus[status]]}
-              </SelectItem>
-            ))}
-          </SelectContent>
-        </Select>
-        <Input
-          type="date"
-          aria-label="Từ ngày"
-          value={fromDateFilter}
-          onChange={(e) => setFromDateFilter(e.target.value)}
-          className="w-40"
-        />
-        <Input
-          type="date"
-          aria-label="Đến ngày"
-          value={toDateFilter}
-          onChange={(e) => setToDateFilter(e.target.value)}
-          className="w-40"
-        />
-        <Button variant="outline" onClick={() => void loadData()}>
-          Lọc
-        </Button>
-      </div>
+      <Collapsible open={isFiltersOpen} onOpenChange={setIsFiltersOpen}>
+        <div className="flex flex-wrap items-end gap-2">
+          <Input
+            placeholder="Tìm theo tên bệnh nhân..."
+            value={nameFilter}
+            onChange={(e) => setNameFilter(e.target.value)}
+            onKeyDown={(e) => e.key === "Enter" && void loadData()}
+            className="max-w-56"
+          />
+          <CollapsibleTrigger asChild>
+            <Button variant="outline" type="button">
+              <Filter className="size-4" />
+              Bộ lọc
+              {activeAdvancedFilterCount > 0 && (
+                <Badge variant="secondary" className="ml-1">
+                  {activeAdvancedFilterCount}
+                </Badge>
+              )}
+              <ChevronDown
+                className={`size-4 transition-transform ${isFiltersOpen ? "rotate-180" : ""}`}
+              />
+            </Button>
+          </CollapsibleTrigger>
+        </div>
+
+        <CollapsibleContent>
+          <div className="mt-2 flex flex-wrap items-end gap-2">
+            <Select
+              value={statusFilter || "all"}
+              onValueChange={(value: string) =>
+                setStatusFilter(value === "all" ? "" : (value as AppointmentStatusName))
+              }
+            >
+              <SelectTrigger className="w-40">
+                <SelectValue placeholder="Trạng thái" />
+              </SelectTrigger>
+              <SelectContent>
+                <SelectItem value="all">Mọi trạng thái</SelectItem>
+                {STATUS_OPTIONS.map((status) => (
+                  <SelectItem key={status} value={status}>
+                    {APPOINTMENT_STATUS_LABELS_VI[AppointmentStatus[status]]}
+                  </SelectItem>
+                ))}
+              </SelectContent>
+            </Select>
+            <Select
+              value={serviceFilter || "all"}
+              onValueChange={(value: string) => setServiceFilter(value === "all" ? "" : value)}
+            >
+              <SelectTrigger className="w-44">
+                <SelectValue placeholder="Dịch vụ" />
+              </SelectTrigger>
+              <SelectContent>
+                <SelectItem value="all">Mọi dịch vụ</SelectItem>
+                {services.map((service) => (
+                  <SelectItem key={service.id} value={service.id}>
+                    {service.name}
+                  </SelectItem>
+                ))}
+              </SelectContent>
+            </Select>
+            <Select
+              value={chairFilter || "all"}
+              onValueChange={(value: string) => setChairFilter(value === "all" ? "" : value)}
+            >
+              <SelectTrigger className="w-36">
+                <SelectValue placeholder="Ghế" />
+              </SelectTrigger>
+              <SelectContent>
+                <SelectItem value="all">Mọi ghế</SelectItem>
+                {chairs.map((chair) => (
+                  <SelectItem key={chair.id} value={chair.id}>
+                    {chair.name}
+                  </SelectItem>
+                ))}
+              </SelectContent>
+            </Select>
+            <Select
+              value={paymentStatusFilter || "all"}
+              onValueChange={(value: string) =>
+                setPaymentStatusFilter(value === "all" ? "" : (value as PaymentStatusName))
+              }
+            >
+              <SelectTrigger className="w-44">
+                <SelectValue placeholder="Thanh toán" />
+              </SelectTrigger>
+              <SelectContent>
+                <SelectItem value="all">Mọi trạng thái thanh toán</SelectItem>
+                {PAYMENT_STATUS_OPTIONS.map((status) => (
+                  <SelectItem key={status} value={status}>
+                    {PAYMENT_STATUS_LABELS_VI[PaymentStatus[status]]}
+                  </SelectItem>
+                ))}
+              </SelectContent>
+            </Select>
+            <Input
+              type="date"
+              aria-label="Từ ngày"
+              value={fromDateFilter}
+              onChange={(e) => setFromDateFilter(e.target.value)}
+              className="w-40"
+            />
+            <Input
+              type="date"
+              aria-label="Đến ngày"
+              value={toDateFilter}
+              onChange={(e) => setToDateFilter(e.target.value)}
+              className="w-40"
+            />
+            <Button variant="outline" onClick={() => void loadData()}>
+              Lọc
+            </Button>
+          </div>
+        </CollapsibleContent>
+      </Collapsible>
 
       <Tabs defaultValue="table">
         <TabsList>
@@ -782,51 +838,45 @@ export function AppointmentsPage() {
                       </div>
                     </TableCell>
                     <TableCell className="text-right">
-                      <Button
-                        variant="ghost"
-                        size="icon"
-                        title="Ảnh lịch hẹn"
-                        aria-label={`Xem ảnh lịch hẹn của ${appointment.patientFullName}`}
-                        onClick={() => setPhotosDialogAppointment(appointment)}
-                      >
-                        <Image className="size-4" />
-                      </Button>
-                      <Button
-                        variant="ghost"
-                        size="icon"
-                        title="Phiếu đồng ý"
-                        aria-label={`Xem phiếu đồng ý của ${appointment.patientFullName}`}
-                        onClick={() => setConsentFormsDialogAppointment(appointment)}
-                      >
-                        <FileText className="size-4" />
-                      </Button>
-                      <Button
-                        variant="ghost"
-                        size="icon"
-                        title="Thanh toán"
-                        aria-label={`Cập nhật thanh toán cho ${appointment.patientFullName}`}
-                        onClick={() => void openPaymentDialog(appointment)}
-                      >
-                        <Wallet className="size-4" />
-                      </Button>
-                      <Button
-                        variant="ghost"
-                        size="icon"
-                        title="Sửa"
-                        aria-label={`Sửa lịch hẹn của ${appointment.patientFullName}`}
-                        onClick={() => void openEditDialog(appointment)}
-                      >
-                        <Pencil className="size-4" />
-                      </Button>
-                      <Button
-                        variant="ghost"
-                        size="icon"
-                        title="Xoá"
-                        aria-label={`Xoá lịch hẹn của ${appointment.patientFullName}`}
-                        onClick={() => setDeletingAppointment(appointment)}
-                      >
-                        <Trash2 className="size-4" />
-                      </Button>
+                      <DropdownMenu>
+                        <DropdownMenuTrigger asChild>
+                          <Button
+                            variant="ghost"
+                            size="icon"
+                            aria-label={`Hành động cho lịch hẹn của ${appointment.patientFullName}`}
+                          >
+                            <MoreVertical className="size-4" />
+                          </Button>
+                        </DropdownMenuTrigger>
+                        <DropdownMenuContent align="end">
+                          <DropdownMenuItem onClick={() => setPhotosDialogAppointment(appointment)}>
+                            <Image className="size-4" />
+                            Ảnh lịch hẹn
+                          </DropdownMenuItem>
+                          <DropdownMenuItem
+                            onClick={() => setConsentFormsDialogAppointment(appointment)}
+                          >
+                            <FileText className="size-4" />
+                            Phiếu đồng ý
+                          </DropdownMenuItem>
+                          <DropdownMenuItem onClick={() => void openPaymentDialog(appointment)}>
+                            <Wallet className="size-4" />
+                            Thanh toán
+                          </DropdownMenuItem>
+                          <DropdownMenuItem onClick={() => void openEditDialog(appointment)}>
+                            <Pencil className="size-4" />
+                            Sửa
+                          </DropdownMenuItem>
+                          <DropdownMenuSeparator />
+                          <DropdownMenuItem
+                            onClick={() => setDeletingAppointment(appointment)}
+                            className="text-destructive focus:text-destructive"
+                          >
+                            <Trash2 className="size-4" />
+                            Xoá
+                          </DropdownMenuItem>
+                        </DropdownMenuContent>
+                      </DropdownMenu>
                     </TableCell>
                   </TableRow>
                 ))}
@@ -849,11 +899,12 @@ export function AppointmentsPage() {
 
       <Dialog open={dialogOpen} onOpenChange={setDialogOpen}>
         <DialogContent className="sm:max-w-2xl">
-          <form onSubmit={handleSubmit} className="flex flex-col gap-4">
+          <form onSubmit={handleSubmit} className="flex min-h-0 flex-1 flex-col gap-4">
             <DialogHeader>
               <DialogTitle>{editingId ? "Sửa lịch hẹn" : "Thêm lịch hẹn"}</DialogTitle>
             </DialogHeader>
 
+            <DialogBody className="flex flex-col gap-4">
             <div className="grid gap-2">
               <Label htmlFor="patientId">Bệnh nhân</Label>
               <Select
@@ -1127,6 +1178,7 @@ export function AppointmentsPage() {
                 </div>
               ))}
             </div>
+            </DialogBody>
 
             <DialogFooter>
               <Button type="submit" disabled={isSaving || isLoadingDetail}>

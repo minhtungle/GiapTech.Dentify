@@ -6,6 +6,7 @@ import { Input } from "@/components/ui/input"
 import { Label } from "@/components/ui/label"
 import {
   Dialog,
+  DialogBody,
   DialogContent,
   DialogHeader,
   DialogTitle,
@@ -165,7 +166,7 @@ export function AppointmentPhotosDialog({
           <DialogTitle>Ảnh lịch hẹn{patientName ? ` — ${patientName}` : ""}</DialogTitle>
         </DialogHeader>
 
-        <div className="flex flex-col gap-4">
+        <DialogBody className="flex flex-col gap-4">
           <div className="flex flex-col gap-2 sm:flex-row sm:items-end">
             <div className="grid flex-1 gap-2">
               <Label htmlFor="photoCaption">Chú thích (tuỳ chọn)</Label>
@@ -296,7 +297,7 @@ export function AppointmentPhotosDialog({
               ))}
             </div>
           )}
-        </div>
+        </DialogBody>
       </DialogContent>
 
       <Dialog open={previewPhoto !== null} onOpenChange={(open) => !open && setPreviewPhoto(null)}>
@@ -304,13 +305,15 @@ export function AppointmentPhotosDialog({
           <DialogHeader>
             <DialogTitle className="sr-only">{previewPhoto?.fileName}</DialogTitle>
           </DialogHeader>
-          {previewPhoto && (
-            <img
-              src={previewPhoto.blobUrl}
-              alt={previewPhoto.fileName}
-              className="max-h-[75vh] w-full object-contain"
-            />
-          )}
+          <DialogBody>
+            {previewPhoto && (
+              <img
+                src={previewPhoto.blobUrl}
+                alt={previewPhoto.fileName}
+                className="max-h-[75vh] w-full object-contain"
+              />
+            )}
+          </DialogBody>
         </DialogContent>
       </Dialog>
 

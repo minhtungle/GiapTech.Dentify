@@ -212,6 +212,10 @@
     "Dentify:00028": "Kích thước logo vượt quá giới hạn cho phép (tối đa 2MB).",
     "Dentify:00029": "Đang có yêu cầu khác xử lý lịch cho bác sĩ hoặc ghế này. Vui lòng thử lại.",
     "Dentify:00030": "Ngày hết hạn không được sớm hơn ngày có hiệu lực.",
+    "Dentify:00031": "Đang có yêu cầu khác xử lý cùng dữ liệu này. Vui lòng thử lại sau ít giây.",
+    "Dentify:00032": "Không thể xoá bác sĩ này vì còn lịch hẹn liên quan. Vui lòng xoá hoặc chuyển các lịch hẹn đó trước.",
+    "Dentify:00033": "Không thể xoá dịch vụ này vì còn lịch hẹn liên quan. Vui lòng xoá hoặc chuyển các lịch hẹn đó trước.",
+    "Dentify:00034": "Không thể xoá ghế này vì còn lịch hẹn liên quan. Vui lòng xoá hoặc chuyển các lịch hẹn đó trước.",
 
     "ClinicSettings": "Cài đặt phòng khám",
     "ClinicSettings:Name": "Tên phòng khám",

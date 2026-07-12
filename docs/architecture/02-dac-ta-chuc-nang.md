@@ -16,6 +16,43 @@
 - Mọi `DateTime` được ép `DateTimeKind.Utc` trước khi lưu (PostgreSQL `timestamp with
   time zone` bắt buộc UTC) — đây là quy tắc lặp lại ở mọi entity có field ngày giờ.
 
+## Quy ước UI chung (áp dụng mọi trang, không lặp lại ở từng module)
+
+- **Dialog** (`components/ui/dialog.tsx`): click ra ngoài overlay **không** tự đóng dialog
+  nữa (`onPointerDownOutside` mặc định bị chặn qua `preventDefault()`, cho phép override
+  qua props nếu 1 dialog cụ thể cần khác — tránh mất dữ liệu đang nhập dở khi lỡ tay click
+  ra ngoài). Mọi dialog form đều có cấu trúc 3 phần cố định: `DialogHeader` (tiêu đề, không
+  cuộn), `DialogBody` (nội dung, cuộn riêng nếu dài — `flex-1 overflow-y-auto`),
+  `DialogFooter` (nút hành động, không cuộn, có border-top phân tách). `DialogBody` là
+  export mới, dùng để bọc phần nội dung nằm giữa Header và Footer ở mọi dialog trong
+  codebase. **Không dùng `onInteractOutside`** để chặn outside-click (khác
+  `onPointerDownOutside`) — đã thử và gây lỗi, xem gotcha bên dưới.
+- **Cột "Hành động" trong bảng danh sách**: mọi bảng đều gộp các nút thao tác (Sửa/Xoá/
+  Khoá/...) vào 1 `DropdownMenu` (`components/ui/dropdown-menu.tsx`, icon kích hoạt
+  `MoreVertical`) thay vì dàn hàng ngang nhiều nút icon riêng lẻ — kể cả bảng chỉ có 2
+  hành động, để đồng nhất giữa mọi trang. Mục Xoá luôn ở cuối, có `DropdownMenuSeparator`
+  phân tách và class `text-destructive`.
+- **Gotcha: mở Dialog từ trong DropdownMenuItem có thể khoá `pointer-events` toàn trang.**
+  Radix Dialog và DropdownMenu đều tự khoá `pointer-events` trên `<body>` khi mở, tự gỡ khi
+  đóng — nhưng khi 1 `Dialog` được trigger từ bên trong `DropdownMenuItem.onClick` (đúng
+  pattern cột Hành động ở trên), thứ tự cleanup giữa 2 Portal không đảm bảo và có thể để
+  lại `body { pointer-events: none }` vĩnh viễn dù không còn dialog/menu nào hiển thị
+  (`radix-ui/primitives#1241`). Đã fix bằng `lib/radixBodyLockFix.ts` — 1
+  `MutationObserver` toàn cục gọi 1 lần ở `main.tsx`, tự gỡ `pointer-events: none` bất cứ
+  khi nào không còn phần tử `[role="dialog"]`/`[role="menu"]`/`[role="alertdialog"]`/
+  `[role="listbox"]` nào trong DOM. **Không sửa lại bằng `useEffect` cleanup cục bộ trong
+  `DialogContent`** — đã thử 2 cách (cleanup ngay, cleanup qua `setTimeout(0)`) và verify
+  bằng Playwright đều không đủ tin cậy vì phụ thuộc thứ tự cleanup giữa các component.
+- **Bộ lọc nhiều điều kiện**: trang có > 2 điều khiển filter (hiện là `AppointmentsPage` —
+  7 điều khiển, `ExpensesPage` — 3 điều khiển) bọc phần filter nâng cao trong
+  `Collapsible` (`components/ui/collapsible.tsx`), mặc định đóng, nút "Bộ lọc" hiện badge
+  số lượng filter đang áp dụng. Trang chỉ có 1-2 filter (Patients, Users, LabWorks, Tasks,
+  Waitlist) giữ nguyên inline, không bọc Collapsible.
+- **Nhập danh sách tự do** (tags, dị ứng, bệnh nền...): dùng `TagInput`
+  (`components/TagInput.tsx`, component dùng chung) thay vì input text tách dấu phẩy —
+  nhập Enter/dấu phẩy để chốt thành chip, gợi ý autocomplete tự xây từ dữ liệu đã có trên
+  client (không phải danh mục cố định ở backend).
+
 ---
 
 ## Patient (Bệnh nhân)
@@ -59,12 +96,20 @@
 | `UnlinkIdentityUserAsync(id)` | gỡ liên kết, không xoá `IdentityUser` |
 | `GetPatientDetailAsync(id)` | trả `PatientDetailDto`: `LastAppointmentDate`, `TotalDebt` (tổng `Price - PaidAmount` các Appointment **không** ở trạng thái Cancelled — appointment đã huỷ chưa thu tiền không tính là công nợ), `NoShowCount` (đếm Appointment status NoShow, tính trên toàn bộ Appointment không loại Cancelled) — tính từ toàn bộ Appointment của bệnh nhân, không lưu counter riêng |
 | `GetRecallListAsync(monthsThreshold)` | quét toàn hệ thống: bệnh nhân có Appointment `Completed` gần nhất quá `monthsThreshold` tháng **và** chưa có Appointment `Scheduled` nào trong tương lai. Ngưỡng mặc định 6 tháng (`PatientConsts.RecallMonthsThreshold`), hardcode ở frontend (`DashboardPage.tsx`), chưa cấu hình qua Settings |
+| `GetDuplicatesAsync(fullName, phoneNumber?, excludeId?)` | `GET /api/app/patient/duplicates` — tra cứu bệnh nhân trùng theo `FullName` (so sánh không phân biệt hoa/thường) HOẶC `PhoneNumber` khớp chính xác, loại trừ `excludeId` (dùng khi sửa để không tự báo trùng chính mình). Trả tối đa 5 bản ghi. **Không throw exception** — đây là API tra cứu hỗ trợ cảnh báo ở frontend trước khi lưu, không phải validation chặn cứng ở tầng domain, xem luồng ở `03-luong-nghiep-vu.md` |
 
 ### UI
 - **PatientsPage** (`/patients`): bảng danh sách, ô tìm kiếm theo tên/SĐT/tag, badge "Trẻ
   em" và "Dị ứng" (đỏ, nếu `allergies.length > 0`) ngay trên bảng, dialog thêm/sửa (bao
-  gồm ô nhập "Nguồn giới thiệu" text tự do, 2 ô nhập Dị ứng/Bệnh nền phân tách bằng dấu
-  phẩy), Import/Export CSV (cột "Nguồn giới thiệu" có trong cả Export lẫn Import).
+  gồm ô nhập "Nguồn giới thiệu" text tự do, 3 ô `TagInput` — component dùng chung tại
+  `components/TagInput.tsx` — cho Dị ứng/Bệnh nền/Tags: nhập tự do + Enter/dấu phẩy để
+  chốt thành chip, gợi ý autocomplete lấy từ toàn bộ giá trị đã dùng ở các bệnh nhân hiện
+  có trên client — không phải danh mục cố định từ backend), Import/Export CSV (cột "Nguồn
+  giới thiệu" có trong cả Export lẫn Import). Trước khi lưu (tạo hoặc sửa), tự động gọi
+  `GetDuplicatesAsync` theo `fullName`/`phoneNumber` đang nhập — nếu có kết quả trùng, mở
+  `ConfirmDialog` cảnh báo liệt kê các bệnh nhân trùng, chỉ lưu thật sau khi người dùng
+  xác nhận tiếp tục (không tự động chặn cứng, admin có thể cố ý tạo trùng nếu chắc chắn
+  đây là người khác).
 - **PatientDetailPage** (`/patients/:id`): header hiển thị tuổi, SĐT, badge "Còn nợ"
   (nếu > 0), badge "Không đến N lần" (nếu > 0), badge riêng cho mỗi allergy (đỏ)/medical
   condition (vàng), dòng phụ hiển thị "Biết đến qua: ..." nếu có `ReferralSource`. Góc
