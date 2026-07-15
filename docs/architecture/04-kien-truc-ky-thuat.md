@@ -356,6 +356,40 @@ nằm lồng bên trong `AuthProvider` của SPA nhân viên (vì `AuthProvider`
 />` từ `main.tsx`) nhưng 2 context hoàn toàn độc lập (khác `UserManager`, khác hook, khác
 key lưu trữ) nên không có rò rỉ trạng thái giữa 2 SPA.
 
+### Sidebar — nhóm theo chủ đề + gate theo permission thật
+
+`AppLayout.tsx`: sidebar không còn là danh sách phẳng — nhóm thành 5 `NavGroup` theo
+luồng nghiệp vụ (Tổng quan / Khám chữa bệnh / Danh mục / Tài chính & vận hành / Hệ
+thống), mỗi nhóm là 1 `Collapsible` (`components/ui/collapsible.tsx`) mặc định mở, có
+thể thu gọn (không lưu trạng thái đóng/mở vào localStorage — luôn mở lại khi tải trang).
+
+Mỗi `NavItem` có `permissionPrefix` tuỳ chọn (ví dụ `"Dentify.Appointments"`). Mục hiện
+nếu user có **ít nhất 1 permission (cha hoặc con) bắt đầu bằng prefix đó** — dùng
+`startsWith`, không so khớp đúng 1 chuỗi permission cha. Lý do: một số role chỉ được
+seed permission con mà không có permission cha (ví dụ `Doctor` chỉ có
+`Dentify.Appointments.Update`/`ManageClinicalNotes`, không có `Dentify.Appointments`
+cha — xem `ClinicRoleDataSeedContributor.cs`) — so khớp đúng chuỗi permission cha sẽ ẩn
+nhầm menu Lịch hẹn khỏi Doctor dù họ cần dùng hàng ngày. Nếu 1 nhóm không còn mục nào
+hiển thị sau khi lọc, cả nhóm bị ẩn (không hiện tiêu đề nhóm rỗng). Mục không có
+`permissionPrefix` (Trang chủ) luôn hiện — Dashboard tổng hợp nhiều nguồn, không có
+permission riêng để gate.
+
+Nguồn permission của user hiện tại: `AuthProvider.tsx` gọi
+`GET /api/abp/application-configuration` (endpoint chuẩn có sẵn của ABP qua module
+`Volo.Abp.AspNetCore.Mvc`, không cần code backend mới) ngay sau khi có `user` đăng
+nhập, lưu `auth.grantedPolicies` (dictionary tên-permission → có/không) vào context,
+expose hàm `hasPermissionPrefix(prefix)`. `frontend/src/lib/application-configuration-
+api.ts` là API client, `frontend/src/types/applicationConfiguration.ts` chỉ khai báo
+đúng field cần dùng (không khai báo đầy đủ shape response — response còn có
+`setting`/`localization`/`timing`/`features` không dùng tới). Sidebar hiện skeleton
+(`Skeleton`) cho các mục trong lúc `isPermissionsLoading`, tránh giật ẩn/hiện khi
+permission vừa tải xong.
+
+**Chỉ ẩn/hiện menu, không phải lớp bảo mật** — giữ nguyên nguyên tắc "nút luôn hiện, chỉ
+API chặn nếu thiếu quyền" áp dụng cho toàn bộ nội dung bên trong mỗi trang (không gate
+nút Xoá/Sửa theo permission con ở đợt này). Nếu user gõ thẳng URL 1 trang không có
+quyền, trang vẫn mở (route không tự chặn), chỉ API bên trong trả lỗi.
+
 ## Design system frontend (`components/ui/*.tsx`)
 
 14 file, tự viết dựa trên Radix UI primitives (không dùng CLI shadcn để generate):

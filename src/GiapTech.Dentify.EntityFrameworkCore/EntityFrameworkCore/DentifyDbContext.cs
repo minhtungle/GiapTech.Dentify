@@ -10,6 +10,7 @@ using GiapTech.Dentify.Doctors;
 using GiapTech.Dentify.Drugs;
 using GiapTech.Dentify.Expenses;
 using GiapTech.Dentify.LabWorks;
+using GiapTech.Dentify.MedicalTerms;
 using GiapTech.Dentify.Patients;
 using GiapTech.Dentify.Services;
 using GiapTech.Dentify.Supplies;
@@ -66,6 +67,7 @@ public class DentifyDbContext :
     public DbSet<Supply> Supplies { get; set; }
     public DbSet<SupplyUsage> SupplyUsages { get; set; }
     public DbSet<InsurancePolicy> InsurancePolicies { get; set; }
+    public DbSet<MedicalTerm> MedicalTerms { get; set; }
 
 
     #region Entities from the modules
@@ -220,6 +222,15 @@ public class DentifyDbContext :
 
             b.Property(x => x.Name).IsRequired().HasMaxLength(DrugConsts.MaxNameLength);
             b.Property(x => x.DefaultDosage).HasMaxLength(DrugConsts.MaxDefaultDosageLength);
+        });
+
+        builder.Entity<MedicalTerm>(b =>
+        {
+            b.ToTable(DentifyConsts.DbTablePrefix + "MedicalTerms", DentifyConsts.DbSchema);
+            b.ConfigureByConvention();
+
+            b.Property(x => x.Name).IsRequired().HasMaxLength(MedicalTermConsts.MaxNameLength);
+            b.HasIndex(x => new { x.Name, x.Category }).IsUnique();
         });
 
         builder.Entity<Chair>(b =>

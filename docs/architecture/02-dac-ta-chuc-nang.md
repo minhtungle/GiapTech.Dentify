@@ -50,8 +50,10 @@
   Waitlist) giữ nguyên inline, không bọc Collapsible.
 - **Nhập danh sách tự do** (tags, dị ứng, bệnh nền...): dùng `TagInput`
   (`components/TagInput.tsx`, component dùng chung) thay vì input text tách dấu phẩy —
-  nhập Enter/dấu phẩy để chốt thành chip, gợi ý autocomplete tự xây từ dữ liệu đã có trên
-  client (không phải danh mục cố định ở backend).
+  nhập Enter/dấu phẩy để chốt thành chip. Gợi ý autocomplete cho Dị ứng/Bệnh nền/Tags ở
+  `PatientsPage.tsx` lấy từ danh mục chuẩn quản lý được ở `/medical-catalogs` (xem mục
+  `MedicalTerm` bên dưới) — nhưng vẫn cho gõ tự do thêm giá trị ngoài danh mục, không
+  khoá cứng chỉ chọn từ danh sách.
 
 ---
 
@@ -251,12 +253,67 @@ overlap khung giờ y hệt logic `EnsureDoctorNotDoubleBookedAsync` (đổi fie
 bác sĩ **độc lập nhau** — 1 lịch hẹn trùng giờ khác ghế khác bác sĩ là hợp lệ; trùng ghế
 dù khác bác sĩ vẫn bị chặn (2 bác sĩ không thể dùng chung 1 ghế cùng lúc).
 
-### UI — resource view trên Calendar
-`AppointmentCalendar.tsx` dùng thêm `@fullcalendar/resource` +
-`@fullcalendar/resource-timegrid` — thêm view `resourceTimeGridDay` ("Theo ghế") vào
-`headerToolbar`, mỗi Chair là 1 cột resource song song, cộng thêm 1 resource ảo "Chưa xếp
-ghế" cho appointment chưa có `ChairId` (không mất event khỏi calendar). Kéo-thả sang cột
-ghế khác gọi `onEventReschedule` với `newChairId` để cập nhật `ChairId` cùng lúc đổi giờ.
+### UI — Calendar chỉ dùng view chuẩn (không có "Theo ghế")
+`AppointmentCalendar.tsx` chỉ dùng `@fullcalendar/daygrid` + `@fullcalendar/timegrid` +
+`@fullcalendar/interaction` (đều miễn phí, không cần license). Trước đây có thêm view
+`resourceTimeGridDay` ("Theo ghế", nhóm event theo cột Chair) qua 2 package **Premium**
+`@fullcalendar/resource`/`@fullcalendar/resource-timegrid` — đã gỡ ở đợt audit vì dự án
+không có `LICENSE` (không phải mã nguồn mở công khai) nên không đủ điều kiện dùng key
+miễn phí `GPL-My-Project-Is-Open-Source`, và không mua license thương mại. Hệ quả: banner
+đỏ "Your license key is invalid" (hiện thường trực ở mọi view khi có plugin Premium mà
+thiếu `schedulerLicenseKey`) cũng biến mất theo. Muốn xem lịch hẹn theo từng ghế, dùng cột
+"Ghế" ở bảng danh sách hoặc lọc theo Ghế ở khu vực Bộ lọc (`ChairId` vẫn lưu đầy đủ ở
+backend, chỉ mất kiểu view lịch riêng theo ghế ở frontend).
+
+---
+
+## MedicalTerm (Danh mục y khoa: Dị ứng / Bệnh nền / Tags)
+
+**Route**: `/medical-catalogs` — 1 trang chung, 3 tab (Dị ứng, Bệnh nền, Tags), chỉ
+Admin thấy mục nav này (permission riêng, không seed cho role nghiệp vụ nào).
+
+### Entity `MedicalTerm` (aggregate root, `FullAuditedAggregateRoot<Guid>`)
+1 bảng chung `AppMedicalTerms` cho cả 3 danh mục, phân biệt bằng cột `Category` — quyết
+định thiết kế vì cả 3 chỉ khác nhau ở ngữ cảnh dùng, giống hệt nhau về field/validate/
+AppService logic (khác với Doctor/Service/Drug — mỗi loại có field/nghiệp vụ khác nhau
+thật sự nên xứng đáng bảng riêng).
+
+| Field | Kiểu | Ghi chú |
+|---|---|---|
+| `Name` | string | bắt buộc, ≤128 |
+| `Category` | enum `MedicalTermCategory` | `Allergy=0`, `MedicalCondition=1`, `Tag=2` — không có setter public, không đổi loại sau khi tạo |
+| `IsActive` | bool | mặc định true — ngừng dùng thay xoá cứng |
+
+Unique index `(Name, Category)` — không trùng tên trong cùng 1 danh mục, nhưng cùng tên
+ở 2 category khác nhau thì được (vd "Latex" vừa là dị ứng vừa là tag, hiếm nhưng không
+cấm).
+
+### AppService (`IMedicalTermAppService`)
+`GetActiveListAsync(MedicalTermCategory category)` lọc theo category + `IsActive`. Còn
+lại (`CreateAsync`/`UpdateAsync`/`ActivateAsync`/`DeactivateAsync`/`DeleteAsync`) cùng
+khuôn `IDrugAppService`.
+
+**Xoá không có ràng buộc tham chiếu** (khác `DoctorHasAppointments`) — vì
+`Patient.Allergies`/`MedicalConditions`/`Tags` vẫn là `List<string>` tự do, không có FK
+thật tới `MedicalTerm`. Xoá 1 mục danh mục không ảnh hưởng dữ liệu bệnh nhân đã lưu.
+
+### Permission
+Nhóm `MedicalTerms` (`Default`, `Create`, `Update`, `Delete`) — **không gán cho
+Doctor/Receptionist/Accountant** trong `ClinicRoleDataSeedContributor.cs`, chỉ Admin có
+qua quyền mặc định.
+
+### Dữ liệu mẫu (seed 1 lần trong migration `AddMedicalTerms`)
+10 dị ứng thường gặp (Penicillin, Latex, Aspirin/NSAID, thuốc tê gốc -caine...), 12 bệnh
+nền thường gặp (Đái tháo đường, Cao huyết áp, Rối loạn đông máu, Đang mang thai...), 3
+tag gợi ý (VIP, Khách quen, Cần nhắc lịch). Guid cố định, `InsertData` trong `Up()`.
+
+### Quan hệ với `Patient.Allergies`/`MedicalConditions`/`Tags` — không breaking
+3 field này trên `Patient` **giữ nguyên** `List<string>` tự do, không đổi sang FK. Dữ
+liệu bệnh nhân đã nhập trước đây không đối chiếu/sửa theo danh mục mới — danh mục chỉ
+đổi **nguồn gợi ý autocomplete** của `TagInput` ở `PatientsPage.tsx` (trước đây gợi ý tự
+xây từ dữ liệu bệnh nhân hiện có qua `collectSuggestions`, nay gọi
+`medicalTermsApi.getActiveList(category)`). `TagInput` vẫn cho gõ tự do thêm giá trị
+ngoài danh mục — không khoá cứng chỉ được chọn từ danh sách.
 
 ---
 
@@ -378,10 +435,10 @@ UpdateAppointmentPhotoCaptionInput)`, `DownloadAsync(id)`, `DeleteAsync(id)`.
   (`drugsApi.getActiveList()`) tự điền `drugName`/`dosage`, hoặc chọn "Nhập tên khác" để
   gõ tự do); khi chọn bệnh nhân, hiển thị ngay cảnh báo dị ứng/bệnh nền (tra trong state
   `patients` đã tải, không gọi API riêng) và số lần no-show (gọi lười
-  `patientsApi.getDetail`). Calendar dùng FullCalendar với thêm view resource
-  `resourceTimeGridDay` ("Theo ghế", từ Đợt 3) bên cạnh `dayGridMonth`/`timeGridWeek`/
-  `timeGridDay` sẵn có — kéo-thả đổi giờ (`onEventReschedule` tự revert nếu API lỗi), kéo
-  sang cột ghế khác đổi luôn `ChairId`, màu theo `AppointmentStatus`. Import/Export CSV
+  `patientsApi.getDetail`). Calendar dùng FullCalendar chỉ 3 view miễn phí
+  `dayGridMonth`/`timeGridWeek`/`timeGridDay` (đã gỡ view Premium "Theo ghế", xem mục
+  "UI — Calendar chỉ dùng view chuẩn" ở phần Appointment bên dưới) — kéo-thả đổi giờ
+  (`onEventReschedule` tự revert nếu API lỗi), màu theo `AppointmentStatus`. Import/Export CSV
   (nút "Nhập CSV"/"Xuất CSV" cạnh "Thêm lịch hẹn") — cột export gồm cả tên hiển thị lẫn
   cột ID ẩn (`PatientId`, `DoctorId`, `ServiceId`, `ChairId`) để round-trip không nhầm khi
   2 bản ghi trùng tên; import ưu tiên đọc cột ID nếu khớp bản ghi đang tồn tại

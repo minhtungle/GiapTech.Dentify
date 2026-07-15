@@ -83,9 +83,203 @@
       trước), thêm Distributed Lock cho Patient/Supply (thiếu bảo vệ race condition),
       thêm kiểm tra FK trước khi xoá Doctor/Service/Chair, sửa `ConfirmDialog` hỗ trợ
       variant/label tuỳ chỉnh, verify toàn bộ 16 trang + luồng chính qua Playwright.
+- [x] Gỡ view Calendar "Theo ghế" (xong): phát hiện đây là tính năng FullCalendar Premium
+      chưa có license hợp lệ, gây banner cảnh báo thường trực — gỡ 2 package, chỉ giữ
+      Tháng/Tuần/Ngày (miễn phí).
+- [x] Fix race condition dữ liệu Calendar khi điều hướng nhanh (xong): thêm sequence
+      token cho `loadCalendarRange`, chặn response cũ về trễ ghi đè response mới.
+- [x] Nhóm sidebar theo chủ đề + gate menu theo permission thật (xong): 5 nhóm collapsible,
+      dùng API `application-configuration` có sẵn của ABP để ẩn/hiện mục theo đúng quyền
+      của từng role (không còn chỉ nhị phân admin/không-admin).
+- [x] Danh mục y khoa chuẩn: Dị ứng/Bệnh nền/Tags (xong): entity `MedicalTerm` (1 bảng
+      chung, cột `Category` phân biệt 3 loại), trang `/medical-catalogs` 3 tab CRUD (chỉ
+      Admin), seed 25 mục mẫu chuẩn y khoa, `PatientsPage` đổi nguồn gợi ý TagInput từ
+      danh mục chuẩn thay vì dữ liệu bệnh nhân cũ.
 - [ ] Giai đoạn 5 (tuỳ chọn): AI voice-to-note, AI scan hoá đơn
 
 ## Nhật ký
+
+### 2026-07-15 (13) — Danh mục y khoa chuẩn: Dị ứng/Bệnh nền/Tags (thêm/sửa/xoá + seed)
+
+Người dùng yêu cầu: "Các phần danh sách bệnh như dị ứng, bệnh nền, .... tạo thêm chức
+năng quản lý để thêm sửa xóa. mặc định cho 1 danh sách dữ liệu theo chuẩn y khoa". Trước
+đó 3 field `Patient.Tags`/`Allergies`/`MedicalConditions` là `List<string>` tự do, gợi ý
+autocomplete của `TagInput` chỉ lấy từ dữ liệu bệnh nhân đã nhập (không phải danh mục
+chuẩn quản lý được).
+
+Quyết định đã chốt qua AskUserQuestion trước khi lên plan:
+- Cả 3 danh mục (Dị ứng, Bệnh nền, Tags) đều cần quản lý được, không chỉ 2 mục y khoa.
+- Dữ liệu bệnh nhân cũ giữ nguyên, không đối chiếu/sửa — danh mục chỉ áp dụng cho lần
+  nhập mới trở đi.
+- Chỉ Admin được quản lý danh mục (permission riêng, không seed cho Doctor/Receptionist/
+  Accountant).
+- Gộp 3 danh mục vào 1 trang `/medical-catalogs` với 3 tab, không tạo 3 route riêng.
+- Dùng danh sách dữ liệu mẫu do Claude đề xuất (10 dị ứng, 12 bệnh nền, 3 tag).
+
+**Thiết kế**: dùng 1 bảng chung `AppMedicalTerms` (entity `MedicalTerm`) với cột
+`Category` (enum `Allergy=0`/`MedicalCondition=1`/`Tag=2`) thay vì 3 bảng riêng — vì cả 3
+chỉ khác nhau ở ngữ cảnh dùng, giống hệt về field/validate/AppService logic (khác với
+Doctor/Service/Drug — mỗi loại có nghiệp vụ khác nhau thật nên xứng đáng bảng riêng).
+Pattern CRUD học từ module `Drug` (đơn giản nhất, chỉ `Name`/`IsActive`,
+`GetActiveListAsync`). Unique index `(Name, Category)`. Xoá không có ràng buộc tham
+chiếu (khác `DoctorHasAppointments`) vì `Patient.Allergies`/... không có FK thật tới
+`MedicalTerm` — xoá tự do không ảnh hưởng dữ liệu bệnh nhân đã lưu.
+
+Migration `AddMedicalTerms` seed sẵn 25 mục qua `InsertData` (Guid cố định). Permission
+mới `Dentify.MedicalTerms` (`Default`/`Create`/`Update`/`Delete`), không gán cho role
+nghiệp vụ nào. Frontend: `MedicalCatalogsPage.tsx` (3 tab, mỗi tab 1 `MedicalTermTable`
+tham số hoá theo category), thêm route + nav (nhóm "Danh mục", permissionPrefix
+`Dentify.MedicalTerms`). `PatientsPage.tsx` đổi nguồn `suggestions` của 3 `TagInput` từ
+hàm `collectSuggestions` (dữ liệu bệnh nhân) sang gọi `medicalTermsApi.getActiveList`
+song song lúc trang load — vẫn cho gõ tự do thêm giá trị ngoài danh mục, không khoá cứng.
+
+**Lỗi gặp khi test**: 6 test `MedicalTermAppServiceTests` đều fail lúc đầu với
+`DependencyResolutionException: Cannot resolve parameter 'MedicalTermMapper'` — quên
+đăng ký `context.Services.AddSingleton<MedicalTermMapper>()` trong
+`DentifyApplicationModule.cs` (mọi Mapperly mapper trong dự án đều cần đăng ký thủ công
+kiểu này, không tự động qua `[Mapper]` attribute). Sau khi thêm dòng đăng ký, cả 153 test
+backend pass.
+
+**Lỗi khi deploy Docker**: `docker compose build backend frontend` không rebuild
+`db-migrator` (có `build:` block riêng trong `docker-compose.yml`, không phải image dùng
+chung với `backend`) — migration `AddMedicalTerms` không được áp dụng dù `db-migrator`
+container chạy "thành công". Phải `docker compose build db-migrator` riêng rồi
+`docker compose up -d db-migrator` mới thấy migration + seed data thật trong Postgres
+(xác nhận qua `psql` trực tiếp, không chỉ tin log "Successfully completed migrations").
+**Bài học cho lần sau**: khi đổi schema/migration, luôn rebuild **cả 3 image**
+(`backend`, `frontend`, `db-migrator`) — không chỉ 2 image có vẻ liên quan trực tiếp.
+
+Verify qua Playwright: đăng nhập admin → `/medical-catalogs` xác nhận đúng 10/12/3 mục
+mỗi tab, thêm+xoá 1 tag thử nghiệm thành công; `/patients` → dialog Thêm bệnh nhân gõ
+"Pen" vào Dị ứng hiện đúng gợi ý "Penicillin" từ danh mục mới (không phải danh sách cũ
+từ bệnh nhân hiện có).
+
+### 2026-07-13 (12) — Nhóm sidebar theo chủ đề + gate menu theo permission thật
+
+Người dùng yêu cầu "gom nhóm chức năng liên quan lại trong sidebar và phân quyền để dễ
+theo dõi". Khảo sát trước khi code phát hiện: (1) sidebar là danh sách phẳng 14 mục,
+không nhóm; (2) việc ẩn/hiện menu hiện tại chỉ có 1 nhánh rẽ — "có phải admin không" —
+quyết định 2 mục Người dùng/Vai trò, còn lại 14 mục nghiệp vụ hiện với MỌI tài khoản bất
+kể role, dù backend đã có sẵn hệ thống permission chi tiết (19 nhóm quyền trong
+`DentifyPermissionDefinitionProvider.cs`) mà frontend chưa hề khai thác. Hỏi người dùng
+xác nhận phạm vi — chọn làm cả nhóm sidebar THEO CHỦ ĐỀ lẫn gate theo permission thật
+(không chỉ dừng ở nhóm giao diện).
+
+Xác nhận qua đọc DLL `Volo.Abp.AspNetCore.Mvc` (module theme LeptonXLite đã depend sẵn,
+không cần thêm package): ABP có sẵn endpoint chuẩn `GET /api/abp/application-
+configuration`, trả `auth.grantedPolicies` — dictionary đầy đủ permission (cha lẫn con)
+mà user hiện tại được cấp — nhưng frontend chưa từng gọi endpoint này.
+
+**Phát hiện quan trọng cần quyết định trước khi code**: đối chiếu
+`ClinicRoleDataSeedContributor.cs`, role `Doctor` chỉ được seed permission CON
+(`Dentify.Appointments.Update`, `ManageClinicalNotes`), KHÔNG có permission CHA
+(`Dentify.Appointments.Default`). Nếu gate menu bằng cách so khớp đúng permission cha,
+Doctor sẽ mất hẳn menu Lịch hẹn dù cần dùng hàng ngày — đây là lỗi tiềm ẩn nếu áp dụng
+máy móc "gate theo permission tương ứng trang". Hỏi lại người dùng, chốt: 1 mục nav hiện
+nếu user có **bất kỳ permission nào (cha hoặc con) bắt đầu bằng prefix của nhóm đó**
+(`startsWith`, không so khớp chính xác 1 chuỗi).
+
+Nhóm sidebar theo luồng nghiệp vụ (5 nhóm, người dùng tự chọn cách chia sau khi xem 1 đề
+xuất mẫu): Tổng quan (Trang chủ, Thống kê) / Khám chữa bệnh (Bệnh nhân, Lịch hẹn, Danh
+sách chờ, Labo) / Danh mục (Bác sĩ, Dịch vụ, Danh mục thuốc, Ghế nha khoa, Vật tư) / Tài
+chính & vận hành (Chi phí, Công việc) / Hệ thống (Cài đặt, Người dùng, Vai trò & phân
+quyền). Mỗi nhóm là 1 `Collapsible` (tái dùng component có sẵn từ đợt chuẩn hoá UI trước)
+mặc định mở; nhóm không còn mục nào sau khi lọc permission thì tự ẩn cả nhóm.
+
+Thêm mới: `frontend/src/types/applicationConfiguration.ts` (type tối giản, chỉ khai báo
+`auth.grantedPolicies`), `frontend/src/lib/application-configuration-api.ts`. Sửa
+`AuthProvider.tsx`: sau khi có `user`, gọi API lưu `grantedPolicies` vào context, expose
+`hasPermissionPrefix(prefix)` + `isPermissionsLoading`. Viết lại toàn bộ
+`AppLayout.tsx`: cấu trúc `NavGroup[]` (mỗi `NavItem` có `permissionPrefix` tuỳ chọn),
+lọc theo `hasPermissionPrefix`, bọc mỗi nhóm bằng `Collapsible`, hiện `Skeleton` khi đang
+tải permission. Bỏ hẳn `adminNavItems`/`hasAdminRole`/mảng `navItems` phẳng cũ — Users/
+Roles giờ cũng gate qua permission (`AbpIdentity.Users`/`AbpIdentity.Roles`) như mọi mục
+khác, không còn nhánh rẽ hardcode tên role "admin" riêng.
+
+Verify: `tsc -b --force`/`oxlint`/`npm run build` sạch. Rebuild + redeploy Docker
+frontend, xác nhận qua nội dung file trong container. Playwright: đăng nhập
+`admin@abp.io` → xác nhận thấy đủ 5 nhóm + toàn bộ mục kể cả Người dùng/Vai trò (admin
+có mọi permission); test mobile nav dialog + toggle thu gọn 1 nhóm — hoạt động đúng,
+không lỗi console. Vì không có sẵn tài khoản test theo role Doctor/Receptionist/
+Accountant để đăng nhập thật, verify logic gate bằng cách mô phỏng lại chính xác hàm
+`hasPermissionPrefix` với đúng bộ permission đã seed cho từng role (lấy từ
+`ClinicRoleDataSeedContributor.cs`) — kết quả: Doctor chỉ thấy "Lịch hẹn", Receptionist
+thấy "Bệnh nhân/Lịch hẹn/Người dùng", Accountant thấy "Thống kê/Lịch hẹn/Chi phí" — đúng
+như kỳ vọng, nhóm rỗng tự ẩn đúng.
+
+Đã cập nhật `04-kien-truc-ky-thuat.md` (mục mới "Sidebar — nhóm theo chủ đề + gate theo
+permission thật", ngay trước mục "Design system frontend").
+
+### 2026-07-13 (11) — Fix race condition: Calendar mất lịch hẹn khi điều hướng nhanh
+
+Sau khi gỡ view "Theo ghế" (mục 10), người dùng báo tiếp: xem lịch Tháng thấy đủ 2 lịch
+hẹn cùng ngày (Nguyễn Văn A + Lê Minh Tùng, 7/7/2026) nhưng chuyển qua view Ngày chỉ thấy
+1 người. Tái hiện bằng Playwright có bắt log network thật (không đoán): bấm nút điều
+hướng (`prev`/`next`) trên toolbar Calendar liên tiếp nhanh (không đợi) — mỗi lần bấm
+kích hoạt `datesSet` → `loadCalendarRange` → gọi `appointmentsApi.getCalendarView`. Nhiều
+request bay đi gần như đồng thời cho các khoảng ngày khác nhau, response về **không đảm
+bảo đúng thứ tự gửi đi**: bắt được log thật cho thấy response của request gửi SAU (khoảng
+ngày đã rời khỏi) có thể về ĐẦU và ghi đè `calendarAppointments` bằng dữ liệu sai/rỗng,
+trong khi response đúng của khoảng ngày đang xem về sau đó, cũng bị ghi đè tiếp bởi
+response khác đến trễ hơn nữa — tất cả xảy ra vì `loadCalendarRange`
+(`AppointmentsPage.tsx`) gọi thẳng `setCalendarAppointments(result)` không kiểm tra
+response này có còn ứng với lần gọi mới nhất hay không.
+
+Sửa bằng sequence token (`calendarRequestIdRef`, một `useRef` đếm tăng dần) — mỗi lần gọi
+`loadCalendarRange` chiếm 1 số thứ tự, chỉ `setCalendarAppointments`/hiện toast lỗi nếu số
+thứ tự đó vẫn là số mới nhất tại thời điểm response về; response "chậm chân" (có request
+mới hơn đã gửi đi sau) bị bỏ qua hoàn toàn. Không dùng `AbortController` vì phải sửa thêm
+`appointmentsApi`/`api.ts` để truyền `signal` xuống `fetch` — sequence token đơn giản hơn,
+chỉ sửa đúng 1 hàm, đủ giải quyết triệt để.
+
+Verify: lặp lại đúng kịch bản đã tái hiện lỗi (bắt log network, bấm `prev` 6 lần liên tiếp
+không chờ) — response vẫn về lộn xộn y hệt trước (xác nhận race condition ở tầng network
+là có thật, không phải do code cũ), nhưng UI cuối cùng luôn khớp đúng response của request
+gửi đi sau cùng, không còn bị ghi đè bởi response cũ đến trễ. Test thêm: chuyển nhanh liên
+tục giữa 3 view Tháng/Tuần/Ngày — không lỗi console, không crash.
+
+### 2026-07-12 (10) — Gỡ view Calendar "Theo ghế" (FullCalendar Premium chưa có license)
+
+Người dùng báo "lịch theo tuần chưa đồng bộ với lịch tổng" ở `/appointments`. Kiểm tra
+trực tiếp qua Playwright (chụp ảnh thật các view Tháng/Tuần/Ngày/Theo ghế, so với tab
+Bảng) thay vì chỉ đọc code — phát hiện 2 việc:
+
+1. **Banner đỏ "Your license key is invalid. More Info"** hiện thường trực ở MỌI view
+   (kể cả Tháng/Tuần/Ngày, không chỉ view "Theo ghế") — vì `@fullcalendar/resource` +
+   `@fullcalendar/resource-timegrid` (2 package Premium của FullCalendar, dùng cho view
+   nhóm event theo cột resource/ghế) đã được đăng ký vào `plugins` toàn cục, và dự án
+   chưa cấu hình `schedulerLicenseKey`. Đây có lẽ là điều làm giao diện trông "chưa
+   chuẩn/chưa đồng bộ" nhất mà người dùng thấy.
+2. Giờ hẹn có phút lẻ (ví dụ 12:04) hiển thị gần dính vào vạch giờ tròn ở view Tuần —
+   xác nhận qua đo `getBoundingClientRect()` thật: 1 slot 30 phút chỉ cao 21px, nên lệch
+   vài phút chỉ ~3px, mắt thường khó phân biệt. **Không phải lỗi tính sai dữ liệu** — đã
+   xác nhận `end = start + durationMinutes` tính đúng. Không sửa (người dùng không yêu
+   cầu, chỉ hỏi xác nhận có phải bug không).
+
+Key miễn phí `GPL-My-Project-Is-Open-Source` của FullCalendar chỉ hợp lệ khi chính dự án
+cũng phát hành mã nguồn mở tương thích GPL — dự án này không có file `LICENSE`, là phần
+mềm quản lý nội bộ đóng, nên dùng key đó là vi phạm điều khoản dù không bị chặn kỹ thuật.
+Hỏi ý người dùng qua AskUserQuestion (gỡ view "Theo ghế" hoàn toàn / mua license thương
+mại) — chọn gỡ.
+
+Sửa `AppointmentCalendar.tsx`: bỏ import + đăng ký `resourceTimeGridPlugin`, bỏ
+`resourceTimeGridDay` khỏi `headerToolbar`/`buttonText`, bỏ biến `resources`/
+`UNASSIGNED_CHAIR_ID` và prop `chairs` (không còn cần build danh sách cột resource).
+`AppointmentsPage.tsx` bỏ theo prop `chairs` khi gọi `<AppointmentCalendar>` (biến
+`chairs` ở state trang vẫn giữ nguyên, vẫn dùng cho filter/dialog form). Gỡ 2 dependency
+`@fullcalendar/resource`/`@fullcalendar/resource-timegrid` qua `npm uninstall` (không sửa
+tay `package.json` để `package-lock.json` cập nhật đúng).
+
+Verify: `tsc -b --force`/`oxlint`/`npm run build` sạch, bundle giảm ~28KB. Rebuild +
+redeploy Docker frontend, xác nhận qua nội dung file trong container (không chỉ exit
+code, đúng bài học từ đợt audit trước — lần đầu build lỗi mạng `DeadlineExceeded` khi kéo
+`node:22-alpine` nhưng exit code báo "hoàn tất" giả vì container cũ vẫn "Running", phải
+`docker pull node:22-alpine` thủ công rồi build lại mới ra image thật). Playwright xác
+nhận: toolbar Calendar chỉ còn 3 nút Tháng/Tuần/Ngày, không còn banner license, 2 lịch
+hẹn đã biết vẫn hiện đúng vị trí trên view Tuần như trước khi gỡ.
+
+Đã cập nhật `02-dac-ta-chuc-nang.md` (mục "UI — Calendar chỉ dùng view chuẩn", 2 chỗ nhắc
+tới resource view cũ).
 
 ### 2026-07-12 (9) — Audit toàn hệ thống: ổn định, logic nghiệp vụ, lỗi thao tác, bố cục
 

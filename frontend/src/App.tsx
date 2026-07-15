@@ -19,6 +19,7 @@ import { DoctorsPage } from "@/pages/DoctorsPage"
 import { ServicesPage } from "@/pages/ServicesPage"
 import { DrugsPage } from "@/pages/DrugsPage"
 import { ChairsPage } from "@/pages/ChairsPage"
+import { MedicalCatalogsPage } from "@/pages/MedicalCatalogsPage"
 import { UsersPage } from "@/pages/UsersPage"
 import { RolesPage } from "@/pages/RolesPage"
 import { PatientPortalAuthProvider } from "@/auth/PatientPortalAuthProvider"
@@ -169,6 +170,16 @@ function App() {
             <ProtectedRoute>
               <AppLayout>
                 <ChairsPage />
+              </AppLayout>
+            </ProtectedRoute>
+          }
+        />
+        <Route
+          path="/medical-catalogs"
+          element={
+            <ProtectedRoute>
+              <AppLayout>
+                <MedicalCatalogsPage />
               </AppLayout>
             </ProtectedRoute>
           }

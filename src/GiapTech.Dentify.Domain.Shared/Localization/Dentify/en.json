@@ -76,6 +76,10 @@
     "Permission:InsurancePolicies.Update": "Edit",
     "Permission:InsurancePolicies.Delete": "Delete",
     "Permission:PatientPortal": "Patient Portal",
+    "Permission:MedicalTerms": "Medical Catalogs",
+    "Permission:MedicalTerms.Create": "Create",
+    "Permission:MedicalTerms.Update": "Edit",
+    "Permission:MedicalTerms.Delete": "Delete",
 
     "Patient": "Patient",
     "Patients": "Patients",

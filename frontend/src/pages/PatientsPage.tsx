@@ -41,6 +41,7 @@ import {
   TableRow,
 } from "@/components/ui/table"
 import { patientsApi } from "@/lib/patients-api"
+import { medicalTermsApi } from "@/lib/medical-terms-api"
 import { ApiError } from "@/lib/api"
 import { downloadCsv, parseCsvToObjects, toCsv } from "@/lib/csv"
 import { TagInput } from "@/components/TagInput"
@@ -72,16 +73,6 @@ function toDto(form: CreateUpdatePatientDto): CreateUpdatePatientDto {
   }
 }
 
-function collectSuggestions(patients: PatientDto[], pick: (p: PatientDto) => string[]): string[] {
-  const values = new Set<string>()
-  for (const patient of patients) {
-    for (const value of pick(patient)) {
-      values.add(value)
-    }
-  }
-  return Array.from(values).sort()
-}
-
 export function PatientsPage() {
   const navigate = useNavigate()
   const [patients, setPatients] = useState<PatientDto[]>([])
@@ -103,9 +94,24 @@ export function PatientsPage() {
   const [duplicateWarning, setDuplicateWarning] = useState<PatientDto[] | null>(null)
   const [isCheckingDuplicate, setIsCheckingDuplicate] = useState(false)
 
-  const tagSuggestions = collectSuggestions(patients, (p) => p.tags)
-  const allergySuggestions = collectSuggestions(patients, (p) => p.allergies)
-  const medicalConditionSuggestions = collectSuggestions(patients, (p) => p.medicalConditions)
+  const [tagSuggestions, setTagSuggestions] = useState<string[]>([])
+  const [allergySuggestions, setAllergySuggestions] = useState<string[]>([])
+  const [medicalConditionSuggestions, setMedicalConditionSuggestions] = useState<string[]>([])
+
+  const loadMedicalTermSuggestions = async () => {
+    try {
+      const [tags, allergies, medicalConditions] = await Promise.all([
+        medicalTermsApi.getActiveList("Tag"),
+        medicalTermsApi.getActiveList("Allergy"),
+        medicalTermsApi.getActiveList("MedicalCondition"),
+      ])
+      setTagSuggestions(tags.map((t) => t.name))
+      setAllergySuggestions(allergies.map((t) => t.name))
+      setMedicalConditionSuggestions(medicalConditions.map((t) => t.name))
+    } catch {
+      // Không chặn thao tác chính nếu tải danh mục gợi ý lỗi — TagInput vẫn cho gõ tự do.
+    }
+  }
 
   const loadPatients = async () => {
     setIsLoading(true)
@@ -125,6 +131,7 @@ export function PatientsPage() {
 
   useEffect(() => {
     void loadPatients()
+    void loadMedicalTermSuggestions()
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [])
 

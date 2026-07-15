@@ -2,16 +2,12 @@ import { useMemo, useRef } from "react"
 import FullCalendar from "@fullcalendar/react"
 import dayGridPlugin from "@fullcalendar/daygrid"
 import timeGridPlugin from "@fullcalendar/timegrid"
-import resourceTimeGridPlugin from "@fullcalendar/resource-timegrid"
 import interactionPlugin from "@fullcalendar/interaction"
 import viLocale from "@fullcalendar/core/locales/vi"
 import type { EventDropArg, EventInput } from "@fullcalendar/core"
 import type { AppointmentDto } from "@/types/appointment"
 import { APPOINTMENT_STATUS_LABELS_VI, AppointmentStatus } from "@/types/appointment"
-import type { ChairDto } from "@/types/chair"
 import { formatCurrency } from "@/lib/utils"
-
-const UNASSIGNED_CHAIR_ID = "unassigned"
 
 const STATUS_COLOR: Record<AppointmentStatus, string> = {
   [AppointmentStatus.Scheduled]: "#0ea5e9",
@@ -23,7 +19,6 @@ const STATUS_COLOR: Record<AppointmentStatus, string> = {
 
 interface AppointmentCalendarProps {
   appointments: AppointmentDto[]
-  chairs: ChairDto[]
   onDateRangeChange: (fromDate: string, toDate: string) => void
   onEventClick: (appointmentId: string) => void
   onEventReschedule: (
@@ -36,21 +31,12 @@ interface AppointmentCalendarProps {
 
 export function AppointmentCalendar({
   appointments,
-  chairs,
   onDateRangeChange,
   onEventClick,
   onEventReschedule,
   onSelectSlot,
 }: AppointmentCalendarProps) {
   const calendarRef = useRef<FullCalendar>(null)
-
-  const resources = useMemo(
-    () => [
-      ...chairs.map((chair) => ({ id: chair.id, title: chair.name })),
-      { id: UNASSIGNED_CHAIR_ID, title: "Chưa xếp ghế" },
-    ],
-    [chairs],
-  )
 
   const events: EventInput[] = useMemo(
     () =>
@@ -62,7 +48,6 @@ export function AppointmentCalendar({
           title: a.patientFullName,
           start: start.toISOString(),
           end: end.toISOString(),
-          resourceId: a.chairId ?? UNASSIGNED_CHAIR_ID,
           backgroundColor: STATUS_COLOR[a.status],
           borderColor: STATUS_COLOR[a.status],
           extendedProps: { appointment: a },
@@ -75,14 +60,8 @@ export function AppointmentCalendar({
     const appointmentId = arg.event.id
     const newStart = arg.event.start
     if (!newStart) return
-    const newResourceId = arg.newResource?.id
-    const newChairId = newResourceId === undefined
-      ? undefined
-      : newResourceId === UNASSIGNED_CHAIR_ID
-        ? null
-        : newResourceId
     try {
-      await onEventReschedule(appointmentId, newStart.toISOString(), newChairId)
+      await onEventReschedule(appointmentId, newStart.toISOString(), undefined)
     } catch {
       arg.revert()
     }
@@ -92,23 +71,21 @@ export function AppointmentCalendar({
     <div className="notion-calendar rounded-lg border bg-card p-3">
       <FullCalendar
         ref={calendarRef}
-        plugins={[dayGridPlugin, timeGridPlugin, resourceTimeGridPlugin, interactionPlugin]}
+        plugins={[dayGridPlugin, timeGridPlugin, interactionPlugin]}
         initialView="dayGridMonth"
         headerToolbar={{
           left: "prev,next today",
           center: "title",
-          right: "dayGridMonth,timeGridWeek,timeGridDay,resourceTimeGridDay",
+          right: "dayGridMonth,timeGridWeek,timeGridDay",
         }}
         buttonText={{
           today: "Hôm nay",
           month: "Tháng",
           week: "Tuần",
           day: "Ngày",
-          resourceTimeGridDay: "Theo ghế",
         }}
         locale={viLocale}
         height="auto"
-        resources={resources}
         events={events}
         editable
         selectable

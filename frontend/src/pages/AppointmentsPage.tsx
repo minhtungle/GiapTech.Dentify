@@ -174,6 +174,7 @@ export function AppointmentsPage() {
   const [isDeleting, setIsDeleting] = useState(false)
 
   const [calendarAppointments, setCalendarAppointments] = useState<AppointmentDto[]>([])
+  const calendarRequestIdRef = useRef(0)
 
   const [isImporting, setIsImporting] = useState(false)
   const importInputRef = useRef<HTMLInputElement>(null)
@@ -261,10 +262,17 @@ export function AppointmentsPage() {
   }, [])
 
   const loadCalendarRange = async (fromDate: string, toDate: string) => {
+    // Điều hướng nhanh (bấm prev/next liên tiếp) gửi nhiều request chồng nhau — response
+    // không đảm bảo về đúng thứ tự gửi đi, nên response của 1 khoảng ngày đã rời khỏi có
+    // thể về sau và ghi đè dữ liệu đúng của request mới nhất. Chỉ áp dụng response nếu nó
+    // vẫn là request mới nhất tại thời điểm về.
+    const requestId = ++calendarRequestIdRef.current
     try {
       const result = await appointmentsApi.getCalendarView(fromDate, toDate)
+      if (requestId !== calendarRequestIdRef.current) return
       setCalendarAppointments(result)
     } catch (err) {
+      if (requestId !== calendarRequestIdRef.current) return
       toast.error(err instanceof ApiError ? err.message : "Không tải được lịch hẹn")
     }
   }
@@ -888,7 +896,6 @@ export function AppointmentsPage() {
         <TabsContent value="calendar">
           <AppointmentCalendar
             appointments={calendarAppointments}
-            chairs={chairs}
             onDateRangeChange={(fromDate, toDate) => void loadCalendarRange(fromDate, toDate)}
             onEventClick={(id) => void openEditDialogById(id)}
             onEventReschedule={handleEventReschedule}

@@ -146,4 +146,12 @@ public static class DentifyPermissions
     {
         public const string Default = GroupName + ".PatientPortal";
     }
+
+    public static class MedicalTerms
+    {
+        public const string Default = GroupName + ".MedicalTerms";
+        public const string Create = Default + ".Create";
+        public const string Update = Default + ".Update";
+        public const string Delete = Default + ".Delete";
+    }
 }

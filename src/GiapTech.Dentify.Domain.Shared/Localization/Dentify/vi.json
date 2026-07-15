@@ -76,6 +76,10 @@
     "Permission:InsurancePolicies.Update": "Sửa",
     "Permission:InsurancePolicies.Delete": "Xoá",
     "Permission:PatientPortal": "Cổng bệnh nhân",
+    "Permission:MedicalTerms": "Danh mục y khoa",
+    "Permission:MedicalTerms.Create": "Tạo mới",
+    "Permission:MedicalTerms.Update": "Sửa",
+    "Permission:MedicalTerms.Delete": "Xoá",
 
     "Patient": "Bệnh nhân",
     "Patients": "Bệnh nhân",

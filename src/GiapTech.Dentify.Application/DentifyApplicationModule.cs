@@ -5,6 +5,7 @@ using GiapTech.Dentify.Application.Doctors;
 using GiapTech.Dentify.Application.Drugs;
 using GiapTech.Dentify.Application.Expenses;
 using GiapTech.Dentify.Application.LabWorks;
+using GiapTech.Dentify.Application.MedicalTerms;
 using GiapTech.Dentify.Application.Patients;
 using GiapTech.Dentify.Application.Services;
 using GiapTech.Dentify.Application.Supplies;
@@ -55,6 +56,7 @@ public class DentifyApplicationModule : AbpModule
         context.Services.AddSingleton<TreatmentPlanMapper>();
         context.Services.AddSingleton<SupplyMapper>();
         context.Services.AddSingleton<InsurancePolicyMapper>();
+        context.Services.AddSingleton<MedicalTermMapper>();
 
         var configuration = context.Services.GetConfiguration();
         var connectionString = configuration.GetConnectionString("Default")

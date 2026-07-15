@@ -23,6 +23,8 @@ services:
       ConnectionStrings__Default: "Host=postgres;Port=5432;Database=${POSTGRES_DB:-Dentify};Username=${POSTGRES_USER:-dentify};Password=${POSTGRES_PASSWORD:-dentify}"
       OpenIddict__Applications__Dentify_App__ClientId: Dentify_App
       OpenIddict__Applications__Dentify_App__RootUrl: ${CLIENT_URL:-http://localhost:5173}
+      OpenIddict__Applications__Dentify_PatientPortal__ClientId: Dentify_PatientPortal
+      OpenIddict__Applications__Dentify_PatientPortal__RootUrl: "${CLIENT_URL:-http://localhost:5173}/portal"
       OpenIddict__Applications__Dentify_Swagger__ClientId: Dentify_Swagger
       OpenIddict__Applications__Dentify_Swagger__RootUrl: "${SELF_URL:-http://localhost:44348}/"
     depends_on:

@@ -96,6 +96,11 @@ public class DentifyPermissionDefinitionProvider : PermissionDefinitionProvider
         insurancePolicies.AddChild(DentifyPermissions.InsurancePolicies.Delete, L("Permission:InsurancePolicies.Delete"));
 
         myGroup.AddPermission(DentifyPermissions.PatientPortal.Default, L("Permission:PatientPortal"));
+
+        var medicalTerms = myGroup.AddPermission(DentifyPermissions.MedicalTerms.Default, L("Permission:MedicalTerms"));
+        medicalTerms.AddChild(DentifyPermissions.MedicalTerms.Create, L("Permission:MedicalTerms.Create"));
+        medicalTerms.AddChild(DentifyPermissions.MedicalTerms.Update, L("Permission:MedicalTerms.Update"));
+        medicalTerms.AddChild(DentifyPermissions.MedicalTerms.Delete, L("Permission:MedicalTerms.Delete"));
     }
 
     private static LocalizableString L(string name)
