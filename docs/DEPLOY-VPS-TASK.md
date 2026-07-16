@@ -18,8 +18,9 @@
   hướng dẫn dưới đây.
 - Vì Nginx đã chiếm port 80/443 sẵn cho các site khác, **quyết định dùng Nginx có sẵn làm
   reverse proxy** (không cài Caddy song song — tránh xung đột port 443).
-- Mật khẩu Postgres đã tạo sẵn cho lần deploy này:
-  `4fOEAawoR7s2VJ3QptZ2sDDa68VHx08F` (lưu vào password manager sau khi dùng xong).
+- Mật khẩu Postgres cho lần deploy này đã được tạo và điền trực tiếp vào file `.env`
+  trên VPS (không ghi lại giá trị thật ở đây — xem `.env` trên VPS, và lưu vào password
+  manager riêng, không lưu trong tài liệu commit vào git).
 
 ## Việc cần làm — theo đúng thứ tự
 
@@ -95,7 +96,7 @@ Sửa `.env` thành:
 ```
 POSTGRES_DB=Dentify
 POSTGRES_USER=dentify
-POSTGRES_PASSWORD=4fOEAawoR7s2VJ3QptZ2sDDa68VHx08F
+POSTGRES_PASSWORD=<đã đặt sẵn trong .env hiện có trên VPS — không đổi nếu đã deploy trước đó>
 SELF_URL=https://api.dentify.io.vn
 CLIENT_URL=https://nhakhoamanhtien.dentify.io.vn
 ```
