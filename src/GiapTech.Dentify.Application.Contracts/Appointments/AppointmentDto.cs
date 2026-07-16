@@ -1,4 +1,5 @@
 using System;
+using System.Collections.Generic;
 using GiapTech.Dentify.Appointments;
 using Volo.Abp.Application.Dtos;
 
@@ -10,12 +11,19 @@ public class AppointmentDto : FullAuditedEntityDto<Guid>
     public string PatientFullName { get; set; } = string.Empty;
     public Guid? DoctorId { get; set; }
     public string? DoctorName { get; set; }
+    public Guid? ServiceId { get; set; }
+    public string? ServiceName { get; set; }
+    public Guid? ChairId { get; set; }
+    public string? ChairName { get; set; }
     public DateTime ScheduledDateTime { get; set; }
+    public int DurationMinutes { get; set; }
     public AppointmentStatus Status { get; set; }
     public string? PreOpNotes { get; set; }
     public string? PostOpNotes { get; set; }
-    public string? Prescription { get; set; }
     public decimal Price { get; set; }
     public decimal PaidAmount { get; set; }
     public PaymentStatus PaymentStatus { get; set; }
+    public DateTime? ReminderSentAt { get; set; }
+    public List<PrescriptionItemDto> PrescriptionItems { get; set; } = new();
+    public List<PaymentDto> Payments { get; set; } = new();
 }

@@ -38,6 +38,9 @@ using OpenIddict.Validation.AspNetCore;
 using Volo.Abp.TenantManagement.Web;
 using System;
 using System.Security.Cryptography.X509Certificates;
+using System.Threading.Tasks;
+using GiapTech.Dentify.Application.Appointments;
+using Volo.Abp.BackgroundWorkers;
 using Microsoft.AspNetCore.Authentication;
 using Microsoft.AspNetCore.Extensions.DependencyInjection;
 using Volo.Abp.Account.Web;
@@ -341,5 +344,10 @@ public class DentifyWebModule : AbpModule
         app.UseAuditing();
         app.UseAbpSerilogEnrichers();
         app.UseConfiguredEndpoints();
+    }
+
+    public override async Task OnPostApplicationInitializationAsync(ApplicationInitializationContext context)
+    {
+        await context.AddBackgroundWorkerAsync<AppointmentReminderWorker>();
     }
 }

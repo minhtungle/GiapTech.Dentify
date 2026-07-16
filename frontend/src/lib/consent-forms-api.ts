@@ -1,0 +1,73 @@
+import { userManager } from "@/auth/userManager"
+import { ApiError } from "@/lib/api"
+import type { ConsentFormDto } from "@/types/consentForm"
+
+const API_URL = import.meta.env.VITE_API_URL as string
+const BASE = "/api/app/consent-form"
+
+async function authHeaders(): Promise<HeadersInit> {
+  const user = await userManager.getUser()
+  return user?.access_token ? { Authorization: `Bearer ${user.access_token}` } : {}
+}
+
+async function throwIfError(response: Response): Promise<void> {
+  if (response.ok) return
+  let details: unknown
+  try {
+    details = await response.json()
+  } catch {
+    // no JSON body
+  }
+  const message =
+    (details as { error?: { message?: string } })?.error?.message ??
+    `Request failed with status ${response.status}`
+  throw new ApiError(message, response.status, details)
+}
+
+export const consentFormsApi = {
+  getList: async (appointmentId: string): Promise<ConsentFormDto[]> => {
+    const response = await fetch(`${API_URL}${BASE}?appointmentId=${appointmentId}`, {
+      headers: await authHeaders(),
+    })
+    await throwIfError(response)
+    return (await response.json()) as ConsentFormDto[]
+  },
+
+  upload: async (
+    appointmentId: string,
+    formTitle: string,
+    signedAt: string,
+    file: File,
+  ): Promise<ConsentFormDto> => {
+    const formData = new FormData()
+    formData.append("formTitle", formTitle)
+    formData.append("signedAt", signedAt)
+    formData.append("file", file)
+
+    const response = await fetch(`${API_URL}${BASE}/upload/${appointmentId}`, {
+      method: "POST",
+      headers: await authHeaders(),
+      body: formData,
+    })
+    await throwIfError(response)
+    return (await response.json()) as ConsentFormDto
+  },
+
+  getDownloadBlobUrl: async (id: string): Promise<string> => {
+    const response = await fetch(`${API_URL}${BASE}/${id}/download`, {
+      method: "POST",
+      headers: await authHeaders(),
+    })
+    await throwIfError(response)
+    const blob = await response.blob()
+    return URL.createObjectURL(blob)
+  },
+
+  delete: async (id: string): Promise<void> => {
+    const response = await fetch(`${API_URL}${BASE}/${id}`, {
+      method: "DELETE",
+      headers: await authHeaders(),
+    })
+    await throwIfError(response)
+  },
+}

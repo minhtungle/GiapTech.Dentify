@@ -1,4 +1,5 @@
 using System;
+using System.Collections.Generic;
 using System.Threading.Tasks;
 using Volo.Abp.Application.Dtos;
 using Volo.Abp.Application.Services;
@@ -18,4 +19,12 @@ public interface IPatientAppService : IApplicationService
     Task DeleteAsync(Guid id);
 
     Task<PatientDetailDto> GetPatientDetailAsync(Guid id);
+
+    Task<List<RecallPatientDto>> GetRecallListAsync(int monthsThreshold);
+
+    Task<PatientDto> LinkIdentityUserAsync(Guid id, LinkPatientIdentityUserDto input);
+
+    Task<PatientDto> UnlinkIdentityUserAsync(Guid id);
+
+    Task<List<PatientDto>> GetDuplicatesAsync(string fullName, string? phoneNumber = null, Guid? excludeId = null);
 }

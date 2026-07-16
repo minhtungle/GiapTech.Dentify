@@ -4,12 +4,18 @@ import './index.css'
 import App from './App.tsx'
 import { AuthProvider } from '@/auth/AuthProvider'
 import { Toaster } from '@/components/ui/sonner'
+import { TooltipProvider } from '@/components/ui/tooltip'
+import { installRadixBodyLockFix } from '@/lib/radixBodyLockFix'
+
+installRadixBodyLockFix()
 
 createRoot(document.getElementById('root')!).render(
   <StrictMode>
     <AuthProvider>
-      <App />
-      <Toaster />
+      <TooltipProvider>
+        <App />
+        <Toaster />
+      </TooltipProvider>
     </AuthProvider>
   </StrictMode>,
 )
